@@ -31,7 +31,7 @@ const cAddPopupToSinkWithin = (sinkName: string, elem: SugarElement): NamedChain
 const cAddPopupToSinkWithinBounds = (sinkName: string, bounds: Bounds): NamedChain => NamedChain.bundle((data) => {
   const sink = data[sinkName];
   const optBounds = Optional.some(bounds);
-  const positioner = () => Positioning.positionWithinBounds(sink, data.anchor, data.popup, optBounds);
+  const positioner = () => Positioning.positionWithinBounds(sink, data.popup, { anchor: data.anchor }, optBounds);
   return cAddPopupToSinkCommon(data, sink, positioner);
 });
 

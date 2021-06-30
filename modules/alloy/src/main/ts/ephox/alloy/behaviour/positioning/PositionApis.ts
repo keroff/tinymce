@@ -8,10 +8,10 @@ import * as AriaFocus from '../../aria/AriaFocus';
 import * as Anchor from '../../positioning/layout/Anchor';
 import * as Origins from '../../positioning/layout/Origins';
 import * as SimpleLayout from '../../positioning/layout/SimpleLayout';
-import { AnchorDetail, Anchoring, AnchorSpec } from '../../positioning/mode/Anchoring';
-import AnchorSchema from '../../positioning/mode/AnchorSchema';
+import { Anchoring } from '../../positioning/mode/Anchoring';
 import { Stateless } from '../common/BehaviourState';
-import { PositioningConfig } from './PositioningTypes';
+import { PlacementDetail, PlacementSpec, PositioningConfig } from './PositioningTypes';
+import { PlacementSchema } from './PositionSchema';
 
 const getFixedOrigin = (): Origins.OriginAdt => {
   // Don't use window.innerWidth/innerHeight here, as we don't want to include scrollbars
@@ -34,17 +34,18 @@ const place = (component: AlloyComponent, origin: Origins.OriginAdt, anchoring: 
   SimpleLayout.simple(anchor, placee.element, anchoring.bubble, anchoring.layouts, getBounds, anchoring.overrides);
 };
 
-const position = (component: AlloyComponent, posConfig: PositioningConfig, posState: Stateless, anchor: AnchorSpec, placee: AlloyComponent): void => {
-  positionWithin(component, posConfig, posState, anchor, placee, Optional.none());
+const position = (component: AlloyComponent, posConfig: PositioningConfig, posState: Stateless, placee: AlloyComponent, placementSpec: PlacementSpec): void => {
+  positionWithin(component, posConfig, posState, placee, placementSpec, Optional.none());
 };
 
-const positionWithin = (component: AlloyComponent, posConfig: PositioningConfig, posState: Stateless, anchor: AnchorSpec, placee: AlloyComponent, boxElement: Optional<SugarElement>): void => {
+const positionWithin = (component: AlloyComponent, posConfig: PositioningConfig, posState: Stateless, placee: AlloyComponent, placementSpec: PlacementSpec, boxElement: Optional<SugarElement>): void => {
   const boundsBox = boxElement.map(box);
-  return positionWithinBounds(component, posConfig, posState, anchor, placee, boundsBox);
+  return positionWithinBounds(component, posConfig, posState, placee, placementSpec, boundsBox);
 };
 
-const positionWithinBounds = (component: AlloyComponent, posConfig: PositioningConfig, posState: Stateless, anchor: AnchorSpec, placee: AlloyComponent, bounds: Optional<Bounds>): void => {
-  const anchorage: AnchorDetail<any> = StructureSchema.asRawOrDie('positioning anchor.info', AnchorSchema, anchor);
+const positionWithinBounds = (component: AlloyComponent, posConfig: PositioningConfig, posState: Stateless, placee: AlloyComponent, placementSpec: PlacementSpec, bounds: Optional<Bounds>): void => {
+  const placeeDetail: PlacementDetail = StructureSchema.asRawOrDie('placement info', StructureSchema.objOf(PlacementSchema), placementSpec);
+  const anchorage = placeeDetail.anchor;
 
   // Preserve the focus as IE 11 loses it when setting visibility to hidden
   AriaFocus.preserve(() => {

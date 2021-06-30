@@ -202,7 +202,7 @@ const register = (editor: Editor, registryContextToolbars: Record<string, Contex
 
     const contextBarEle = contextbar.element;
     Css.remove(contextBarEle, 'display');
-    InlineView.showWithinBounds(contextbar, anchor, wrapInPopDialog(toolbarSpec), () => Optional.some(getBounds()));
+    InlineView.showWithinBounds(contextbar, wrapInPopDialog(toolbarSpec), { anchor }, () => Optional.some(getBounds()));
 
     // IMPORTANT: This must be stored after the initial render, otherwise the lookup of the last element in the
     // anchor placement will be incorrect as it'll reuse the new element as the anchor point.

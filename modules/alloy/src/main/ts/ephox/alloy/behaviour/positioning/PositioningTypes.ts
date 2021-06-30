@@ -4,13 +4,21 @@ import { SugarElement } from '@ephox/sugar';
 import { Bounds } from '../../alien/Boxes';
 import * as Behaviour from '../../api/behaviour/Behaviour';
 import { AlloyComponent } from '../../api/component/ComponentApi';
-import { AnchorSpec } from '../../positioning/mode/Anchoring';
+import { AnchorDetail, AnchorSpec } from '../../positioning/mode/Anchoring';
+
+export interface PlacementSpec {
+  readonly anchor: AnchorSpec;
+}
+
+export interface PlacementDetail {
+  readonly anchor: AnchorDetail<any>;
+}
 
 export interface PositioningBehaviour extends Behaviour.AlloyBehaviour<PositioningConfigSpec, PositioningConfig> {
   config: (config: PositioningConfigSpec) => Behaviour.NamedConfiguredBehaviour<PositioningConfigSpec, PositioningConfig>;
-  position: (component: AlloyComponent, anchor: AnchorSpec, placee: AlloyComponent) => void;
-  positionWithin: (component: AlloyComponent, anchor: AnchorSpec, placee: AlloyComponent, boxElement: Optional<SugarElement>) => void;
-  positionWithinBounds: (component: AlloyComponent, anchor: AnchorSpec, placee: AlloyComponent, bounds: Optional<Bounds>) => void;
+  position: (component: AlloyComponent, placee: AlloyComponent, spec: PlacementSpec) => void;
+  positionWithin: (component: AlloyComponent, placee: AlloyComponent, spec: PlacementSpec, boxElement: Optional<SugarElement>) => void;
+  positionWithinBounds: (component: AlloyComponent, placee: AlloyComponent, spec: PlacementSpec, bounds: Optional<Bounds>) => void;
   getMode: (component: AlloyComponent) => string;
 }
 

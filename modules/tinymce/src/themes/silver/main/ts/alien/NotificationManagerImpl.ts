@@ -16,8 +16,12 @@ import Delay from 'tinymce/core/api/util/Delay';
 import { UiFactoryBackstage } from '../backstage/Backstage';
 import { Notification } from '../ui/general/Notification';
 
-export default (editor: Editor, extras, uiMothership: Gui.GuiSystem): NotificationManagerImpl => {
-  const backstage: UiFactoryBackstage = extras.backstage;
+interface Extras {
+  readonly backstage: UiFactoryBackstage;
+}
+
+export default (editor: Editor, extras: Extras, uiMothership: Gui.GuiSystem): NotificationManagerImpl => {
+  const backstage = extras.backstage;
 
   const getLayoutDirection = (rel: 'tc-tc' | 'bc-bc' | 'bc-tc' | 'tc-bc') => {
     switch (rel) {
@@ -82,7 +86,7 @@ export default (editor: Editor, extras, uiMothership: Gui.GuiSystem): Notificati
           tag: 'div',
           classes: [ 'tox-notifications-container' ]
         },
-        lazySink: extras.backstage.shared.getSink,
+        lazySink: backstage.shared.getSink,
         fireDismissalEventInstead: { },
         ...backstage.shared.header.isPositionedAtTop() ? { } : { fireRepositionEventInstead: { }}
       })
@@ -99,17 +103,19 @@ export default (editor: Editor, extras, uiMothership: Gui.GuiSystem): Notificati
     return {
       close,
       moveTo: (x: number, y: number) => {
-        InlineView.showAt(notificationWrapper, {
-          anchor: 'makeshift',
-          x,
-          y
-        }, GuiFactory.premade(notification));
+        InlineView.showAt(notificationWrapper, GuiFactory.premade(notification), {
+          anchor: {
+            type: 'makeshift',
+            x,
+            y
+          }
+        });
       },
       moveRel: (element: Element, rel: 'tc-tc' | 'bc-bc' | 'bc-tc' | 'tc-bc' | 'banner') => {
         if (rel !== 'banner') {
           const layoutDirection = getLayoutDirection(rel);
           const nodeAnchor: NodeAnchorSpec = {
-            anchor: 'node',
+            type: 'node',
             root: SugarBody.body(),
             node: Optional.some(SugarElement.fromDom(element)),
             layouts: {
@@ -117,9 +123,9 @@ export default (editor: Editor, extras, uiMothership: Gui.GuiSystem): Notificati
               onLtr: () => [ layoutDirection ]
             }
           };
-          InlineView.showAt(notificationWrapper, nodeAnchor, GuiFactory.premade(notification));
+          InlineView.showAt(notificationWrapper, GuiFactory.premade(notification), { anchor: nodeAnchor });
         } else {
-          InlineView.showAt(notificationWrapper, extras.backstage.shared.anchors.banner(), GuiFactory.premade(notification));
+          InlineView.showAt(notificationWrapper, GuiFactory.premade(notification), { anchor: backstage.shared.anchors.banner() });
         }
       },
       text: (nuText: string) => {
