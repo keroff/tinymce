@@ -1,6 +1,7 @@
 import { StructureSchema } from '@ephox/boulder';
 import { Fun, Optional, Optionals } from '@ephox/katamari';
 import { Css, SugarElement, SugarLocation } from '@ephox/sugar';
+import { Transition } from 'src/main/ts/ephox/alloy/positioning/view/PositionCss';
 
 import { Bounds, box } from '../../alien/Boxes';
 import { AlloyComponent } from '../../api/component/ComponentApi';
@@ -29,9 +30,9 @@ const getRelativeOrigin = (component: AlloyComponent): Origins.OriginAdt => {
   return Origins.relative(position.left, position.top, bounds.width, bounds.height);
 };
 
-const place = (component: AlloyComponent, origin: Origins.OriginAdt, anchoring: Anchoring, getBounds: Optional<() => Bounds>, placee: AlloyComponent): void => {
+const place = (component: AlloyComponent, origin: Origins.OriginAdt, anchoring: Anchoring, getBounds: Optional<() => Bounds>, placee: AlloyComponent, transition: Optional<Transition>): void => {
   const anchor = Anchor.box(anchoring.anchorBox, origin);
-  SimpleLayout.simple(anchor, placee.element, anchoring.bubble, anchoring.layouts, getBounds, anchoring.overrides);
+  SimpleLayout.simple(anchor, placee.element, anchoring.bubble, anchoring.layouts, getBounds, anchoring.overrides, transition);
 };
 
 const position = (component: AlloyComponent, posConfig: PositioningConfig, posState: Stateless, placee: AlloyComponent, placementSpec: PlacementSpec): void => {
@@ -46,15 +47,16 @@ const positionWithin = (component: AlloyComponent, posConfig: PositioningConfig,
 const positionWithinBounds = (component: AlloyComponent, posConfig: PositioningConfig, posState: Stateless, placee: AlloyComponent, placementSpec: PlacementSpec, bounds: Optional<Bounds>): void => {
   const placeeDetail: PlacementDetail = StructureSchema.asRawOrDie('placement info', StructureSchema.objOf(PlacementSchema), placementSpec);
   const anchorage = placeeDetail.anchor;
+  const element = placee.element;
 
   // Preserve the focus as IE 11 loses it when setting visibility to hidden
   AriaFocus.preserve(() => {
     // We set it to be fixed, so that it doesn't interfere with the layout of anything
     // when calculating anchors
-    Css.set(placee.element, 'position', 'fixed');
+    Css.set(element, 'position', 'fixed');
 
-    const oldVisibility = Css.getRaw(placee.element, 'visibility');
-    Css.set(placee.element, 'visibility', 'hidden');
+    const oldVisibility = Css.getRaw(element, 'visibility');
+    Css.set(element, 'visibility', 'hidden');
 
     // We need to calculate the origin (esp. the bounding client rect) *after* we have done
     // all the preprocessing of the component and placee. Otherwise, the relative positions
@@ -67,26 +69,26 @@ const positionWithinBounds = (component: AlloyComponent, posConfig: PositioningC
 
     placer(component, anchorage, origin).each((anchoring) => {
       const doPlace = anchoring.placer.getOr(place);
-      doPlace(component, origin, anchoring, getBounds, placee);
+      doPlace(component, origin, anchoring, getBounds, placee, placeeDetail.transition);
     });
 
     oldVisibility.fold(() => {
-      Css.remove(placee.element, 'visibility');
+      Css.remove(element, 'visibility');
     }, (vis) => {
-      Css.set(placee.element, 'visibility', vis);
+      Css.set(element, 'visibility', vis);
     });
 
     // We need to remove position: fixed put on by above code if it is not needed.
     if (
-      Css.getRaw(placee.element, 'left').isNone() &&
-      Css.getRaw(placee.element, 'top').isNone() &&
-      Css.getRaw(placee.element, 'right').isNone() &&
-      Css.getRaw(placee.element, 'bottom').isNone() &&
-      Optionals.is(Css.getRaw(placee.element, 'position'), 'fixed')
+      Css.getRaw(element, 'left').isNone() &&
+      Css.getRaw(element, 'top').isNone() &&
+      Css.getRaw(element, 'right').isNone() &&
+      Css.getRaw(element, 'bottom').isNone() &&
+      Optionals.is(Css.getRaw(element, 'position'), 'fixed')
     ) {
-      Css.remove(placee.element, 'position');
+      Css.remove(element, 'position');
     }
-  }, placee.element);
+  }, element);
 };
 
 const getMode = (component: AlloyComponent, pConfig: PositioningConfig, _pState: Stateless): string => pConfig.useFixed() ? 'fixed' : 'absolute';

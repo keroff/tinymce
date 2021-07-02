@@ -4,6 +4,7 @@ import { SugarElement } from '@ephox/sugar';
 import { Bounds } from '../../alien/Boxes';
 import { AnchorOverrides, MaxHeightFunction, MaxWidthFunction } from '../mode/Anchoring';
 import * as Callouts from '../view/Callouts';
+import { Transition } from '../view/PositionCss';
 import { Anchor } from './Anchor';
 import { Bubble } from './Bubble';
 import * as LayoutTypes from './LayoutTypes';
@@ -16,12 +17,13 @@ export interface ReparteeOptions {
   readonly preference: LayoutTypes.AnchorLayout[];
   readonly maxHeightFunction: MaxHeightFunction;
   readonly maxWidthFunction: MaxWidthFunction;
+  readonly transition: Optional<Transition>;
 }
 
 const defaultOr = <K extends keyof AnchorOverrides>(options: AnchorOverrides, key: K, dephault: NonNullable<AnchorOverrides[K]>): NonNullable<AnchorOverrides[K]> => options[key] === undefined ? dephault : options[key] as NonNullable<AnchorOverrides[K]>;
 
 // This takes care of everything when you are positioning UI that can go anywhere on the screen
-const simple = (anchor: Anchor, element: SugarElement, bubble: Bubble, layouts: LayoutTypes.AnchorLayout[], getBounds: Optional<() => Bounds>, overrideOptions: AnchorOverrides): void => {
+const simple = (anchor: Anchor, element: SugarElement, bubble: Bubble, layouts: LayoutTypes.AnchorLayout[], getBounds: Optional<() => Bounds>, overrideOptions: AnchorOverrides, transition: Optional<Transition>): void => {
   // the only supported override at the moment. Once relative has been deleted, maybe this can be optional in the bag
   const maxHeightFunction: MaxHeightFunction = defaultOr(overrideOptions, 'maxHeightFunction', MaxHeight.anchored());
   const maxWidthFunction: MaxWidthFunction = defaultOr(overrideOptions, 'maxWidthFunction', Fun.noop);
@@ -34,7 +36,8 @@ const simple = (anchor: Anchor, element: SugarElement, bubble: Bubble, layouts: 
     origin,
     preference: layouts,
     maxHeightFunction,
-    maxWidthFunction
+    maxWidthFunction,
+    transition
   };
 
   go(anchorBox, element, bubble, options);

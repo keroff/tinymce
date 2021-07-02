@@ -1,4 +1,4 @@
-import { FieldSchema } from '@ephox/boulder';
+import { FieldSchema, ValueType } from '@ephox/boulder';
 import { Fun } from '@ephox/katamari';
 
 import AnchorSchema from '../../positioning/mode/AnchorSchema';
@@ -9,5 +9,8 @@ export const PositionSchema = [
 ];
 
 export const PlacementSchema = [
-  FieldSchema.requiredOf('anchor', AnchorSchema)
+  FieldSchema.requiredOf('anchor', AnchorSchema),
+  FieldSchema.optionObjOf('transition', [
+    FieldSchema.requiredArrayOf('classes', ValueType.string)
+  ])
 ];

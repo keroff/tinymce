@@ -6,12 +6,18 @@ import * as Behaviour from '../../api/behaviour/Behaviour';
 import { AlloyComponent } from '../../api/component/ComponentApi';
 import { AnchorDetail, AnchorSpec } from '../../positioning/mode/Anchoring';
 
+interface TransitionSpec {
+  readonly classes: string[];
+}
+
 export interface PlacementSpec {
   readonly anchor: AnchorSpec;
+  readonly transition?: TransitionSpec;
 }
 
 export interface PlacementDetail {
   readonly anchor: AnchorDetail<any>;
+  readonly transition: Optional<TransitionSpec>;
 }
 
 export interface PositioningBehaviour extends Behaviour.AlloyBehaviour<PositioningConfigSpec, PositioningConfig> {

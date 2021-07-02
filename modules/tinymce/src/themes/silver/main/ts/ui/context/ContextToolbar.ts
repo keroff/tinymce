@@ -9,12 +9,13 @@ import {
   AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloySpec, AlloyTriggers, AnchorSpec, Behaviour, Bounds, Boxes, GuiFactory, InlineView, Keying
 } from '@ephox/alloy';
 import { InlineContent, Toolbar } from '@ephox/bridge';
-import { Arr, Fun, Id, Merger, Obj, Optional, Optionals, Singleton, Thunk } from '@ephox/katamari';
+import { Arr, Fun, Id, Merger, Obj, Optional, Optionals, Singleton, Throttler, Thunk } from '@ephox/katamari';
 import { PlatformDetection } from '@ephox/sand';
 import { Css, Focus, SugarElement } from '@ephox/sugar';
 
 import Editor from 'tinymce/core/api/Editor';
 import Delay from 'tinymce/core/api/util/Delay';
+import { EditorEvent } from 'tinymce/core/api/util/EventDispatcher';
 
 import { getToolbarMode, ToolbarMode } from '../../api/Settings';
 import { UiFactoryBackstage, UiFactoryBackstageProviders } from '../../backstage/Backstage';
@@ -96,9 +97,10 @@ const register = (editor: Editor, registryContextToolbars: Record<string, Contex
     lastBounds.clear();
     lastContextPosition.clear();
     InlineView.hide(contextbar);
+    hideOrRepositionIfNecessary.cancel();
   };
 
-  const hideOrRepositionIfNecessary = () => {
+  const hideOrRepositionIfNecessary = Throttler.first((e) => {
     if (InlineView.isOpen(contextbar)) {
       const contextBarEle = contextbar.element;
       Css.remove(contextBarEle, 'display');
@@ -106,11 +108,12 @@ const register = (editor: Editor, registryContextToolbars: Record<string, Contex
         Css.set(contextBarEle, 'display', 'none');
       } else {
         lastTrigger.set(TriggerCause.Reposition);
+        console.log('reposition toolbar', e);
         InlineView.reposition(contextbar);
         lastPosition.set(Boxes.box(contextbar.element));
       }
     }
-  };
+  }, 10);
 
   const wrapInPopDialog = (toolbarSpec: AlloySpec) => ({
     dom: {
@@ -182,7 +185,7 @@ const register = (editor: Editor, registryContextToolbars: Record<string, Contex
   };
 
   const launchContext = (toolbarApi: Array<ContextType>, elem: Optional<Element>) => {
-    launchContextToolbar.stop();
+    launchContextToolbar.cancel();
 
     // Don't launch if the editor has something else open that would conflict
     if (!canLaunchToolbar()) {
@@ -202,7 +205,12 @@ const register = (editor: Editor, registryContextToolbars: Record<string, Contex
 
     const contextBarEle = contextbar.element;
     Css.remove(contextBarEle, 'display');
-    InlineView.showWithinBounds(contextbar, wrapInPopDialog(toolbarSpec), { anchor }, () => Optional.some(getBounds()));
+    InlineView.showWithinBounds(contextbar, wrapInPopDialog(toolbarSpec), {
+      anchor,
+      transition: {
+        classes: [ 'tox-pop--in-transition' ]
+      }
+    }, () => Optional.some(getBounds()));
 
     // IMPORTANT: This must be stored after the initial render, otherwise the lookup of the last element in the
     // anchor placement will be incorrect as it'll reuse the new element as the anchor point.
@@ -215,25 +223,28 @@ const register = (editor: Editor, registryContextToolbars: Record<string, Contex
     }
   };
 
-  const launchContextToolbar = Delay.debounce(() => {
+  const launchContextToolbar = Throttler.adaptable((e: EditorEvent<any>) => {
     // Don't launch if the editor doesn't have focus or has been destroyed
-    if (!editor.hasFocus() || editor.removed) {
+    if (!editor.hasFocus() || editor.removed || e.type === 'nodechange' && !e.selectionChange) {
       return;
     }
 
     const scopes = getScopes();
     ToolbarLookup.lookup(scopes, editor).fold(
       close,
-      (info) => launchContext(info.toolbars, Optional.some(info.elem.dom))
+      (info) => {
+        console.log('launch toolbar', e);
+        launchContext(info.toolbars, Optional.some(info.elem.dom));
+      }
     );
-  }, 0);
+  }, 10);
 
   editor.on('init', () => {
     editor.on('remove', close);
-    editor.on('ScrollContent ScrollWindow ObjectResized ResizeEditor longpress', hideOrRepositionIfNecessary);
+    editor.on('ScrollContent ScrollWindow ObjectResized ResizeEditor longpress', hideOrRepositionIfNecessary.throttle);
 
     // FIX: Make it go away when the action makes it go away. E.g. deleting a column deletes the table.
-    editor.on('click keyup focus SetContent', launchContextToolbar);
+    editor.on('click keyup focus SetContent', launchContextToolbar.throttle);
 
     editor.on(hideContextToolbarEvent, close);
     editor.on(showContextToolbarEvent, (e) => {
@@ -265,13 +276,13 @@ const register = (editor: Editor, registryContextToolbars: Record<string, Contex
       if (event.state) {
         close();
       } else if (editor.hasFocus()) {
-        launchContextToolbar();
+        launchContextToolbar.throttle(event);
       }
     });
 
     editor.on('NodeChange', (_e) => {
       Focus.search(contextbar.element).fold(
-        launchContextToolbar,
+        () => launchContextToolbar.throttle(_e),
         Fun.noop
       );
     });
