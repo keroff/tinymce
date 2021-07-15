@@ -6,6 +6,7 @@
  */
 
 import { Fun, Optional } from '@ephox/katamari';
+import { SugarElement, Traverse } from '@ephox/sugar';
 
 import Editor from '../api/Editor';
 import Env from '../api/Env';
@@ -65,6 +66,7 @@ const exitPreBlock = (editor: Editor, direction: HDirection, range: Range): void
   }
 };
 
+// There seems to be a flaw in this logic where it will select the cef element even if say pressing the right arrow key to chnage the cursor on a different line
 const getHorizontalRange = (editor: Editor, forward: boolean): Optional<Range> => {
   const direction = forward ? HDirection.Forwards : HDirection.Backwards;
   const range = editor.selection.getRng();
@@ -87,6 +89,7 @@ const getVerticalRange = (editor: Editor, down: boolean): Optional<Range> => {
 
 const moveH = (editor: Editor, forward: boolean): boolean =>
   getHorizontalRange(editor, forward).exists((newRange) => {
+    console.log('arrow - moveH', newRange);
     NavigationUtils.moveToRange(editor, newRange);
     return true;
   });
@@ -102,8 +105,31 @@ const moveToLineEndPoint = (editor: Editor, forward: boolean): boolean => {
   return NavigationUtils.moveToLineEndPoint(editor, forward, isCefPosition);
 };
 
+// const moveToEnd = (editor: Editor, forward: boolean): boolean => {
+
+// };
+
+const selectToEndPoint = (editor: Editor, forward: boolean): boolean => {
+  const traverse = forward ? Traverse.lastChild : Traverse.firstChild;
+  const childOpt = traverse(SugarElement.fromDom(editor.getBody())).map((child) => child.dom);
+
+  return childOpt.filter(isContentEditableFalse).exists((child) => {
+    const rng = editor.selection.getRng();
+    const newRng = rng.cloneRange();
+    if (forward) {
+      newRng.setEndAfter(child);
+    } else {
+      newRng.setStartBefore(child);
+    }
+    // TODO: May need to improve moveToRange to scollToEnd if necessary
+    NavigationUtils.moveToRange(editor, newRng);
+    return true;
+  });
+};
+
 export {
   moveH,
   moveV,
-  moveToLineEndPoint
+  moveToLineEndPoint,
+  selectToEndPoint
 };

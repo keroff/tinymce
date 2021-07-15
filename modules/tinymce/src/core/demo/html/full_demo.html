@@ -10,9 +10,19 @@
   <main>
     <h1>Tinymce full featured Page</h1>
     <div id="ephox-ui">
-      <textarea></textarea>
+      <textarea>
+        <p contenteditable="false">Read-only text</p>
+        <p>Extra text</p>
+      </textarea>
     </div>
-    <div class="tinymce">Inline demo</div>
+    <div class="tinymce">
+      <p>Extra text</p>
+      <p contenteditable="false">Read-only text</p>
+    </div>
+    <div contenteditable="true">
+      <p contenteditable="false">Read-only text</p>
+      <p>Extra text</p>
+    </div>
     <script src="../../../../js/tinymce/tinymce.js"></script>
     <script src="../../../../scratch/demos/core/demo.js"></script>
     <script>demos.FullDemo();</script>

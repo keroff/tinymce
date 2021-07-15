@@ -23,6 +23,7 @@ const executeKeydownOverride = (editor: Editor, caret: Cell<Text>, evt: Keyboard
   MatchKeys.execute([
     { keyCode: VK.RIGHT, action: MatchKeys.action(CefNavigation.moveH, editor, true) },
     { keyCode: VK.LEFT, action: MatchKeys.action(CefNavigation.moveH, editor, false) },
+    // TODO: Add shiftKey cases as well
     { keyCode: VK.UP, action: MatchKeys.action(CefNavigation.moveV, editor, false) },
     { keyCode: VK.DOWN, action: MatchKeys.action(CefNavigation.moveV, editor, true) },
     { keyCode: VK.RIGHT, action: MatchKeys.action(TableNavigation.moveH, editor, true) },
