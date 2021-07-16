@@ -9,7 +9,6 @@ import { Arr, Fun, Optional } from '@ephox/katamari';
 
 import Editor from '../api/Editor';
 import * as CaretContainer from '../caret/CaretContainer';
-// import * as CaretContainerRemove from '../caret/CaretContainerRemove';
 import CaretPosition from '../caret/CaretPosition';
 import * as CaretUtils from '../caret/CaretUtils';
 import { CaretWalker, HDirection } from '../caret/CaretWalker';
@@ -18,10 +17,8 @@ import { getPositionsUntilNextLine, getPositionsUntilPreviousLine } from '../car
 import * as LineUtils from '../caret/LineUtils';
 import * as LineWalker from '../caret/LineWalker';
 import { isContentEditableFalse } from '../dom/NodeType';
-// import * as NodeType from '../dom/NodeType';
 import * as ScrollIntoView from '../dom/ScrollIntoView';
 import * as RangeNodes from '../selection/RangeNodes';
-// import * as SelectionUtils from '../selection/SelectionUtils';
 import * as ArrUtils from '../util/ArrUtils';
 import * as InlineUtils from './InlineUtils';
 
@@ -34,63 +31,37 @@ const moveToRange = (editor: Editor, rng: Range) => {
 const renderRangeCaretOpt = (editor: Editor, range: Range, scrollIntoView: boolean): Optional<Range> =>
   Optional.some(FakeCaretUtils.renderRangeCaret(editor, range, scrollIntoView));
 
+const getStartNodeFromRange = (range: Range) =>
+  RangeNodes.getNode(range.startContainer, range.startOffset);
+
+const getEndNodeFromRange = (range: Range) =>
+  RangeNodes.getNode(range.endContainer, range.endOffset);
+
+const getCaretCandidateNodeFromRange = (range: Range, direction: HDirection, isElement: (node: Node) => node is Element): Optional<Element> => {
+  const selectedNode = Optional.from(RangeNodes.getSelectedNode(range)).filter(isElement);
+  return selectedNode.orThunk(() => {
+    // Handle case where cef block is at the start or end of the selection
+    const getter = direction === HDirection.Backwards ? getStartNodeFromRange : getEndNodeFromRange;
+    return Optional.from(getter(range)).filter(isContentEditableFalse);
+  });
+};
+
 const moveHorizontally = (editor: Editor, direction: HDirection, range: Range, isBefore: (caretPosition: CaretPosition) => boolean,
                           isAfter: (caretPosition: CaretPosition) => boolean, isElement: (node: Node) => node is Element): Optional<Range> => {
   const forwards = direction === HDirection.Forwards;
   const caretWalker = CaretWalker(editor.getBody());
   const getNextPosFn = Fun.curry(CaretUtils.getVisualCaretPosition, forwards ? caretWalker.next : caretWalker.prev);
   const isPredicateFn = forwards ? isBefore : isAfter;
-  // const getNextPosFn = Fun.curry(CaretUtils.getVisualCaretPosition, forwards ? caretWalker.prev : caretWalker.next);
-  // const isPredicateFn = forwards ? isAfter : isBefore;
+
+  console.log('moveHorizontally');
 
   if (!range.collapsed) {
     const before = direction === HDirection.Backwards;
-
-    const selectedNode = RangeNodes.getSelectedNode(range);
-    if (isElement(selectedNode)) {
-      return FakeCaretUtils.showCaret(direction, editor, selectedNode, before, false);
-    }
-
-    if (before) {
-      const start = RangeNodes.getNode(range.startContainer, range.startOffset);
-      if (isContentEditableFalse(start)) {
-        // Handle case where cef block is at the start of the selction and moving backward
-        return FakeCaretUtils.showCaret(direction, editor, start, before, false);
-      } else {
-        return Optional.none();
-      }
-    }
-
-    if (forwards) {
-      const end = RangeNodes.getNode(range.endContainer, range.endOffset);
-      if (isContentEditableFalse(end)) {
-        // Handle case where cef block is at the end of the selction and moving forward
-        return FakeCaretUtils.showCaret(direction, editor, end, before, false);
-      } else {
-        // If end is not cef, do not do anything and let native behaviour run if no other overrides trigger
-        // TODO: If the cursor began as a fake caret, it is not removed (This is likely a separate issue but would be good to solve)
-        return Optional.none();
-      }
-    }
-
-    // TODO: Handle case
+    return getCaretCandidateNodeFromRange(range, direction, isElement)
+      .bind((node) => FakeCaretUtils.showCaret(direction, editor, node, before, false));
   }
 
   const caretPosition = CaretUtils.getNormalizedRangeEndPoint(direction, editor.getBody(), range);
-
-  // if (!range.collapsed) {
-  //   const start = RangeNodes.getNode(range.startContainer, range.startOffset);
-  //   const test = NodeType.isBr(start) ? start.parentNode : start;
-  //   const end = RangeNodes.getNode(range.endContainer, range.endOffset);
-  //   // CaretContainerRemove.remove(test);
-  //   // if (CaretContainer.isCaretContainer(start)) {
-  //   // }
-  //   // TODO: Figure out a way to remove the fake caret from the editor
-  //   if ((forwards && !isContentEditableFalse(end)) || (!forwards && !isContentEditableFalse(test))) {
-  //     return Optional.none();
-  //   }
-  // }
-
   if (isPredicateFn(caretPosition)) {
     return FakeCaretUtils.selectNode(editor, caretPosition.getNode(!forwards) as Element);
   }
@@ -98,7 +69,6 @@ const moveHorizontally = (editor: Editor, direction: HDirection, range: Range, i
   const nextCaretPosition = InlineUtils.normalizePosition(forwards, getNextPosFn(caretPosition));
   const rangeIsInContainerBlock = CaretContainer.isRangeInCaretContainerBlock(range);
   if (!nextCaretPosition) {
-    // return rangeIsInContainerBlock && !forwards ? Optional.some(range) : Optional.none();
     return rangeIsInContainerBlock ? Optional.some(range) : Optional.none();
   }
 
@@ -126,6 +96,8 @@ const moveVertically = (editor: Editor, direction: LineWalker.VDirection, range:
   const caretPosition = CaretUtils.getNormalizedRangeEndPoint(direction, editor.getBody(), range);
   const caretClientRect = ArrUtils.last(caretPosition.getClientRects());
   const forwards = direction === LineWalker.VDirection.Down;
+
+  console.log('moveVertically');
 
   if (!caretClientRect) {
     return Optional.none();

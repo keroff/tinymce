@@ -25,7 +25,6 @@ const isCaretContainerBlock = (node: Node | null): node is Element => {
   if (isText(node) || isBr(node)) {
     node = node.parentNode;
   }
-  // console.log('isCaretBlock', node);
 
   return isElement(node) && node.hasAttribute('data-mce-caret');
 };

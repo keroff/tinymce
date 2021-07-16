@@ -29,11 +29,8 @@ const isEmptyText = (pos: CaretPosition): boolean => {
   return NodeType.isText(container) && (container.data.length === 0 || Zwsp.isZwsp(container.data) && BookmarkManager.isBookmarkNode(container.parentNode));
 };
 
-const matchesElementPosition = (before: boolean, predicate: (node: Node) => boolean) => (pos: CaretPosition): boolean => {
-  const childNode = getChildNodeAtRelativeOffset(before ? 0 : -1, pos);
-  console.log('chilNode', childNode);
-  return Optional.from(childNode).filter(predicate).isSome();
-};
+const matchesElementPosition = (before: boolean, predicate: (node: Node) => boolean) => (pos: CaretPosition): boolean =>
+  Optional.from(getChildNodeAtRelativeOffset(before ? 0 : -1, pos)).filter(predicate).isSome();
 
 const isImageBlock = (node: Node): boolean =>
   NodeType.isImg(node) && Css.get(SugarElement.fromDom(node), 'display') === 'block';

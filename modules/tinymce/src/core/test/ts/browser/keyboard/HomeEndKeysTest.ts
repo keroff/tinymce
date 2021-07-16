@@ -18,7 +18,7 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
       editor.setContent('<p>123</p><p><span contenteditable="false">CEF</span>456</p>');
       TinySelections.setCursor(editor, [ 1, 1 ], 3);
       TinyContentActions.keystroke(editor, Keys.home());
-      TinyAssertions.assertSelection(editor, [ 1, 0 ], 0, [ 1, 0 ], 0);
+      TinyAssertions.assertCursor(editor, [ 1, 0 ], 0);
     });
 
     it('Home key should move caret from after cef to before cef', () => {
@@ -26,7 +26,7 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
       editor.setContent('<p><span contenteditable="false">CEF</span></p>');
       TinySelections.setCursor(editor, [ 0 ], 1);
       TinyContentActions.keystroke(editor, Keys.home());
-      TinyAssertions.assertSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
+      TinyAssertions.assertCursor(editor, [ 0, 0 ], 0);
     });
 
     it('Home key should move caret to before cef from the start of range', () => {
@@ -34,7 +34,7 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
       editor.setContent('<p>123</p><p><span contenteditable="false">CEF</span>456<br>789</p>');
       TinySelections.setSelection(editor, [ 1, 1 ], 3, [ 1, 1 ], 3);
       TinyContentActions.keystroke(editor, Keys.home());
-      TinyAssertions.assertSelection(editor, [ 1, 0 ], 0, [ 1, 0 ], 0);
+      TinyAssertions.assertCursor(editor, [ 1, 0 ], 0);
     });
 
     it('Home key should not move caret before cef within the same block if there is a BR in between', () => {
@@ -42,7 +42,7 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
       editor.setContent('<p>123</p><p><span contenteditable="false">CEF</span><br>456</p>');
       TinySelections.setCursor(editor, [ 1, 2 ], 3);
       TinyContentActions.keystroke(editor, Keys.home());
-      TinyAssertions.assertSelection(editor, [ 1, 2 ], 3, [ 1, 2 ], 3);
+      TinyAssertions.assertCursor(editor, [ 1, 2 ], 3);
     });
 
     it('Home key should not move caret if there is no cef', () => {
@@ -50,7 +50,7 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
       editor.setContent('<p>123</p>');
       TinySelections.setCursor(editor, [ 0, 0 ], 1);
       TinyContentActions.keystroke(editor, Keys.home());
-      TinyAssertions.assertSelection(editor, [ 0, 0 ], 1, [ 0, 0 ], 1);
+      TinyAssertions.assertCursor(editor, [ 0, 0 ], 1);
     });
 
     context('Inline boundaries', () => {
@@ -78,7 +78,7 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
       editor.setContent('<p>123<span contenteditable="false">CEF</span></p><p>456</p>');
       TinySelections.setCursor(editor, [ 0, 0 ], 0);
       TinyContentActions.keystroke(editor, Keys.end());
-      TinyAssertions.assertSelection(editor, [ 0, 2 ], 1, [ 0, 2 ], 1);
+      TinyAssertions.assertCursor(editor, [ 0, 2 ], 1);
     });
 
     it('End key should move caret from before cef to after cef', () => {
@@ -86,7 +86,7 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
       editor.setContent('<p><span contenteditable="false">CEF</span></p>');
       TinySelections.setCursor(editor, [ 0 ], 0);
       TinyContentActions.keystroke(editor, Keys.end());
-      TinyAssertions.assertSelection(editor, [ 0, 1 ], 1, [ 0, 1 ], 1);
+      TinyAssertions.assertCursor(editor, [ 0, 1 ], 1);
     });
 
     it('End key should move caret to after cef from the end of range', () => {
@@ -129,6 +129,61 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
         TinyContentActions.keystroke(editor, Keys.end());
         TinyAssertions.assertCursor(editor, [ 0, 2 ], 1);
       });
+    });
+
+    // TODO: Add tests for cef paragraph block
+    context('Ctrl+Shift+End key', () => {
+      const keystroke = (editor: Editor) => TinyContentActions.keystroke(editor, Keys.home(), { ctrlKey: true, shiftKey: true });
+      // const keystroke = (editor: Editor) => TinyContentActions.keystroke(editor, Keys.home());
+
+      // it('Home key should move caret before cef within the same block', () => {
+      //   const editor = hook.editor();
+      //   editor.setContent('<p><span contenteditable="false">CEF</span>123</p><p>456</p>');
+      //   TinySelections.setCursor(editor, [ 1, 0 ], 3);
+      //   keystroke(editor);
+      //   TinyAssertions.assertCursor(editor, [ 0, 0 ], 0);
+      // });
+
+      it('Home key should move caret before cef within the same block', () => {
+        const editor = hook.editor();
+        editor.setContent('<p contenteditable="false">CEF</p><p>abc</p>');
+        TinySelections.setCursor(editor, [ 1, 0 ], 3);
+        keystroke(editor);
+        // TinyContentActions.keystroke(editor, Keys.home(), {  });
+        TinyAssertions.assertSelection(editor, [ 0, 0 ], 0, [ 1, 0 ], 3);
+      });
+
+      // it('Home key should move caret from after cef to before cef', () => {
+      //   const editor = hook.editor();
+      //   editor.setContent('<p><span contenteditable="false">CEF</span></p>');
+      //   TinySelections.setCursor(editor, [ 0 ], 1);
+      //   keystroke(editor);
+      //   TinyAssertions.assertCursor(editor, [ 0, 0 ], 0);
+      // });
+
+      // it('Home key should move caret to before cef from the start of range', () => {
+      //   const editor = hook.editor();
+      //   editor.setContent('<p>123</p><p><span contenteditable="false">CEF</span>456<br>789</p>');
+      //   TinySelections.setSelection(editor, [ 1, 1 ], 3, [ 1, 1 ], 3);
+      //   keystroke(editor);
+      //   TinyAssertions.assertCursor(editor, [ 1, 0 ], 0);
+      // });
+
+      // it('Home key should not move caret before cef within the same block if there is a BR in between', () => {
+      //   const editor = hook.editor();
+      //   editor.setContent('<p>123</p><p><span contenteditable="false">CEF</span><br>456</p>');
+      //   TinySelections.setCursor(editor, [ 1, 2 ], 3);
+      //   keystroke(editor);
+      //   TinyAssertions.assertCursor(editor, [ 1, 2 ], 3);
+      // });
+
+      // it('Home key should not move caret if there is no cef', () => {
+      //   const editor = hook.editor();
+      //   editor.setContent('<p>123</p>');
+      //   TinySelections.setCursor(editor, [ 0, 0 ], 1);
+      //   keystroke(editor);
+      //   TinyAssertions.assertCursor(editor, [ 0, 0 ], 1);
+      // });
     });
   });
 });

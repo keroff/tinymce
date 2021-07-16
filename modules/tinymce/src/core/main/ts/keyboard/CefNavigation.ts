@@ -89,7 +89,6 @@ const getVerticalRange = (editor: Editor, down: boolean): Optional<Range> => {
 
 const moveH = (editor: Editor, forward: boolean): boolean =>
   getHorizontalRange(editor, forward).exists((newRange) => {
-    console.log('arrow - moveH', newRange);
     NavigationUtils.moveToRange(editor, newRange);
     return true;
   });
@@ -110,6 +109,7 @@ const moveToLineEndPoint = (editor: Editor, forward: boolean): boolean => {
 // };
 
 const selectToEndPoint = (editor: Editor, forward: boolean): boolean => {
+  console.log('selectToEndPoint');
   const traverse = forward ? Traverse.lastChild : Traverse.firstChild;
   const childOpt = traverse(SugarElement.fromDom(editor.getBody())).map((child) => child.dom);
 

@@ -18,7 +18,6 @@ const executeKeydownOverride = (editor: Editor, caret: Cell<Text>, evt: Keyboard
   MatchKeys.execute([
     { keyCode: VK.END, action: MatchKeys.action(CefNavigation.moveToLineEndPoint, editor, true) },
     { keyCode: VK.HOME, action: MatchKeys.action(CefNavigation.moveToLineEndPoint, editor, false) },
-    // TODO: May need to fix up and down arrow keys for shiftKey
     { keyCode: VK.END, action: MatchKeys.action(CefNavigation.selectToEndPoint, editor, true), ctrlKey: true, shiftKey: true },
     { keyCode: VK.HOME, action: MatchKeys.action(CefNavigation.selectToEndPoint, editor, false), ctrlKey: true, shiftKey: true },
     { keyCode: VK.END, action: MatchKeys.action(MediaNavigation.moveToLineEndPoint, editor, true) },
