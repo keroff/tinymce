@@ -15,6 +15,7 @@ import CaretPosition from '../caret/CaretPosition';
 import { isAfterContentEditableFalse, isAfterTable, isBeforeContentEditableFalse, isBeforeTable } from '../caret/CaretPositionPredicates';
 import * as CaretUtils from '../caret/CaretUtils';
 import { CaretWalker, HDirection } from '../caret/CaretWalker';
+import * as FakeCaretUtils from '../caret/FakeCaretUtils';
 import * as LineWalker from '../caret/LineWalker';
 import * as NodeType from '../dom/NodeType';
 import * as NavigationUtils from './NavigationUtils';
@@ -104,9 +105,20 @@ const moveToLineEndPoint = (editor: Editor, forward: boolean): boolean => {
   return NavigationUtils.moveToLineEndPoint(editor, forward, isCefPosition);
 };
 
-// const moveToEnd = (editor: Editor, forward: boolean): boolean => {
+// Use when doing just Ctrl+Home and Ctrl+End
+const moveToEndPoint = (editor: Editor, forward: boolean): boolean => {
+  console.log('moveToEndPoint');
+  const traverse = forward ? Traverse.lastChild : Traverse.firstChild;
+  const childOpt = traverse(SugarElement.fromDom(editor.getBody())).map((child) => child.dom);
 
-// };
+  return childOpt.filter(isContentEditableFalse).exists((child) => {
+    const direction = forward ? HDirection.Forwards : HDirection.Backwards;
+    return FakeCaretUtils.showCaret(direction, editor, child, !forward, false).exists((newRange) => {
+      NavigationUtils.moveToRange(editor, newRange);
+      return true;
+    });
+  });
+};
 
 const selectToEndPoint = (editor: Editor, forward: boolean): boolean => {
   console.log('selectToEndPoint');
@@ -114,6 +126,7 @@ const selectToEndPoint = (editor: Editor, forward: boolean): boolean => {
   const childOpt = traverse(SugarElement.fromDom(editor.getBody())).map((child) => child.dom);
 
   return childOpt.filter(isContentEditableFalse).exists((child) => {
+    console.log('overidding selection');
     const rng = editor.selection.getRng();
     const newRng = rng.cloneRange();
     if (forward) {
@@ -131,5 +144,6 @@ export {
   moveH,
   moveV,
   moveToLineEndPoint,
+  moveToEndPoint,
   selectToEndPoint
 };
