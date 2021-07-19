@@ -1,7 +1,6 @@
 import { Keys } from '@ephox/agar';
 import { context, describe, it } from '@ephox/bedrock-client';
 import { TinyAssertions, TinyContentActions, TinyHooks, TinySelections } from '@ephox/mcagar';
-// import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Theme from 'tinymce/themes/silver/Theme';
@@ -57,16 +56,6 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
     context('Ctrl+Shift', () => {
       const keystroke = (editor: Editor) => TinyContentActions.keystroke(editor, Keys.home(), { ctrlKey: true, shiftKey: true });
 
-      // TODO: I don't this test will work since the keyboard overide won't return true (only checks for contenteditable false block) and since it is a fake event, the selection doesn't actually change
-      // TODO: Would need to be a webdriver test to properly test since no keyboard overrides will trigger for this
-      // it('TINY-7460: TODO 1', () => {
-      //   const editor = hook.editor();
-      //   editor.setContent('<p><span contenteditable="false">CEF</span>123</p><p>456</p>');
-      //   TinySelections.setCursor(editor, [ 1, 0 ], 3);
-      //   keystroke(editor);
-      //   TinyAssertions.assertSelection(editor, [ 0, 0 ], 0, [ 1, 0 ], 3);
-      // });
-
       it('TINY-7460: make selection to start of the cef block', () => {
         const editor = hook.editor();
         editor.setContent('<p contenteditable="false">CEF</p><p>abc</p>');
@@ -74,18 +63,6 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
         keystroke(editor);
         TinyAssertions.assertSelection(editor, [], 0, [ 1, 0 ], 2);
       });
-
-      // TODO: Add something where both blocks are cef - tested and looks like it would be complicated to get working as it doesn't work for normal Home and End either
-
-      // TODO: Would need to be a webdriver test to properly test since no keyboard overrides will trigger for this
-      // it('TINY-7460: TODO 3', () => {
-      //   const editor = hook.editor();
-      //   editor.setContent('<p>abc</p><p contenteditable="false">CEF</p>');
-      //   TinySelections.setCursor(editor, [ 2 ], 1);
-      //   assert.isTrue(false);
-      //   keystroke(editor);
-      //   TinyAssertions.assertSelection(editor, [ 0, 0 ], 0, [], 2);
-      // });
     });
 
     context('Inline boundaries', () => {
@@ -151,16 +128,6 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
     context('Ctrl+Shift', () => {
       const keystroke = (editor: Editor) => TinyContentActions.keystroke(editor, Keys.end(), { ctrlKey: true, shiftKey: true });
 
-      // TODO: I don't this test will work since the keyboard overide won't return true (only checks for contenteditable false block) and since it is a fake event, the selection doesn't actually change
-      // TODO: Would need to be a webdriver test to properly test since no keyboard overrides will trigger for this
-      // it('TINY-7460: TODO 1', () => {
-      //   const editor = hook.editor();
-      //   editor.setContent('<p><span contenteditable="false">CEF</span>123</p><p>456</p>');
-      //   TinySelections.setCursor(editor, [ 1, 0 ], 3);
-      //   keystroke(editor);
-      //   TinyAssertions.assertSelection(editor, [ 0, 0 ], 0, [ 1, 0 ], 3);
-      // });
-
       it('TINY-7460: make selection to end of the cef block', () => {
         const editor = hook.editor();
         editor.setContent('<p>abc</p><p contenteditable="false">CEF</p>');
@@ -168,16 +135,6 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
         keystroke(editor);
         TinyAssertions.assertSelection(editor, [ 0, 0 ], 1, [], 2);
       });
-
-      // TODO: Would need to be a webdriver test to properly test since no keyboard overrides will trigger for this
-      // it('TINY-7460: TODO 3', () => {
-      //   const editor = hook.editor();
-      //   editor.setContent('<p>abc</p><p contenteditable="false">CEF</p>');
-      //   TinySelections.setCursor(editor, [ 2 ], 1);
-      //   assert.isTrue(false);
-      //   keystroke(editor);
-      //   TinyAssertions.assertSelection(editor, [ 0, 0 ], 0, [], 2);
-      // });
     });
 
     context('Inline boundaries', () => {
@@ -197,60 +154,5 @@ describe('browser.tinymce.core.keyboard.HomeEndKeysTest', () => {
         TinyAssertions.assertCursor(editor, [ 0, 2 ], 1);
       });
     });
-
-    // TODO: Add tests for cef paragraph block
-    // context('Ctrl+Shift+End key', () => {
-    //   const keystroke = (editor: Editor) => TinyContentActions.keystroke(editor, Keys.home(), { ctrlKey: true, shiftKey: true });
-    //   // const keystroke = (editor: Editor) => TinyContentActions.keystroke(editor, Keys.home());
-
-    //   // TODO: I don't this test will work since the keyboard overide won't return true (only checks for contenteditable false block) and since it is a fake event, the selection doesn't actually change
-    //   // it('TINY-7460: TODO 1', () => {
-    //   //   const editor = hook.editor();
-    //   //   editor.setContent('<p><span contenteditable="false">CEF</span>123</p><p>456</p>');
-    //   //   TinySelections.setCursor(editor, [ 1, 0 ], 3);
-    //   //   keystroke(editor);
-    //   //   TinyAssertions.assertSelection(editor, [ 0, 0 ], 0, [ 1, 0 ], 3);
-    //   // });
-
-    //   it('TINY-7460: TODO 2', () => {
-    //     const editor = hook.editor();
-    //     editor.setContent('<p contenteditable="false">CEF</p><p>abc</p>');
-    //     TinySelections.setCursor(editor, [ 2, 0 ], 3);
-    //     keystroke(editor);
-    //     TinyAssertions.assertSelection(editor, [], 0, [ 1, 0 ], 3);
-    //   });
-
-    //   // it('Home key should move caret from after cef to before cef', () => {
-    //   //   const editor = hook.editor();
-    //   //   editor.setContent('<p><span contenteditable="false">CEF</span></p>');
-    //   //   TinySelections.setCursor(editor, [ 0 ], 1);
-    //   //   keystroke(editor);
-    //   //   TinyAssertions.assertCursor(editor, [ 0, 0 ], 0);
-    //   // });
-
-    //   // it('Home key should move caret to before cef from the start of range', () => {
-    //   //   const editor = hook.editor();
-    //   //   editor.setContent('<p>123</p><p><span contenteditable="false">CEF</span>456<br>789</p>');
-    //   //   TinySelections.setSelection(editor, [ 1, 1 ], 3, [ 1, 1 ], 3);
-    //   //   keystroke(editor);
-    //   //   TinyAssertions.assertCursor(editor, [ 1, 0 ], 0);
-    //   // });
-
-    //   // it('Home key should not move caret before cef within the same block if there is a BR in between', () => {
-    //   //   const editor = hook.editor();
-    //   //   editor.setContent('<p>123</p><p><span contenteditable="false">CEF</span><br>456</p>');
-    //   //   TinySelections.setCursor(editor, [ 1, 2 ], 3);
-    //   //   keystroke(editor);
-    //   //   TinyAssertions.assertCursor(editor, [ 1, 2 ], 3);
-    //   // });
-
-    //   // it('Home key should not move caret if there is no cef', () => {
-    //   //   const editor = hook.editor();
-    //   //   editor.setContent('<p>123</p>');
-    //   //   TinySelections.setCursor(editor, [ 0, 0 ], 1);
-    //   //   keystroke(editor);
-    //   //   TinyAssertions.assertCursor(editor, [ 0, 0 ], 1);
-    //   // });
-    // });
   });
 });
