@@ -184,4 +184,114 @@ describe('browser.tinymce.core.keyboard.ArrowKeysCefTest', () => {
     // Checking 2 events fired verifies the event handlers finished running, so an exception shouldn't have been raised
     assertKeydownCount(2);
   });
+
+  it('TBA: left/right with cE=false block at start of selection', () => {
+    const editor = hook.editor();
+    editor.setContent('<p contenteditable="false">abc</p><p>def</p>');
+
+    // Test left arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.left());
+    TinyAssertions.assertContent(editor, '<p contenteditable="false">abc</p><p>def</p>');
+    assertStartContainer(editor, CaretContainer.isCaretContainerBlock);
+    TinyAssertions.assertCursor(editor, [ 0 ], 0);
+
+    // Test right arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.right());
+    TinyAssertions.assertContent(editor, '<p contenteditable="false">abc</p><p>def</p>');
+    TinyAssertions.assertCursor(editor, [ 1, 0 ], 3);
+  });
+
+  it('TBA: left/right with cE=false block at end of selection', () => {
+    const editor = hook.editor();
+    editor.setContent('<p>def</p><p contenteditable="false">abc</p>');
+
+    // Test left arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.left());
+    TinyAssertions.assertContent(editor, '<p>def</p><p contenteditable="false">abc</p>');
+    TinyAssertions.assertCursor(editor, [ 0, 0 ], 0);
+
+    // Test right arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.right());
+    TinyAssertions.assertContent(editor, '<p>def</p><p contenteditable="false">abc</p>');
+    assertStartContainer(editor, CaretContainer.isCaretContainerBlock);
+    TinyAssertions.assertCursor(editor, [ 2 ], 0);
+  });
+
+  it('TBA: left/right with cE=false block at start and end of selection', () => {
+    const editor = hook.editor();
+    editor.setContent('<p contenteditable="false">abc</p><p>def</p><p contenteditable="false">ghi</p>');
+
+    // Test left arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.left());
+    TinyAssertions.assertContent(editor, '<p contenteditable="false">abc</p><p>def</p><p contenteditable="false">ghi</p>');
+    assertStartContainer(editor, CaretContainer.isCaretContainerBlock);
+    TinyAssertions.assertCursor(editor, [ 0 ], 0);
+
+    // Test right arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.right());
+    TinyAssertions.assertContent(editor, '<p contenteditable="false">abc</p><p>def</p><p contenteditable="false">ghi</p>');
+    assertStartContainer(editor, CaretContainer.isCaretContainerBlock);
+    TinyAssertions.assertCursor(editor, [ 3 ], 0);
+  });
+
+  it('TBA: up/down with cE=false block at start of selection', () => {
+    const editor = hook.editor();
+    editor.setContent('<p contenteditable="false">abc</p><p>def</p>');
+
+    // Test up arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.up());
+    TinyAssertions.assertContent(editor, '<p contenteditable="false">abc</p><p>def</p>');
+    assertStartContainer(editor, CaretContainer.isCaretContainerBlock);
+    TinyAssertions.assertCursor(editor, [ 0 ], 0);
+
+    // Test down arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.down());
+    TinyAssertions.assertContent(editor, '<p contenteditable="false">abc</p><p>def</p>');
+    TinyAssertions.assertCursor(editor, [ 1, 0 ], 3);
+  });
+
+  it('TBA: up/down with cE=false block at end of selection', () => {
+    const editor = hook.editor();
+    editor.setContent('<p>def</p><p contenteditable="false">abc</p>');
+
+    // Test up arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.up());
+    TinyAssertions.assertContent(editor, '<p>def</p><p contenteditable="false">abc</p>');
+    TinyAssertions.assertCursor(editor, [ 0, 0 ], 0);
+
+    // Test down arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.down());
+    TinyAssertions.assertContent(editor, '<p>def</p><p contenteditable="false">abc</p>');
+    assertStartContainer(editor, CaretContainer.isCaretContainerBlock);
+    TinyAssertions.assertCursor(editor, [ 2 ], 0);
+  });
+
+  it('TBA: up/down with cE=false block at start and end of selection', () => {
+    const editor = hook.editor();
+    editor.setContent('<p contenteditable="false">abc</p><p>def</p><p contenteditable="false">ghi</p>');
+
+    // Test up arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.up());
+    TinyAssertions.assertContent(editor, '<p contenteditable="false">abc</p><p>def</p><p contenteditable="false">ghi</p>');
+    assertStartContainer(editor, CaretContainer.isCaretContainerBlock);
+    TinyAssertions.assertCursor(editor, [ 0 ], 0);
+
+    // Test down arrow
+    editor.execCommand('SelectAll');
+    TinyContentActions.keystroke(editor, Keys.down());
+    TinyAssertions.assertContent(editor, '<p contenteditable="false">abc</p><p>def</p><p contenteditable="false">ghi</p>');
+    assertStartContainer(editor, CaretContainer.isCaretContainerBlock);
+    TinyAssertions.assertCursor(editor, [ 3 ], 0);
+  });
 });

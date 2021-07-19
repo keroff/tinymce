@@ -90,6 +90,7 @@ const getVerticalRange = (editor: Editor, down: boolean): Optional<Range> => {
 
 const moveH = (editor: Editor, forward: boolean): boolean =>
   getHorizontalRange(editor, forward).exists((newRange) => {
+    console.log('moveH - CEF');
     NavigationUtils.moveToRange(editor, newRange);
     return true;
   });
@@ -97,6 +98,7 @@ const moveH = (editor: Editor, forward: boolean): boolean =>
 const moveV = (editor: Editor, down: boolean): boolean =>
   getVerticalRange(editor, down).exists((newRange) => {
     NavigationUtils.moveToRange(editor, newRange);
+    console.log('moveV - CEF');
     return true;
   });
 

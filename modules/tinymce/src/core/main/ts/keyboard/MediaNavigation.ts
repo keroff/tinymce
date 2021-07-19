@@ -16,6 +16,8 @@ const moveH = (editor: Editor, forward: boolean): boolean => {
   const range = editor.selection.getRng();
 
   return NavigationUtils.moveHorizontally(editor, direction, range, isBeforeMedia, isAfterMedia, NodeType.isMedia).exists((newRange) => {
+    console.log('moveH - media');
+
     NavigationUtils.moveToRange(editor, newRange);
     return true;
   });

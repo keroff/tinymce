@@ -16,7 +16,7 @@ import * as FakeCaretUtils from '../caret/FakeCaretUtils';
 import { getPositionsUntilNextLine, getPositionsUntilPreviousLine } from '../caret/LineReader';
 import * as LineUtils from '../caret/LineUtils';
 import * as LineWalker from '../caret/LineWalker';
-import { isContentEditableFalse } from '../dom/NodeType';
+import { isContentEditableFalse, isText } from '../dom/NodeType';
 import * as ScrollIntoView from '../dom/ScrollIntoView';
 import * as RangeNodes from '../selection/RangeNodes';
 import * as ArrUtils from '../util/ArrUtils';
@@ -37,13 +37,21 @@ const getStartNodeFromRange = (range: Range) =>
 const getEndNodeFromRange = (range: Range) =>
   RangeNodes.getNode(range.endContainer, range.endOffset);
 
+const getCefEndPoint = (range: Range, forwards: boolean): Optional<Element> => {
+  const getter = forwards ? getEndNodeFromRange : getStartNodeFromRange;
+  // TODO: The end or start may be a text node so need to check for CEF ancestor. Try and find a nice helper function
+  return Optional.from(getter(range)).map((node) => isText(node) ? node.parentNode : node).filter(isContentEditableFalse);
+};
+
 const getCaretCandidateNodeFromRange = (range: Range, direction: HDirection, isElement: (node: Node) => node is Element): Optional<Element> => {
   const selectedNode = Optional.from(RangeNodes.getSelectedNode(range)).filter(isElement);
-  return selectedNode.orThunk(() => {
-    // Handle case where cef block is at the start or end of the selection
-    const getter = direction === HDirection.Backwards ? getStartNodeFromRange : getEndNodeFromRange;
-    return Optional.from(getter(range)).filter(isContentEditableFalse);
-  });
+  return selectedNode.orThunk(() => getCefEndPoint(range, direction === HDirection.Forwards));
+  // return selectedNode.orThunk(() => {
+  //   // Handle case where cef block is at the start or end of the selection
+  //   const getter = direction === HDirection.Backwards ? getStartNodeFromRange : getEndNodeFromRange;
+  //   // TODO: The end or start may be a text node so need to check for CEF ancestor. Try and find a nice helper function
+  //   return Optional.from(getter(range)).map((node) => isText(node) ? node.parentNode : node).filter(isContentEditableFalse);
+  // });
 };
 
 const moveHorizontally = (editor: Editor, direction: HDirection, range: Range, isBefore: (caretPosition: CaretPosition) => boolean,
@@ -58,7 +66,24 @@ const moveHorizontally = (editor: Editor, direction: HDirection, range: Range, i
   if (!range.collapsed) {
     const before = direction === HDirection.Backwards;
     return getCaretCandidateNodeFromRange(range, direction, isElement)
-      .bind((node) => FakeCaretUtils.showCaret(direction, editor, node, before, false));
+      .fold(
+        () => {
+          // The browser cannot handle when the start or end of the selection of the selection is a CEF block event when moving to a normal cursor position so need to manually set the cursor
+          const oppositeEndPoint = getCefEndPoint(range, !forwards);
+          // TODO: Might need to do some additional checks since might need to create a fake caret which will require other logic
+          return oppositeEndPoint.map(() => {
+            const newRng = range.cloneRange();
+            newRng.collapse(direction === HDirection.Backwards);
+            return newRng;
+          });
+        },
+        (node) => FakeCaretUtils.showCaret(direction, editor, node, before, false)
+      );
+
+    // return getCaretCandidateNodeFromRange(range, direction, isElement)
+    //   .bind((node) => FakeCaretUtils.showCaret(direction, editor, node, before, false));
+
+    // Check if the start is a cef and the end is not and vice versa. For some reason, the browser cannot handle this
   }
 
   const caretPosition = CaretUtils.getNormalizedRangeEndPoint(direction, editor.getBody(), range);
@@ -99,6 +124,20 @@ const moveVertically = (editor: Editor, direction: LineWalker.VDirection, range:
 
   console.log('moveVertically');
 
+  if (!range.collapsed) {
+    // The browser cannot handle when the start or end of the selection of the selection is a CEF block event when moving to a normal cursor position so need to manually set the cursor
+    const oppositeEndPoint = getCefEndPoint(range, !forwards);
+    console.log('here', oppositeEndPoint.getOrNull());
+    if (oppositeEndPoint.isSome()) {
+      // TODO: Might need to do some additional checks since might need to create a fake caret which will require other logic
+      return oppositeEndPoint.map(() => {
+        const newRng = range.cloneRange();
+        newRng.collapse(!forwards);
+        return newRng;
+      });
+    }
+  }
+
   if (!caretClientRect) {
     return Optional.none();
   }
@@ -126,6 +165,7 @@ const moveVertically = (editor: Editor, direction: LineWalker.VDirection, range:
   }
 
   if (currentNode) {
+    console.log('hasCurrentNode');
     const caretPositions = LineWalker.positionsUntil(direction, editor.getBody(), LineWalker.isAboveLine(1), currentNode);
 
     let closestNextLineRect = LineUtils.findClosestClientRect(Arr.filter(caretPositions, LineWalker.isLine(1)), clientX);
@@ -142,6 +182,17 @@ const moveVertically = (editor: Editor, direction: LineWalker.VDirection, range:
   if (nextLinePositions.length === 0) {
     return getLineEndPoint(editor, forwards).filter(forwards ? isAfter : isBefore)
       .map((pos) => FakeCaretUtils.renderRangeCaret(editor, pos.toRange(), false));
+    // .orThunk(() => {
+    //   // The browser cannot handle when the start or end of the selection of the selection is a CEF block event when moving to a normal cursor position so need to manually set the cursor
+    //   const oppositeEndPoint = getCefEndPoint(range, !forwards);
+    //   console.log('here', oppositeEndPoint.getOrNull());
+    //   // TODO: Might need to do some additional checks since might need to create a fake caret which will require other logic
+    //   return oppositeEndPoint.map(() => {
+    //     const newRng = range.cloneRange();
+    //     newRng.collapse(!forwards);
+    //     return newRng;
+    //   });
+    // });
   }
 
   return Optional.none();
