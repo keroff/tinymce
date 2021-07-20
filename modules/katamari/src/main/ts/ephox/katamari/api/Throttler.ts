@@ -1,3 +1,5 @@
+import * as Type from './Type';
+
 export interface Throttler<A extends any[]> {
   readonly cancel: () => void;
   readonly throttle: (...args: A) => void;
@@ -10,7 +12,7 @@ export const adaptable = <A extends any[]>(fn: (...a: A) => void, rate: number):
   let timer: number | null = null;
   let args: A | null = null;
   const cancel = () => {
-    if (timer !== null) {
+    if (!Type.isNull(timer)) {
       clearTimeout(timer);
       timer = null;
       args = null;
@@ -18,11 +20,12 @@ export const adaptable = <A extends any[]>(fn: (...a: A) => void, rate: number):
   };
   const throttle = (...newArgs: A) => {
     args = newArgs;
-    if (timer === null) {
+    if (Type.isNull(timer)) {
       timer = setTimeout(() => {
-        fn.apply(null, args as A);
+        const tempArgs = args;
         timer = null;
         args = null;
+        fn.apply(null, tempArgs as A);
       }, rate);
     }
   };
@@ -38,17 +41,46 @@ export const adaptable = <A extends any[]>(fn: (...a: A) => void, rate: number):
 export const first = <A extends any[]>(fn: (...a: A) => void, rate: number): Throttler<A> => {
   let timer: number | null = null;
   const cancel = () => {
-    if (timer !== null) {
+    if (!Type.isNull(timer)) {
       clearTimeout(timer);
       timer = null;
     }
   };
   const throttle = (...args: A) => {
-    if (timer === null) {
+    if (Type.isNull(timer)) {
       timer = setTimeout(() => {
-        fn.apply(null, args);
         timer = null;
+        fn.apply(null, args);
       }, rate);
+    }
+  };
+
+  return {
+    cancel,
+    throttle
+  };
+};
+
+// Throttles a function fn at rate ms if the predicate is true. If another
+// invocation occurs during the time it is waiting, ignore it completely.
+export const predicate = <A extends any[]>(fn: (...a: A) => void, predicate: (...a: A) => boolean, rate: number): Throttler<A> => {
+  let timer: number | null = null;
+  const cancel = () => {
+    if (!Type.isNull(timer)) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+  const throttle = (...args: A) => {
+    if (Type.isNull(timer)) {
+      if (predicate.apply(null, args)) {
+        timer = setTimeout(() => {
+          timer = null;
+          throttle.apply(null, args);
+        }, rate);
+      } else {
+        fn.apply(null, args);
+      }
     }
   };
 
@@ -64,18 +96,16 @@ export const first = <A extends any[]>(fn: (...a: A) => void, rate: number): Thr
 export const last = <A extends any[]>(fn: (...a: A) => void, rate: number): Throttler<A> => {
   let timer: number | null = null;
   const cancel = () => {
-    if (timer !== null) {
+    if (!Type.isNull(timer)) {
       clearTimeout(timer);
       timer = null;
     }
   };
   const throttle = (...args: A) => {
-    if (timer !== null) {
-      clearTimeout(timer);
-    }
+    cancel();
     timer = setTimeout(() => {
-      fn.apply(null, args);
       timer = null;
+      fn.apply(null, args);
     }, rate);
   };
 

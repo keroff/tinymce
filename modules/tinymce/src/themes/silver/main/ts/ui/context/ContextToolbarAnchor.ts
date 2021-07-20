@@ -17,7 +17,6 @@ import { getSelectionBounds, isVerticalOverlap } from './ContextToolbarBounds';
 type Layout = typeof LayoutInset.north;
 
 export interface PositionData {
-  readonly lastPos: () => Optional<Bounds>;
   readonly lastElement: () => Optional<SugarElement<Element>>;
   readonly bounds: () => Optional<Bounds>;
   readonly isReposition: () => boolean;

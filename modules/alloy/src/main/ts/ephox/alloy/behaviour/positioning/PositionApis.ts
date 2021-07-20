@@ -1,15 +1,16 @@
 import { StructureSchema } from '@ephox/boulder';
-import { Fun, Optional, Optionals } from '@ephox/katamari';
+import { Arr, Fun, Optional, Optionals } from '@ephox/katamari';
 import { Css, SugarElement, SugarLocation } from '@ephox/sugar';
-import { Transition } from 'src/main/ts/ephox/alloy/positioning/view/PositionCss';
 
 import { Bounds, box } from '../../alien/Boxes';
 import { AlloyComponent } from '../../api/component/ComponentApi';
 import * as AriaFocus from '../../aria/AriaFocus';
 import * as Anchor from '../../positioning/layout/Anchor';
 import * as Origins from '../../positioning/layout/Origins';
+import * as Placement from '../../positioning/layout/Placement';
 import * as SimpleLayout from '../../positioning/layout/SimpleLayout';
 import { Anchoring } from '../../positioning/mode/Anchoring';
+import { Transition } from '../../positioning/view/PositionCss';
 import { Stateless } from '../common/BehaviourState';
 import { PlacementDetail, PlacementSpec, PositioningConfig } from './PositioningTypes';
 import { PlacementSchema } from './PositionSchema';
@@ -93,9 +94,16 @@ const positionWithinBounds = (component: AlloyComponent, posConfig: PositioningC
 
 const getMode = (component: AlloyComponent, pConfig: PositioningConfig, _pState: Stateless): string => pConfig.useFixed() ? 'fixed' : 'absolute';
 
+const reset = (component: AlloyComponent, pConfig: PositioningConfig, _pState: Stateless, placee: AlloyComponent): void => {
+  const element = placee.element;
+  Arr.each([ 'position', 'left', 'right', 'top', 'bottom' ], (prop) => Css.remove(element, prop));
+  Placement.reset(element);
+};
+
 export {
   position,
   positionWithin,
   positionWithinBounds,
-  getMode
+  getMode,
+  reset
 };

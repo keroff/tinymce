@@ -13,15 +13,12 @@
 @pop-border-radius: @panel-border-radius;
 @pop-border-color: @border-color;
 @pop-box-shadow: 0 1px 3px rgba(0, 0, 0, .15);
+@pop-transition-time: .15s;
 
 .tox {
   .tox-pop {
     display: inline-block;
     position: relative;
-  }
-
-  .tox-pop--in-transition {
-    transition: top .2s ease, bottom .2s ease;
   }
 
   .tox-pop--resizing {
@@ -30,6 +27,23 @@
     .tox-toolbar {
       // When the toolbar is resizing, it won't fit into its container. Therefore, turn off wrapping
       flex-wrap: nowrap;
+    }
+  }
+
+  .tox-pop--transition {
+    transition: @pop-transition-time ease-in-out;
+    transition-property: left, right, top, bottom;
+
+    // Make the arrow appear towards the end of the transition
+    &::before,
+    &::after {
+      transition: opacity @pop-transition-time / 2 ease-in @pop-transition-time / 2;
+    }
+
+    // Make the arrow disappear towards the start of the transition
+    &.tox-pop--inset::before,
+    &.tox-pop--inset::after {
+      transition: all 0s @pop-transition-time, visibility 0s, opacity @pop-transition-time / 2 ease-out;
     }
   }
 
@@ -64,6 +78,7 @@
     content: '';
     display: block;
     height: 0;
+    opacity: 1;
     position: absolute;
     width: 0;
   }

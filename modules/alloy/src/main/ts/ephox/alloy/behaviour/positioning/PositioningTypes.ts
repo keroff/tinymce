@@ -6,8 +6,16 @@ import * as Behaviour from '../../api/behaviour/Behaviour';
 import { AlloyComponent } from '../../api/component/ComponentApi';
 import { AnchorDetail, AnchorSpec } from '../../positioning/mode/Anchoring';
 
+type TransitionProp = 'top' | 'bottom' | 'left' | 'right';
+
 interface TransitionSpec {
   readonly classes: string[];
+  readonly properties?: TransitionProp[];
+}
+
+interface TransitionDetail {
+  readonly classes: string[];
+  readonly properties: TransitionProp[];
 }
 
 export interface PlacementSpec {
@@ -17,7 +25,7 @@ export interface PlacementSpec {
 
 export interface PlacementDetail {
   readonly anchor: AnchorDetail<any>;
-  readonly transition: Optional<TransitionSpec>;
+  readonly transition: Optional<TransitionDetail>;
 }
 
 export interface PositioningBehaviour extends Behaviour.AlloyBehaviour<PositioningConfigSpec, PositioningConfig> {
@@ -26,6 +34,7 @@ export interface PositioningBehaviour extends Behaviour.AlloyBehaviour<Positioni
   positionWithin: (component: AlloyComponent, placee: AlloyComponent, spec: PlacementSpec, boxElement: Optional<SugarElement>) => void;
   positionWithinBounds: (component: AlloyComponent, placee: AlloyComponent, spec: PlacementSpec, bounds: Optional<Bounds>) => void;
   getMode: (component: AlloyComponent) => string;
+  reset: (component: AlloyComponent, placee: AlloyComponent) => void;
 }
 
 export interface PositioningConfigSpec extends Behaviour.BehaviourConfigSpec {
