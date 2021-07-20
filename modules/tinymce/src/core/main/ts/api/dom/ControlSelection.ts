@@ -155,6 +155,9 @@ const ControlSelection = (selection: EditorSelection, editor: Editor): ControlSe
       Arr.each(targets, (target) => {
         if (target.style[name] || !editor.schema.isValid(target.nodeName.toLowerCase(), name)) {
           dom.setStyle(target, name, value);
+        } else if(target.nodeName === 'IMG') {
+          dom.setAttrib(target, name, '' + value);
+          dom.setStyle(target, name, value);
         } else {
           dom.setAttrib(target, name, '' + value);
         }

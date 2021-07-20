@@ -47,7 +47,8 @@ const get = (dom: DOMUtils) => {
         styles: {
           float: 'left'
         },
-        preview: 'font-family font-size'
+        preview: 'font-family font-size',
+        attributes: { align: 'left' }
       }
     ],
 
@@ -76,6 +77,7 @@ const get = (dom: DOMUtils) => {
           marginLeft: 'auto',
           marginRight: 'auto'
         },
+        attributes: { align: 'center' },
         preview: false
       },
       {
@@ -112,7 +114,8 @@ const get = (dom: DOMUtils) => {
         styles: {
           float: 'right'
         },
-        preview: 'font-family font-size'
+        preview: 'font-family font-size',
+        attributes: { align: 'right' }
       }
     ],
 
