@@ -8,14 +8,57 @@
 import Editor from 'tinymce/core/api/Editor';
 import Env from 'tinymce/core/api/Env';
 
+const isIE = Env.browser.isIE();
+
+const setPrint = (frame: HTMLIFrameElement, html: string) => {
+
+  let contentWindow : Window = frame.contentWindow;
+  let contentDoc: Document = frame.contentWindow.document;
+
+  if (isIE) {
+    (contentDoc.firstChild as Element).innerHTML = html;
+  } else {
+    contentDoc.open("text/html", "replace");
+    contentDoc.write(html);
+    contentDoc.close();
+  }
+
+  contentWindow.onbeforeunload = () => document.body.removeChild(frame);
+  contentWindow.onafterprint = () => document.body.removeChild(frame);
+
+  if (isIE) {
+    contentDoc.execCommand('print', false, null);
+  } else {
+    contentWindow.print();
+  }
+};
+
+const printFragment = function (html: string) {
+  let hiddenFrame: HTMLIFrameElement = document.createElement("iframe");
+  hiddenFrame.onload = function () {
+    setPrint(hiddenFrame, html);
+  };
+  hiddenFrame.style.visibility = 'hidden';
+  hiddenFrame.style.position = 'absolute';
+  hiddenFrame.style.width = '0';
+  hiddenFrame.style.height = '0';
+  document.body.appendChild(hiddenFrame);
+};
+
+const printIframeMode = (editor: Editor) => {
+  if (isIE) {
+    editor.getDoc().execCommand('print', false, null);
+  } else {
+    editor.getWin().print();
+  }
+};
+
 const register = (editor: Editor) => {
   editor.addCommand('mcePrint', () => {
-    // TINY-3762 IE will print the current window instead of the iframe window
-    // however using execCommand appears to make it print from the correct window
-    if (Env.browser.isIE()) {
-      editor.getDoc().execCommand('print', false, null);
+    if(editor.inline) {
+      printFragment(editor.getBody().innerHTML);
     } else {
-      editor.getWin().print();
+      printIframeMode(editor);
     }
   });
 };
