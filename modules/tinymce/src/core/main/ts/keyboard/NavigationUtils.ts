@@ -61,7 +61,7 @@ const moveHorizontally = (editor: Editor, direction: HDirection, range: Range, i
   const getNextPosFn = Fun.curry(CaretUtils.getVisualCaretPosition, forwards ? caretWalker.next : caretWalker.prev);
   const isPredicateFn = forwards ? isBefore : isAfter;
 
-  console.log('moveHorizontally');
+  // console.log('moveHorizontally');
 
   if (!range.collapsed) {
     const before = direction === HDirection.Backwards;
@@ -122,12 +122,11 @@ const moveVertically = (editor: Editor, direction: LineWalker.VDirection, range:
   const caretClientRect = ArrUtils.last(caretPosition.getClientRects());
   const forwards = direction === LineWalker.VDirection.Down;
 
-  console.log('moveVertically');
+  // console.log('moveVertically');
 
   if (!range.collapsed) {
     // The browser cannot handle when the start or end of the selection of the selection is a CEF block event when moving to a normal cursor position so need to manually set the cursor
     const oppositeEndPoint = getCefEndPoint(range, !forwards);
-    console.log('here', oppositeEndPoint.getOrNull());
     if (oppositeEndPoint.isSome()) {
       // TODO: Might need to do some additional checks since might need to create a fake caret which will require other logic
       return oppositeEndPoint.map(() => {
@@ -165,7 +164,7 @@ const moveVertically = (editor: Editor, direction: LineWalker.VDirection, range:
   }
 
   if (currentNode) {
-    console.log('hasCurrentNode');
+    // console.log('hasCurrentNode');
     const caretPositions = LineWalker.positionsUntil(direction, editor.getBody(), LineWalker.isAboveLine(1), currentNode);
 
     let closestNextLineRect = LineUtils.findClosestClientRect(Arr.filter(caretPositions, LineWalker.isLine(1)), clientX);

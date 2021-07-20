@@ -67,7 +67,6 @@ const exitPreBlock = (editor: Editor, direction: HDirection, range: Range): void
   }
 };
 
-// There seems to be a flaw in this logic where it will select the cef element even if say pressing the right arrow key to chnage the cursor on a different line
 const getHorizontalRange = (editor: Editor, forward: boolean): Optional<Range> => {
   const direction = forward ? HDirection.Forwards : HDirection.Backwards;
   const range = editor.selection.getRng();
@@ -90,7 +89,7 @@ const getVerticalRange = (editor: Editor, down: boolean): Optional<Range> => {
 
 const moveH = (editor: Editor, forward: boolean): boolean =>
   getHorizontalRange(editor, forward).exists((newRange) => {
-    console.log('moveH - CEF');
+    // console.log('moveH - CEF');
     NavigationUtils.moveToRange(editor, newRange);
     return true;
   });
@@ -98,7 +97,7 @@ const moveH = (editor: Editor, forward: boolean): boolean =>
 const moveV = (editor: Editor, down: boolean): boolean =>
   getVerticalRange(editor, down).exists((newRange) => {
     NavigationUtils.moveToRange(editor, newRange);
-    console.log('moveV - CEF');
+    // console.log('moveV - CEF');
     return true;
   });
 
@@ -109,7 +108,7 @@ const moveToLineEndPoint = (editor: Editor, forward: boolean): boolean => {
 
 // Use when doing just Ctrl+Home and Ctrl+End
 const moveToEndPoint = (editor: Editor, forward: boolean): boolean => {
-  console.log('moveToEndPoint');
+  // console.log('moveToEndPoint');
   const traverse = forward ? Traverse.lastChild : Traverse.firstChild;
   const childOpt = traverse(SugarElement.fromDom(editor.getBody())).map((child) => child.dom);
 
@@ -123,12 +122,12 @@ const moveToEndPoint = (editor: Editor, forward: boolean): boolean => {
 };
 
 const selectToEndPoint = (editor: Editor, forward: boolean): boolean => {
-  console.log('selectToEndPoint');
+  // console.log('selectToEndPoint');
   const traverse = forward ? Traverse.lastChild : Traverse.firstChild;
   const childOpt = traverse(SugarElement.fromDom(editor.getBody())).map((child) => child.dom);
 
   return childOpt.filter(isContentEditableFalse).exists((child) => {
-    console.log('overidding selection');
+    // console.log('overidding selection');
     const rng = editor.selection.getRng();
     const newRng = rng.cloneRange();
     if (forward) {
