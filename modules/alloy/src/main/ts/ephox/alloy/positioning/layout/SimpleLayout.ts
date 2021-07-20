@@ -10,6 +10,12 @@ import { Bubble } from './Bubble';
 import * as LayoutTypes from './LayoutTypes';
 import * as MaxHeight from './MaxHeight';
 import * as Origins from './Origins';
+import { Placement } from './Placement';
+
+interface LayoutResult {
+  readonly layout: string;
+  readonly placement: Placement;
+}
 
 export interface ReparteeOptions {
   readonly bounds: Bounds;
@@ -17,13 +23,23 @@ export interface ReparteeOptions {
   readonly preference: LayoutTypes.AnchorLayout[];
   readonly maxHeightFunction: MaxHeightFunction;
   readonly maxWidthFunction: MaxWidthFunction;
+  readonly lastLayout: Optional<string>;
   readonly transition: Optional<Transition>;
 }
 
 const defaultOr = <K extends keyof AnchorOverrides>(options: AnchorOverrides, key: K, dephault: NonNullable<AnchorOverrides[K]>): NonNullable<AnchorOverrides[K]> => options[key] === undefined ? dephault : options[key] as NonNullable<AnchorOverrides[K]>;
 
 // This takes care of everything when you are positioning UI that can go anywhere on the screen
-const simple = (anchor: Anchor, element: SugarElement, bubble: Bubble, layouts: LayoutTypes.AnchorLayout[], getBounds: Optional<() => Bounds>, overrideOptions: AnchorOverrides, transition: Optional<Transition>): void => {
+const simple = (
+  anchor: Anchor,
+  element: SugarElement,
+  lastLayout: Optional<string>,
+  bubble: Bubble,
+  layouts: LayoutTypes.AnchorLayout[],
+  getBounds: Optional<() => Bounds>,
+  overrideOptions: AnchorOverrides,
+  transition: Optional<Transition>
+): LayoutResult => {
   // the only supported override at the moment. Once relative has been deleted, maybe this can be optional in the bag
   const maxHeightFunction: MaxHeightFunction = defaultOr(overrideOptions, 'maxHeightFunction', MaxHeight.anchored());
   const maxWidthFunction: MaxWidthFunction = defaultOr(overrideOptions, 'maxWidthFunction', Fun.noop);
@@ -37,14 +53,15 @@ const simple = (anchor: Anchor, element: SugarElement, bubble: Bubble, layouts: 
     preference: layouts,
     maxHeightFunction,
     maxWidthFunction,
+    lastLayout,
     transition
   };
 
-  go(anchorBox, element, bubble, options);
+  return go(anchorBox, element, bubble, options);
 };
 
 // This is the old public API. If we ever need full customisability again, this is how to expose it
-const go = (anchorBox: LayoutTypes.AnchorBox, element: SugarElement, bubble: Bubble, options: ReparteeOptions): void => {
+const go = (anchorBox: LayoutTypes.AnchorBox, element: SugarElement, bubble: Bubble, options: ReparteeOptions): LayoutResult => {
   const decision = Callouts.layout(anchorBox, element, bubble, options);
 
   Callouts.position(element, decision, options);
@@ -52,6 +69,11 @@ const go = (anchorBox: LayoutTypes.AnchorBox, element: SugarElement, bubble: Bub
   Callouts.setClasses(element, decision);
   Callouts.setHeight(element, decision, options);
   Callouts.setWidth(element, decision, options);
+
+  return {
+    layout: decision.label,
+    placement: decision.placement
+  };
 };
 
 export { simple };

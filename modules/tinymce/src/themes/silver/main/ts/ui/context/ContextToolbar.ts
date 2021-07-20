@@ -217,7 +217,8 @@ const register = (editor: Editor, registryContextToolbars: Record<string, Contex
     InlineView.showWithinBounds(contextbar, wrapInPopDialog(toolbarSpec), {
       anchor,
       transition: {
-        classes: [ transitionClass ]
+        classes: [ transitionClass ],
+        type: 'layout'
       }
     }, () => Optional.some(getBounds()));
 
@@ -268,7 +269,7 @@ const register = (editor: Editor, registryContextToolbars: Record<string, Contex
     editor.on('focusout', (_e) => {
       Delay.setEditorTimeout(editor, () => {
         if (Focus.search(sink.element).isNone() && Focus.search(contextbar.element).isNone()) {
-          close();
+          // close();
         }
       }, 0);
     });

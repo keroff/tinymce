@@ -4,18 +4,23 @@ import { SugarElement } from '@ephox/sugar';
 import { Bounds } from '../../alien/Boxes';
 import * as Behaviour from '../../api/behaviour/Behaviour';
 import { AlloyComponent } from '../../api/component/ComponentApi';
+import { Placement } from '../../positioning/layout/Placement';
 import { AnchorDetail, AnchorSpec } from '../../positioning/mode/Anchoring';
+import { BehaviourState } from '../common/BehaviourState';
 
 type TransitionProp = 'top' | 'bottom' | 'left' | 'right';
+type TransitionType = 'any' | 'layout';
 
 interface TransitionSpec {
   readonly classes: string[];
   readonly properties?: TransitionProp[];
+  readonly type?: TransitionType;
 }
 
 interface TransitionDetail {
   readonly classes: string[];
   readonly properties: TransitionProp[];
+  readonly type: TransitionType;
 }
 
 export interface PlacementSpec {
@@ -45,4 +50,15 @@ export interface PositioningConfigSpec extends Behaviour.BehaviourConfigSpec {
 export interface PositioningConfig extends Behaviour.BehaviourConfigDetail {
   useFixed: () => boolean;
   getBounds: Optional<() => Bounds>; // TODO: Strengthen types
+}
+
+export interface PlaceeState {
+  readonly layout: string;
+  readonly placement: Placement;
+}
+
+export interface PositioningState extends BehaviourState {
+  readonly clear: (id?: string) => void;
+  readonly get: (id: string) => Optional<PlaceeState>;
+  readonly set: (id: string, state: PlaceeState) => void;
 }

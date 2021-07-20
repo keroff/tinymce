@@ -16,6 +16,12 @@ type Position = 'top' | 'left' | 'bottom' | 'right';
 export interface Transition {
   readonly classes: string[];
   readonly properties: Position[];
+  readonly type: string;
+}
+
+export interface TransitionDetails extends Transition {
+  readonly layout: string;
+  readonly lastLayout: Optional<string>;
 }
 
 const NuPositionCss = (
@@ -44,7 +50,7 @@ const applyPositionCss = (element: SugarElement, position: PositionCss): void =>
   Css.setOptions(element, toOptions(position));
 };
 
-const hasChanges = (element: SugarElement<HTMLElement>, position: PositionCss, transition: Transition): boolean => {
+const hasChanges = (element: SugarElement<HTMLElement>, position: PositionCss, transition: TransitionDetails): boolean => {
   // Round to 3 decimal points
   const round = (value: string) => parseFloat(value).toPrecision(3);
 
@@ -59,9 +65,16 @@ const hasChanges = (element: SugarElement<HTMLElement>, position: PositionCss, t
   }).isSome();
 };
 
-// Don't apply transitions if there was no previous placement as it's transitioning from offscreen
-const shouldTransition = (element: SugarElement<HTMLElement>, position: PositionCss, transition: Transition) =>
-  Placement.getPlacement(element).isSome() && hasChanges(element, position, transition);
+const shouldTransition = (element: SugarElement<HTMLElement>, position: PositionCss, transition: TransitionDetails) => {
+  // Don't apply transitions if there was no previous placement as it's transitioning from offscreen
+  if (Placement.getPlacement(element).isNone() || !hasChanges(element, position, transition)) {
+    return false;
+  } else if (transition.type === 'layout') {
+    return !Optionals.is(transition.lastLayout, transition.layout);
+  } else {
+    return true;
+  }
+};
 
 const getTransitionDuration = (element: SugarElement<HTMLElement>): number => {
   const duration = Css.get(element, 'transition-duration');
@@ -72,7 +85,7 @@ const getTransitionDuration = (element: SugarElement<HTMLElement>): number => {
   }, 0);
 };
 
-const applyTransitionCss = (element: SugarElement<HTMLElement>, position: PositionCss, transition: Transition): void => {
+const applyTransitionCss = (element: SugarElement<HTMLElement>, position: PositionCss, transition: TransitionDetails): void => {
   if (shouldTransition(element, position, transition)) {
     // Set the new position first so we can calculate the computed position
     Css.set(element, 'position', position.position);
@@ -101,7 +114,7 @@ const applyTransitionCss = (element: SugarElement<HTMLElement>, position: Positi
 
     // Ensure the transition is cleaned up (add 10ms to give time for the transitionend to fire)
     const duration = getTransitionDuration(element);
-    const timer = setTimeout(transitionDone, duration * 4 + 10);
+    const timer = setTimeout(transitionDone, duration + 10);
   } else {
     Classes.remove(element, transition.classes);
   }

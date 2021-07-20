@@ -12,6 +12,7 @@ export const PlacementSchema = [
   FieldSchema.requiredOf('anchor', AnchorSchema),
   FieldSchema.optionObjOf('transition', [
     FieldSchema.requiredArrayOf('classes', ValueType.string),
-    FieldSchema.defaultedArrayOf('properties', [ 'top', 'bottom', 'left', 'right' ], ValueType.string)
+    FieldSchema.defaultedArrayOf('properties', [ 'top', 'bottom', 'left', 'right' ], ValueType.string),
+    FieldSchema.defaultedStringEnum('type', 'any', [ 'any', 'layout' ])
   ])
 ];

@@ -6,11 +6,22 @@ import { AlloyComponent } from '../../api/component/ComponentApi';
 import { Bubble } from '../layout/Bubble';
 import { AnchorBox, AnchorLayout } from '../layout/LayoutTypes';
 import { OriginAdt } from '../layout/Origins';
+import { Placement } from '../layout/Placement';
 import { Transition } from '../view/PositionCss';
 
 // doPlace(component, origin, anchoring, posConfig, placee, transition);
-export type AnchorPlacement =
-  (comp: AlloyComponent, origin: OriginAdt, anchoring: Anchoring, getBounds: Optional<() => Bounds>, placee: AlloyComponent, transition: Optional<Transition>) => void;
+export type AnchorPlacement = (
+  comp: AlloyComponent,
+  origin: OriginAdt,
+  anchoring: Anchoring,
+  lastState: Optional<{ layout: string }>,
+  getBounds: Optional<() => Bounds>,
+  placee: AlloyComponent,
+  transition: Optional<Transition>
+) => {
+  readonly layout: string;
+  readonly placement: Placement;
+};
 
 export interface CommonAnchorSpec {
   type: string;

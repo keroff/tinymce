@@ -57,7 +57,11 @@ const position = (element: SugarElement, decision: RepositionDecision, options: 
   // That is not ported yet.
   const positionCss = Origins.reposition(options.origin, decision);
   options.transition.each((transition) => {
-    applyTransitionCss(element, positionCss, transition);
+    applyTransitionCss(element, positionCss, {
+      ...transition,
+      layout: decision.label,
+      lastLayout: options.lastLayout
+    });
   });
   applyPositionCss(element, positionCss);
 };
