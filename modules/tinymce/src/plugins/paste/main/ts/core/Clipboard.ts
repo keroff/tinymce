@@ -90,8 +90,16 @@ const getDataTransferItems = (dataTransfer: DataTransfer): ClipboardContents => 
         }
       }
     }
-
-    if (dataTransfer.types) {
+    if (dataTransfer.items) {
+      for (var i = 0; i < dataTransfer.items.length; i++) {
+        let f = dataTransfer.items[i];
+        try {
+          items[f.type] = dataTransfer.getData(f.type);
+        } catch (ex) {
+          console.log("getdataTransferItems failed: " + f.type);
+        }
+      }
+    } else if (dataTransfer.types) {
       for (let i = 0; i < dataTransfer.types.length; i++) {
         const contentType = dataTransfer.types[i];
         try { // IE11 throws exception when contentType is Files (type is present but data cannot be retrieved via getData())
@@ -193,7 +201,7 @@ const readFilesAsDataUris = (items: Array<File | DataTransferItem>) => Promise.a
 
 const isImage = (editor: Editor) => {
   const allowedExtensions = Settings.getAllowedImageFileTypes(editor);
-  return (file: File) => Strings.startsWith(file.type, 'image/') && Arr.exists(allowedExtensions, (extension) => {
+  return (file: File) => file && Strings.startsWith(file.type, 'image/') && Arr.exists(allowedExtensions, (extension) => {
     return Utils.getImageMimeType(extension) === file.type;
   });
 };
@@ -385,7 +393,7 @@ const registerEventHandlers = (editor: Editor, pasteBin: PasteBin, pasteFormat: 
       return;
     }
 
-    if (!hasHtmlOrText(clipboardContent) && pasteImageData(editor, e, getLastRng())) {
+    if (pasteImageData(editor, e, getLastRng()) || !hasHtmlOrText(clipboardContent)) {
       pasteBin.remove();
       return;
     }
