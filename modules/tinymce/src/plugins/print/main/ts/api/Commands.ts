@@ -12,13 +12,13 @@ const isIE = Env.browser.isIE();
 
 const setPrint = (frame: HTMLIFrameElement, html: string) => {
 
-  let contentWindow : Window = frame.contentWindow;
-  let contentDoc: Document = frame.contentWindow.document;
+  const contentWindow: Window = frame.contentWindow;
+  const contentDoc: Document = frame.contentWindow.document;
 
   if (isIE) {
     (contentDoc.firstChild as Element).innerHTML = html;
   } else {
-    contentDoc.open("text/html", "replace");
+    contentDoc.open('text/html', 'replace');
     contentDoc.write(html);
     contentDoc.close();
   }
@@ -33,9 +33,9 @@ const setPrint = (frame: HTMLIFrameElement, html: string) => {
   }
 };
 
-const printFragment = function (html: string) {
-  let hiddenFrame: HTMLIFrameElement = document.createElement("iframe");
-  hiddenFrame.onload = function () {
+const printFragment = (html: string) => {
+  const hiddenFrame: HTMLIFrameElement = document.createElement('iframe');
+  hiddenFrame.onload = () => {
     setPrint(hiddenFrame, html);
   };
   hiddenFrame.style.visibility = 'hidden';
@@ -55,7 +55,7 @@ const printIframeMode = (editor: Editor) => {
 
 const register = (editor: Editor) => {
   editor.addCommand('mcePrint', () => {
-    if(editor.inline) {
+    if (editor.inline) {
       printFragment(editor.getBody().innerHTML);
     } else {
       printIframeMode(editor);

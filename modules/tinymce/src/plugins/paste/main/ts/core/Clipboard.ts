@@ -91,12 +91,12 @@ const getDataTransferItems = (dataTransfer: DataTransfer): ClipboardContents => 
       }
     }
     if (dataTransfer.items) {
-      for (var i = 0; i < dataTransfer.items.length; i++) {
-        let f = dataTransfer.items[i];
+      for (let i = 0; i < dataTransfer.items.length; i++) {
+        const f = dataTransfer.items[i];
         try {
           items[f.type] = dataTransfer.getData(f.type);
         } catch (ex) {
-          console.log("getdataTransferItems failed: " + f.type);
+          // console.log('getdataTransferItems failed: ' + f.type);
         }
       }
     } else if (dataTransfer.types) {
