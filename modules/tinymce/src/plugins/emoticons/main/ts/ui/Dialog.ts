@@ -16,11 +16,13 @@ import { emojisFrom } from '../core/Lookup';
 
 const patternName = 'pattern';
 
+const maxResults = 1600; /* was 300, but total number of icons is 1570 :[ */
+
 const open = (editor: Editor, database: EmojiDatabase) => {
 
   const initialState = {
     pattern: '',
-    results: emojisFrom(database.listAll(), '', Optional.some(300))
+    results: emojisFrom(database.listAll(), '', Optional.some(maxResults))
   };
 
   const currentTab = Cell(ALL_CATEGORY);
@@ -29,7 +31,7 @@ const open = (editor: Editor, database: EmojiDatabase) => {
     const dialogData = dialogApi.getData();
     const category = currentTab.get();
     const candidates = database.listCategory(category);
-    const results = emojisFrom(candidates, dialogData[patternName], category === ALL_CATEGORY ? Optional.some(300) : Optional.none());
+    const results = emojisFrom(candidates, dialogData[patternName], category === ALL_CATEGORY ? Optional.some(maxResults) : Optional.none());
     dialogApi.setData({
       results
     });
