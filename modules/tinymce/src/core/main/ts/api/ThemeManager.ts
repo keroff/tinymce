@@ -23,6 +23,7 @@ export interface Theme {
     editorContainer: HTMLElement;
     api?: Partial<EditorUiApi>;
   };
+  popupContainer?: any;
   getNotificationManagerImpl?: () => NotificationManagerImpl;
   getWindowManagerImpl?: () => WindowManagerImpl;
 }

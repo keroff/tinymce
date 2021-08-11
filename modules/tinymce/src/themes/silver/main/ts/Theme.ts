@@ -23,9 +23,11 @@ export default () => {
     Autocompleter.register(editor, backstage.shared);
 
     const windowMgr = WindowManager.setup({ editor, backstage });
+    const popupContainer = uiMothership.element.dom;
 
     return {
       renderUI,
+      popupContainer,
       getWindowManagerImpl: Fun.constant(windowMgr),
       getNotificationManagerImpl: () => NotificationManagerImpl(editor, { backstage }, uiMothership),
       // TODO: move to editor.ui namespace
