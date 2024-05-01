@@ -10,6 +10,10 @@ import Tools from 'tinymce/core/api/util/Tools';
 
 const shouldBlockDrop = (editor: Editor): boolean => editor.getParam('paste_block_drop', false);
 
+const isExcelParseEnabled = (editor: Editor): boolean => editor.getParam('paste_use_excel_parser', false);
+
+const getKeepStyleElements = (editor: Editor): string => editor.getParam('paste_keep_style_elements', false);
+
 const shouldPasteDataImages = (editor: Editor): boolean => editor.getParam('paste_data_images', false);
 
 const shouldFilterDrop = (editor: Editor): boolean => editor.getParam('paste_filter_drop', true);
@@ -90,5 +94,7 @@ export {
   getForcedRootBlock,
   getForcedRootBlockAttrs,
   getTabSpaces,
-  getAllowedImageFileTypes
+  getAllowedImageFileTypes,
+  isExcelParseEnabled,
+  getKeepStyleElements
 };

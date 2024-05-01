@@ -312,6 +312,8 @@ const registerEventHandlers = (editor: Editor, pasteBin: PasteBin, pasteFormat: 
     // Grab HTML from Clipboard API or paste bin as a fallback
     if (hasContentType(clipboardContent, 'text/html')) {
       content = clipboardContent['text/html'];
+      content = Utils.keepStyles(editor, content);
+      content = Utils.parseExcel(editor, content);
     } else {
       content = pasteBin.getHtml();
       internal = internal ? internal : InternalHtml.isMarked(content);

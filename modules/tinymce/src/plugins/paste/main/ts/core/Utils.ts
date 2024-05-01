@@ -7,9 +7,12 @@
 
 import { Unicode } from '@ephox/katamari';
 
+import Editor from 'tinymce/core/api/Editor';
 import DomParser from 'tinymce/core/api/html/DomParser';
 import Schema from 'tinymce/core/api/html/Schema';
 import Tools from 'tinymce/core/api/util/Tools';
+
+import * as Settings from '../api/Settings';
 
 /**
  * This class contails various utility functions for the paste plugin.
@@ -100,6 +103,111 @@ const innerText = (html: string) => {
   return text;
 };
 
+const ExcelParser = () => {
+
+  const commentStart = '<!--';
+  const commentEnd = '-->';
+  const styleRegExp = /^(\.?[a-zA-Z0-9_-]+?)\s*?{([\s\S]+?)}/gm;
+
+  const isExcelSheet = (container: Element) => {
+    return !!container.querySelector('meta[name="ProgId"][content="Excel.Sheet"]');
+  };
+
+  const appendFromClassName = (container: Element, className: string, style: any) => {
+    const nodeList = container.querySelectorAll<HTMLElement>(className);
+    for (let i = 0; i < nodeList.length; i++) {
+      const node = nodeList[i];
+      const newStyle = nodeList[i].style.cssText + style;
+      node.setAttribute('data-mce-style', newStyle);
+      node.style.cssText = newStyle;
+      node.classList.remove(className.substring(1));
+      if (node.classList.length === 0) {
+        node.removeAttribute('class');
+      }
+    }
+  };
+
+  const appendFromTagName = (container: Element, tagName: string, style: any) => {
+    const nodeList = container.querySelectorAll<HTMLElement>(tagName);
+    for (let i = 0; i < nodeList.length; i++) {
+      const node = nodeList[i];
+      const newStyle = nodeList[i].style.cssText + style;
+      node.style.cssText = newStyle;
+      node.setAttribute('data-mce-style', newStyle);
+    }
+  };
+
+  const parseStyle = (text: string) => {
+    const styles = {};
+    let match = styleRegExp.exec(text);
+    while (match) {
+      if (match.length === 3) {
+        styles[match[1]] = match[2]; // (1) selector (2) style
+      }
+      match = styleRegExp.exec(text);
+    }
+
+    return styles;
+  };
+
+  // only class and element selectors should be selected by regexp
+  const appendStyle = (container: Element, styles: any) => {
+    for (const selector in styles) {
+      if (selector.startsWith('.')) {
+        appendFromClassName(container, selector, styles[selector]);
+      } else {
+        appendFromTagName(container, selector, styles[selector]);
+      }
+    }
+  };
+
+  return (editor: Editor, html: string) => {
+    if (!Settings.isExcelParseEnabled(editor)) {
+      return html;
+    }
+
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    if (!isExcelSheet(div)) {
+      return html;
+    }
+
+    const styleTags = div.querySelectorAll('style');
+    for (let i = 0; i < styleTags.length; i++) {
+      const tagText = styleTags[i].innerText.trim();
+      if (tagText.startsWith(commentStart) && tagText.endsWith(commentEnd)) {
+        const text = tagText.substring(commentStart.length, tagText.length - commentEnd.length);
+        const parsedStyle = parseStyle(text);
+        appendStyle(div, parsedStyle);
+      }
+    }
+
+    return div.innerHTML;
+  };
+};
+
+const parseExcel = ExcelParser();
+
+const keepStyles = (editor: Editor, html: string) => {
+  const keepStyleElements = Settings.getKeepStyleElements(editor);
+  if (!keepStyleElements) {
+    return html;
+  }
+
+  const div = document.createElement('div');
+  div.innerHTML = html;
+
+  const elements = keepStyleElements.split('|');
+  for (let i = 0; i < elements.length; i++) {
+    const nodeList = div.querySelectorAll<HTMLElement>(elements[i]);
+    for (let j = 0; j < nodeList.length; j++) {
+      nodeList[j].setAttribute('data-mce-style', nodeList[j].style.cssText);
+    }
+  }
+
+  return div.innerHTML;
+};
+
 /**
  * Trims the specified HTML by removing all WebKit fragments, all elements wrapping the body trailing BR elements etc.
  *
@@ -157,5 +265,7 @@ export {
   innerText,
   trimHtml,
   createIdGenerator,
-  getImageMimeType
+  getImageMimeType,
+  keepStyles,
+  parseExcel
 };
