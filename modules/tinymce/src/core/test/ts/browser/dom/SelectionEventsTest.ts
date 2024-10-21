@@ -7,7 +7,6 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import { EditorEvent } from 'tinymce/core/api/util/EventDispatcher';
-import Theme from 'tinymce/themes/silver/Theme';
 
 interface HandlerAndArgs {
   readonly eventArgs: Cell<EditorEvent<any>>;
@@ -17,7 +16,7 @@ interface HandlerAndArgs {
 describe('browser.tinymce.core.dom.SelectionEventsTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ], true);
+  }, [], true);
 
   const bindEventMutator = (editor: Editor, eventName: string, mutator: (editor: Editor, e: EditorEvent<any>) => void): HandlerAndArgs => {
     const eventArgs = Cell(null);
@@ -40,19 +39,19 @@ describe('browser.tinymce.core.dom.SelectionEventsTest', () => {
     editor.off(eventName, value.handler);
   };
 
-  const assertSetSelectionEventArgs = (editor: Editor, expectedForward: boolean, value: HandlerAndArgs) => {
+  const assertSetSelectionEventArgs = (editor: Editor, expectedForward: boolean | undefined, value: HandlerAndArgs) => {
     assert.equal(value.eventArgs.get().forward, expectedForward, 'Should be expected forward flag');
     assertSelectAllRange(editor, value.eventArgs.get().range);
   };
 
   const getSelectAllRng = (editor: Editor) => {
     const rng = document.createRange();
-    rng.setStartBefore(editor.getBody().firstChild);
-    rng.setEndAfter(editor.getBody().firstChild);
+    rng.setStartBefore(editor.getBody().firstChild as Node);
+    rng.setEndAfter(editor.getBody().firstChild as Node);
     return rng;
   };
 
-  const setRng = (editor: Editor, forward: boolean) => {
+  const setRng = (editor: Editor, forward: boolean | undefined) => {
     editor.selection.setRng(getSelectAllRng(editor), forward);
   };
 

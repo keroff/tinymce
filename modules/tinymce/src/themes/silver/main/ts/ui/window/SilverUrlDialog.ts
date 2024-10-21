@@ -1,13 +1,6 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AddEventsBehaviour, AlloyEvents, AlloyParts, Receiving } from '@ephox/alloy';
+import { AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloyParts, Receiving } from '@ephox/alloy';
 import { Dialog } from '@ephox/bridge';
-import { Obj, Optional, Singleton, Type } from '@ephox/katamari';
+import { Id, Obj, Optional, Singleton, Type } from '@ephox/katamari';
 import { DomEvent, EventUnbinder, SelectorFind, SugarElement } from '@ephox/sugar';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -16,10 +9,15 @@ import URI from 'tinymce/core/api/util/URI';
 import { UiFactoryBackstage } from '../../backstage/Backstage';
 import { bodySendMessageChannel } from './DialogChannels';
 import { renderIframeBody } from './SilverDialogBody';
-import { DialogSpec, getEventExtras, getHeader, renderModalDialog, WindowExtra } from './SilverDialogCommon';
-import { SilverDialogEvents } from './SilverDialogEvents';
+import { DialogSpec, getEventExtras, getHeader, renderModalDialog, SharedWindowExtra } from './SilverDialogCommon';
+import * as SilverDialogEvents from './SilverDialogEvents';
 import { renderModalFooter } from './SilverDialogFooter';
 import { getUrlDialogApi } from './SilverUrlDialogInstanceApi';
+
+interface RenderedUrlDialog {
+  readonly dialog: AlloyComponent;
+  readonly instanceApi: Dialog.UrlDialogInstanceApi;
+}
 
 // A list of supported message actions
 const SUPPORTED_MESSAGE_ACTIONS = [ 'insertContent', 'setContent', 'execCommand', 'close', 'block', 'unblock' ];
@@ -52,15 +50,16 @@ const handleMessage = (editor: Editor, api: Dialog.UrlDialogInstanceApi, data: a
   }
 };
 
-const renderUrlDialog = (internalDialog: Dialog.UrlDialog, extra: WindowExtra, editor: Editor, backstage: UiFactoryBackstage) => {
-  const header = getHeader(internalDialog.title, backstage);
+const renderUrlDialog = (internalDialog: Dialog.UrlDialog, extra: SharedWindowExtra, editor: Editor, backstage: UiFactoryBackstage): RenderedUrlDialog => {
+  const dialogId = Id.generate('dialog');
+  const header = getHeader(internalDialog.title, dialogId, backstage);
   const body = renderIframeBody(internalDialog);
   const footer = internalDialog.buttons.bind((buttons) => {
     // Don't render a footer if no buttons are specified
     if (buttons.length === 0) {
       return Optional.none<AlloyParts.ConfiguredPart>();
     } else {
-      return Optional.some(renderModalFooter({ buttons }, backstage));
+      return Optional.some(renderModalFooter({ buttons }, dialogId, backstage));
     }
   });
 
@@ -114,7 +113,9 @@ const renderUrlDialog = (internalDialog: Dialog.UrlDialog, extra: WindowExtra, e
             // Send the message to the iframe via postMessage
             SelectorFind.descendant<HTMLIFrameElement>(comp.element, 'iframe').each((iframeEle) => {
               const iframeWin = iframeEle.dom.contentWindow;
-              iframeWin.postMessage(data, iframeDomain);
+              if (Type.isNonNullable(iframeWin)) {
+                iframeWin.postMessage(data, iframeDomain);
+              }
             });
           }
         }
@@ -123,6 +124,7 @@ const renderUrlDialog = (internalDialog: Dialog.UrlDialog, extra: WindowExtra, e
   ];
 
   const spec: DialogSpec = {
+    id: dialogId,
     header,
     body,
     footer,

@@ -2,11 +2,13 @@
 import { Merger } from '@ephox/katamari';
 import { SugarElement } from '@ephox/sugar';
 
-declare let tinymce: any;
+import { Editor, RawEditorOptions, TinyMCE } from 'tinymce/core/api/PublicApi';
 
-export default () => {
+declare let tinymce: TinyMCE;
 
-  const makeSidebar = (ed, name: string, background: string, width: number) => {
+export default (): void => {
+
+  const makeSidebar = (ed: Editor, name: string, background: string, width: number) => {
     ed.ui.registry.addSidebar(name, {
       icon: 'comment',
       tooltip: 'Tooltip for ' + name,
@@ -27,7 +29,7 @@ export default () => {
     });
   };
 
-  const settings = {
+  const settings: RawEditorOptions = {
     skin_url: '../../../../js/tinymce/skins/ui/oxide',
     content_css: '../../../../js/tinymce/skins/content/default/content.css',
     selector: 'textarea',
@@ -35,7 +37,7 @@ export default () => {
       makeSidebar(ed, 'sidebar1', 'green', 200);
     },
     plugins: [
-      'print preview media link image'
+      'preview', 'media', 'link', 'image'
     ],
     add_unload_trigger: false,
     autosave_ask_before_unload: false,

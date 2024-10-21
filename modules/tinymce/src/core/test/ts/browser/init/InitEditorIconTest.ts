@@ -7,7 +7,6 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import IconManager from 'tinymce/core/api/IconManager';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.init.InitEditorIconTest', () => {
   const overrideIcon = '<svg>override-icon</svg>';
@@ -15,10 +14,10 @@ describe('browser.tinymce.core.init.InitEditorIconTest', () => {
     icons: 'custom',
     icons_url: '/project/tinymce/src/core/test/assets/icons/custom/icons.js',
     base_url: '/project/tinymce/js/tinymce',
-    setup: (editor) => {
+    setup: (editor: Editor) => {
       editor.ui.registry.addIcon('custom-icon', overrideIcon);
     }
-  }, [ Theme ]);
+  }, []);
 
   // Copy of '/src/core/test/assets/icons/custom''. For assertion in test.
   const customIconPack = {

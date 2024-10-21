@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import Editor from './Editor';
 import Env from './Env';
 import Tools from './util/Tools';
@@ -14,27 +7,25 @@ import Tools from './util/Tools';
  *
  * @class tinymce.Shortcuts
  * @example
- * editor.shortcuts.add('ctrl+a', "description of the shortcut", function() {});
- * editor.shortcuts.add('ctrl+alt+a', "description of the shortcut", function() {});
+ * editor.shortcuts.add('ctrl+a', 'description of the shortcut', () => {});
+ * editor.shortcuts.add('ctrl+alt+a', 'description of the shortcut', () => {});
  * // "meta" maps to Command on Mac and Ctrl on PC
- * editor.shortcuts.add('meta+a', "description of the shortcut", function() {});
+ * editor.shortcuts.add('meta+a', 'description of the shortcut', () => {});
  * // "access" maps to Control+Option on Mac and shift+alt on PC
- * editor.shortcuts.add('access+a', "description of the shortcut", function() {});
+ * editor.shortcuts.add('access+a', 'description of the shortcut', () => {});
  *
- * editor.shortcuts.add(
- *  'meta+access+c', 'Opens the code editor dialog.', function () {
- *    editor.execCommand('mceCodeEditor');
+ * editor.shortcuts.add('meta+access+c', 'Opens the code editor dialog.', () => {
+ *   editor.execCommand('mceCodeEditor');
  * });
  *
- * editor.shortcuts.add(
- *  'meta+shift+32', 'Inserts "Hello, World!" for meta+shift+space', function () {
- *    editor.execCommand('mceInsertContent', false, 'Hello, World!');
+ * editor.shortcuts.add('meta+shift+32', 'Inserts "Hello, World!" for meta+shift+space', () => {
+ *   editor.execCommand('mceInsertContent', false, 'Hello, World!');
  * });
  */
 
 const each = Tools.each, explode = Tools.explode;
 
-const keyCodeLookup = {
+const keyCodeLookup: Record<string, number> = {
   f1: 112,
   f2: 113,
   f3: 114,
@@ -49,7 +40,9 @@ const keyCodeLookup = {
   f12: 123
 };
 
-const modifierNames = Tools.makeMap('alt,ctrl,shift,meta,access');
+type ModifierMap = Record<'alt' | 'ctrl' | 'shift' | 'meta' | 'access', {}>;
+
+const modifierNames = Tools.makeMap('alt,ctrl,shift,meta,access') as ModifierMap;
 
 interface Shortcut {
   id: string;
@@ -62,7 +55,7 @@ interface Shortcut {
   charCode: number;
   subpatterns: Shortcut[];
   desc: string;
-  cmdFunc: () => void;
+  func: () => void;
   scope: any;
 }
 
@@ -74,13 +67,16 @@ export interface ShortcutsConstructor {
 
 type CommandFunc = string | [string, boolean, any] | (() => void);
 
+const isModifier = (key: string): key is keyof ModifierMap =>
+  key in modifierNames;
+
 const parseShortcut = (pattern: string): Shortcut => {
-  let key;
-  const shortcut: any = {};
+  const shortcut = {} as Shortcut;
+  const isMac = Env.os.isMacOS() || Env.os.isiOS();
 
   // Parse modifiers and keys ctrl+alt+b for example
   each(explode(pattern.toLowerCase(), '+'), (value) => {
-    if (value in modifierNames) {
+    if (isModifier(value)) {
       shortcut[value] = true;
     } else {
       // Allow numeric keycodes like ctrl+219 for ctrl+[
@@ -94,7 +90,8 @@ const parseShortcut = (pattern: string): Shortcut => {
   });
 
   // Generate unique id for modifier combination and set default state for unused modifiers
-  const id = [ shortcut.keyCode ];
+  const id: Array<string | number> = [ shortcut.keyCode ];
+  let key: keyof ModifierMap;
   for (key in modifierNames) {
     if (shortcut[key]) {
       id.push(key);
@@ -108,7 +105,7 @@ const parseShortcut = (pattern: string): Shortcut => {
   if (shortcut.access) {
     shortcut.alt = true;
 
-    if (Env.mac) {
+    if (isMac) {
       shortcut.ctrl = true;
     } else {
       shortcut.shift = true;
@@ -117,7 +114,7 @@ const parseShortcut = (pattern: string): Shortcut => {
 
   // Handle special meta modifier differently depending on Mac/Win
   if (shortcut.meta) {
-    if (Env.mac) {
+    if (isMac) {
       shortcut.meta = true;
     } else {
       shortcut.ctrl = true;
@@ -131,7 +128,7 @@ const parseShortcut = (pattern: string): Shortcut => {
 class Shortcuts {
   private readonly editor: Editor;
   private readonly shortcuts: Record<string, Shortcut> = {};
-  private pendingPatterns = [];
+  private pendingPatterns: Shortcut[] = [];
 
   public constructor(editor: Editor) {
     this.editor = editor;
@@ -146,8 +143,6 @@ class Shortcuts {
             if (e.type === 'keydown') {
               self.executeShortcutAction(shortcut);
             }
-
-            return true;
           }
         });
 
@@ -174,7 +169,7 @@ class Shortcuts {
    * @param {Object} scope Optional scope to execute the function in.
    * @return {Boolean} true/false state if the shortcut was added or not.
    */
-  public add(pattern: string, desc: string, cmdFunc: CommandFunc, scope?: any): boolean {
+  public add(pattern: string, desc: string | null, cmdFunc: CommandFunc, scope?: any): boolean {
     const self = this;
     const func = self.normalizeCommandFunc(cmdFunc);
 
@@ -221,7 +216,7 @@ class Shortcuts {
     }
   }
 
-  private createShortcut(pattern: string, desc?: string, cmdFunc?: () => void, scope?): Shortcut {
+  private createShortcut(pattern: string, desc?: string | null, cmdFunc?: () => void, scope?: any): Shortcut {
     const shortcuts = Tools.map(explode(pattern, '>'), parseShortcut);
     shortcuts[shortcuts.length - 1] = Tools.extend(shortcuts[shortcuts.length - 1], {
       func: cmdFunc,
@@ -263,7 +258,7 @@ class Shortcuts {
     return false;
   }
 
-  private executeShortcutAction(shortcut) {
+  private executeShortcutAction(shortcut: Shortcut) {
     return shortcut.func ? shortcut.func.call(shortcut.scope) : null;
   }
 }

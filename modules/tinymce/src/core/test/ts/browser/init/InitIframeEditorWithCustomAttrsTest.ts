@@ -4,7 +4,6 @@ import { TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.init.InitIframeEditorWithCustomAttrsTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
@@ -14,11 +13,11 @@ describe('browser.tinymce.core.init.InitIframeEditorWithCustomAttrsTest', () => 
       'data-custom1': 'a',
       'data-custom2': 'b'
     }
-  }, [ Theme ]);
+  }, []);
 
   it('Check if iframe element has the right custom attributes', () => {
     const editor = hook.editor();
-    const ifr = SugarElement.fromDom(editor.iframeElement);
+    const ifr = SugarElement.fromDom(editor.iframeElement as HTMLIFrameElement);
 
     assert.notEqual(Attribute.get(ifr, 'id'), 'x', 'Id should not be the defined x');
     assert.equal(Attribute.get(ifr, 'data-custom1'), 'a', 'Custom attribute should have the right value');

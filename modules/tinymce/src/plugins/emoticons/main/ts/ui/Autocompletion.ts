@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Optional } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -14,7 +7,7 @@ import { emojisFrom } from '../core/Lookup';
 
 const init = (editor: Editor, database: EmojiDatabase): void => {
   editor.ui.registry.addAutocompleter('emoticons', {
-    ch: ':',
+    trigger: ':',
     columns: 'auto',
     minChars: 2,
     fetch: (pattern, maxResults) => database.waitForLoad().then(() => {

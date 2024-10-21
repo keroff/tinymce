@@ -1,16 +1,10 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Obj } from '@ephox/katamari';
 
 import Env from 'tinymce/core/api/Env';
 
 // Converts shortcut format to Mac/PC variants
 const convertText = (source: string): string => {
+  const isMac = Env.os.isMacOS() || Env.os.isiOS();
   const mac = {
     alt: '&#x2325;',
     ctrl: '&#x2303;',
@@ -22,7 +16,7 @@ const convertText = (source: string): string => {
     meta: 'Ctrl ',
     access: 'Shift + Alt '
   };
-  const replace: Record<string, string> = Env.mac ? mac : other;
+  const replace: Record<string, string> = isMac ? mac : other;
 
   const shortcut = source.split('+');
 
@@ -32,7 +26,7 @@ const convertText = (source: string): string => {
     return Obj.has(replace, search) ? replace[search] : segment;
   });
 
-  return Env.mac ? (updated.join('')).replace(/\s/, '') : updated.join('+');
+  return isMac ? (updated.join('')).replace(/\s/, '') : updated.join('+');
 };
 
 export {

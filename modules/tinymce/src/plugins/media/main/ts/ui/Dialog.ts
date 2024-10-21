@@ -1,27 +1,23 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Cell, Obj, Optional, Type } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
 import { Dialog } from 'tinymce/core/api/ui/Ui';
 
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import { dataToHtml } from '../core/DataToHtml';
 import * as HtmlToData from '../core/HtmlToData';
 import { isMediaElement } from '../core/Selection';
 import * as Service from '../core/Service';
-import { DialogSubData, MediaData, MediaDialogData } from '../core/Types';
+import { DialogSubData, MediaData, MediaDataType, MediaDialogData } from '../core/Types';
 import * as UpdateHtml from '../core/UpdateHtml';
+import * as UrlPatterns from '../core/UrlPatterns';
 
-const extractMeta = (sourceInput: keyof MediaDialogData, data: MediaDialogData): Optional<Record<string, string>> =>
-  Obj.get(data, sourceInput).bind((mainData: DialogSubData) => Obj.get(mainData, 'meta'));
+type SourceInput = 'source' | 'altsource' | 'poster' | 'dimensions';
 
-const getValue = (data: MediaDialogData, metaData: Record<string, string>, sourceInput?: keyof MediaDialogData) => (prop: keyof MediaDialogData): Record<string, string> => {
+const extractMeta = (sourceInput: Exclude<SourceInput, 'dimensions'>, data: MediaDialogData): Optional<Record<string, string>> =>
+  Obj.get(data, sourceInput).bind((mainData) => Obj.get(mainData, 'meta'));
+
+const getValue = (data: MediaDialogData, metaData: Record<string, string>, sourceInput?: SourceInput) => (prop: keyof MediaDialogData): Record<string, string> => {
   // Cases:
   // 1. Get the nested value prop (component is the executed urlinput)
   // 2. Get from metadata (a urlinput was executed but urlinput != this component)
@@ -44,7 +40,7 @@ const getValue = (data: MediaDialogData, metaData: Record<string, string>, sourc
 };
 
 const getDimensions = (data: MediaDialogData, metaData: Record<string, string>): MediaDialogData['dimensions'] => {
-  const dimensions = {};
+  const dimensions: MediaDialogData['dimensions'] = {};
   Obj.get(data, 'dimensions').each((dims) => {
     Arr.each([ 'width', 'height' ] as ('width' | 'height')[], (prop) => {
       Obj.get(metaData, prop).orThunk(() => Obj.get(dims, prop)).each((value) => dimensions[prop] = value);
@@ -53,8 +49,8 @@ const getDimensions = (data: MediaDialogData, metaData: Record<string, string>):
   return dimensions;
 };
 
-const unwrap = (data: MediaDialogData, sourceInput?: keyof MediaDialogData): MediaData => {
-  const metaData = sourceInput ? extractMeta(sourceInput, data).getOr({}) : {};
+const unwrap = (data: MediaDialogData, sourceInput?: SourceInput): MediaData => {
+  const metaData = sourceInput && sourceInput !== 'dimensions' ? extractMeta(sourceInput, data).getOr({}) : {};
   const get = getValue(data, metaData, sourceInput);
   return {
     ...get('source'),
@@ -74,9 +70,9 @@ const wrap = (data: MediaData): MediaDialogData => {
   };
 
   // Add additional size values that may or may not have been in the html
-  Arr.each([ 'width', 'height' ] as (keyof MediaData)[], (prop) => {
+  Arr.each([ 'width', 'height' ] as const, (prop) => {
     Obj.get(data, prop).each((value) => {
-      const dimensions = wrapped.dimensions || {};
+      const dimensions: MediaDialogData['dimensions'] = wrapped.dimensions || {};
       dimensions[prop] = value;
       wrapped.dimensions = dimensions;
     });
@@ -92,15 +88,29 @@ const handleError = (editor: Editor) => (error?: { msg: string }): void => {
   editor.notificationManager.open({ type: 'error', text: errorMessage });
 };
 
-const snippetToData = (editor: Editor, embedSnippet: string): MediaData =>
-  HtmlToData.htmlToData(Settings.getScripts(editor), embedSnippet);
-
 const getEditorData = (editor: Editor): MediaData => {
   const element = editor.selection.getNode();
   const snippet = isMediaElement(element) ? editor.serializer.serialize(element, { selection: true }) : '';
+  const data = HtmlToData.htmlToData(snippet, editor.schema);
+
+  const getDimensionsOfElement = (): MediaDialogData['dimensions'] => {
+    if (isEmbedIframe(data.source, data.type)) {
+      const rect = editor.dom.getRect(element);
+      return {
+        width: rect.w.toString().replace(/px$/, ''),
+        height: rect.h.toString().replace(/px$/, ''),
+      };
+    } else {
+      return {};
+    }
+  };
+
+  const dimensions = getDimensionsOfElement();
+
   return {
     embed: snippet,
-    ...HtmlToData.htmlToData(Settings.getScripts(editor), snippet)
+    ...data,
+    ...dimensions
   };
 };
 
@@ -108,7 +118,7 @@ const addEmbedHtml = (api: Dialog.DialogInstanceApi<MediaDialogData>, editor: Ed
   // Only set values if a URL has been defined
   if (Type.isString(response.url) && response.url.trim().length > 0) {
     const html = response.html;
-    const snippetData = snippetToData(editor, html);
+    const snippetData = HtmlToData.htmlToData(html, editor.schema);
     const nuData: MediaData = {
       ...snippetData,
       source: response.url,
@@ -142,8 +152,21 @@ const handleInsert = (editor: Editor, html: string): void => {
   editor.nodeChanged();
 };
 
+const isEmbedIframe = (url: string, mediaDataType?: MediaDataType) =>
+  Type.isNonNullable(mediaDataType) && mediaDataType === 'ephox-embed-iri' && Type.isNonNullable(UrlPatterns.matchPattern(url));
+
+const shouldInsertAsNewIframe = (prevData: MediaData, newData: MediaData) => {
+  const hasDimensionsChanged = (prevData: MediaData, newData: MediaData) =>
+    prevData.width !== newData.width || prevData.height !== newData.height;
+
+  return hasDimensionsChanged(prevData, newData) && isEmbedIframe(newData.source, prevData.type);
+};
+
 const submitForm = (prevData: MediaData, newData: MediaData, editor: Editor): void => {
-  newData.embed = UpdateHtml.updateHtml(newData.embed, newData);
+  newData.embed =
+    shouldInsertAsNewIframe(prevData, newData) && Options.hasDimensions(editor)
+      ? dataToHtml(editor, { ...newData, embed: '' } )
+      : UpdateHtml.updateHtml(newData.embed ?? '', newData, false, editor.schema);
 
   // Only fetch the embed HTML content if the URL has changed from what it previously was
   if (newData.embed && (prevData.source === newData.source || Service.isCached(newData.source))) {
@@ -176,12 +199,17 @@ const showDialog = (editor: Editor): void => {
 
   const handleEmbed = (api: Dialog.DialogInstanceApi<MediaDialogData>): void => {
     const data = unwrap(api.getData());
-    const dataFromEmbed = snippetToData(editor, data.embed);
+    const dataFromEmbed = HtmlToData.htmlToData(data.embed ?? '', editor.schema);
     api.setData(wrap(dataFromEmbed));
   };
 
-  const handleUpdate = (api: Dialog.DialogInstanceApi<MediaDialogData>, sourceInput: keyof MediaDialogData): void => {
-    const data = unwrap(api.getData(), sourceInput);
+  const handleUpdate = (api: Dialog.DialogInstanceApi<MediaDialogData>, sourceInput: SourceInput, prevData: MediaData): void => {
+    const dialogData = unwrap(api.getData(), sourceInput);
+    const data =
+      shouldInsertAsNewIframe(prevData, dialogData) && Options.hasDimensions(editor)
+        ? { ...dialogData, embed: '' }
+        : dialogData;
+
     const embed = dataToHtml(editor, data);
     api.setData(wrap({
       ...data,
@@ -195,7 +223,7 @@ const showDialog = (editor: Editor): void => {
     filetype: 'media',
     label: 'Source'
   }];
-  const sizeInput: Dialog.SizeInputSpec[] = !Settings.hasDimensions(editor) ? [] : [{
+  const sizeInput: Dialog.SizeInputSpec[] = !Options.hasDimensions(editor) ? [] : [{
     type: 'sizeinput',
     name: 'dimensions',
     label: 'Constrain proportions',
@@ -222,7 +250,7 @@ const showDialog = (editor: Editor): void => {
 
   const advancedFormItems: Dialog.BodyComponentSpec[] = [];
 
-  if (Settings.hasAltSource(editor)) {
+  if (Options.hasAltSource(editor)) {
     advancedFormItems.push({
       name: 'altsource',
       type: 'urlinput',
@@ -232,7 +260,7 @@ const showDialog = (editor: Editor): void => {
     );
   }
 
-  if (Settings.hasPoster(editor)) {
+  if (Options.hasPoster(editor)) {
     advancedFormItems.push({
       name: 'poster',
       type: 'urlinput',
@@ -260,7 +288,7 @@ const showDialog = (editor: Editor): void => {
     type: 'tabpanel',
     tabs
   };
-  const win = editor.windowManager.open({
+  const win = editor.windowManager.open<MediaDialogData>({
     title: 'Insert/Edit Media',
     size: 'normal',
 
@@ -296,7 +324,7 @@ const showDialog = (editor: Editor): void => {
         case 'dimensions':
         case 'altsource':
         case 'poster':
-          handleUpdate(api, detail.name);
+          handleUpdate(api, detail.name, currentData.get());
           break;
 
         default:

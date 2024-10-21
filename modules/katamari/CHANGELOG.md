@@ -6,6 +6,33 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## 9.1.0 - 2022-09-08
+
+### Added
+- Added a `Repeatable` API to the `Singleton` module to repeat a function at a fixed interval.
+
+### Improved
+- The `Strings.contains` API now accepts optional `start` and `end` parameters to set the range for searching within the string.
+- The `Obj` APIs now use `keyof T` instead of `string` for the object key type.
+- The `Obj.filter` API better handles type guard predicates so the return type matches the type guard.
+
+## 9.0.0 - 2022-03-03
+
+### Added
+- Added a new `unique` API to the `Arr` module to remove duplicate elements in an array.
+- Added a new `Type.is` API to check if an object type matches the specified constructor type.
+
+### Changed
+- Swapped `Optional` to be a class, instead of an object with function fields.
+
+### Improved
+- `Optional` objects should now be faster to construct and work with.
+- The `Result` and `Optional` APIs are now thoroughly documented.
+- Added private `.tag` and `.value` properties to `Result`, to make them friendlier to view in the debugger or console.
+
+### Removed
+- Removed support for Microsoft Internet Explorer and legacy Microsoft Edge.
+
 ## 8.1.0 - 2021-10-11
 
 ### Added

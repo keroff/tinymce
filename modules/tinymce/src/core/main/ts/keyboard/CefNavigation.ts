@@ -1,21 +1,17 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Fun, Optional } from '@ephox/katamari';
+import { Insert, SugarElement } from '@ephox/sugar';
 
+import EditorSelection from '../api/dom/Selection';
 import Editor from '../api/Editor';
-import Env from '../api/Env';
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import CaretPosition from '../caret/CaretPosition';
 import { isAfterContentEditableFalse, isAfterTable, isBeforeContentEditableFalse, isBeforeTable } from '../caret/CaretPositionPredicates';
 import * as CaretUtils from '../caret/CaretUtils';
 import { CaretWalker, HDirection } from '../caret/CaretWalker';
 import * as LineWalker from '../caret/LineWalker';
 import * as NodeType from '../dom/NodeType';
+import { getEdgeCefPosition } from './CefUtils';
+import * as InlineUtils from './InlineUtils';
 import * as NavigationUtils from './NavigationUtils';
 
 const isContentEditableFalse = NodeType.isContentEditableFalse;
@@ -30,12 +26,8 @@ const moveToCeFalseVertically = (direction: LineWalker.VDirection, editor: Edito
 };
 
 const createTextBlock = (editor: Editor): Element => {
-  const textBlock = editor.dom.create(Settings.getForcedRootBlock(editor));
-
-  if (!Env.ie || Env.ie >= 11) {
-    textBlock.innerHTML = '<br data-mce-bogus="1">';
-  }
-
+  const textBlock = editor.dom.create(Options.getForcedRootBlock(editor));
+  textBlock.innerHTML = '<br data-mce-bogus="1">';
   return textBlock;
 };
 
@@ -43,7 +35,7 @@ const exitPreBlock = (editor: Editor, direction: HDirection, range: Range): void
   const caretWalker = CaretWalker(editor.getBody());
   const getVisualCaretPosition = Fun.curry(CaretUtils.getVisualCaretPosition, direction === 1 ? caretWalker.next : caretWalker.prev);
 
-  if (range.collapsed && Settings.hasForcedRootBlock(editor)) {
+  if (range.collapsed) {
     const pre = editor.dom.getParent(range.startContainer, 'PRE');
     if (!pre) {
       return;
@@ -51,15 +43,15 @@ const exitPreBlock = (editor: Editor, direction: HDirection, range: Range): void
 
     const caretPos = getVisualCaretPosition(CaretPosition.fromRangeStart(range));
     if (!caretPos) {
-      const newBlock = createTextBlock(editor);
+      const newBlock = SugarElement.fromDom(createTextBlock(editor));
 
       if (direction === 1) {
-        editor.$(pre).after(newBlock);
+        Insert.after(SugarElement.fromDom(pre), newBlock);
       } else {
-        editor.$(pre).before(newBlock);
+        Insert.before(SugarElement.fromDom(pre), newBlock);
       }
 
-      editor.selection.select(newBlock, true);
+      editor.selection.select(newBlock.dom, true);
       editor.selection.collapse();
     }
   }
@@ -85,8 +77,13 @@ const getVerticalRange = (editor: Editor, down: boolean): Optional<Range> => {
   });
 };
 
+const flipDirection = (selection: EditorSelection, forward: boolean) => {
+  const elm = forward ? selection.getEnd(true) : selection.getStart(true);
+  return InlineUtils.isRtl(elm) ? !forward : forward;
+};
+
 const moveH = (editor: Editor, forward: boolean): boolean =>
-  getHorizontalRange(editor, forward).exists((newRange) => {
+  getHorizontalRange(editor, flipDirection(editor.selection, forward)).exists((newRange) => {
     NavigationUtils.moveToRange(editor, newRange);
     return true;
   });
@@ -102,8 +99,26 @@ const moveToLineEndPoint = (editor: Editor, forward: boolean): boolean => {
   return NavigationUtils.moveToLineEndPoint(editor, forward, isCefPosition);
 };
 
+const selectToEndPoint = (editor: Editor, forward: boolean): boolean =>
+  getEdgeCefPosition(editor, !forward)
+    .map((pos) => {
+      const rng = pos.toRange();
+      const curRng = editor.selection.getRng();
+      if (forward) {
+        rng.setStart(curRng.startContainer, curRng.startOffset);
+      } else {
+        rng.setEnd(curRng.endContainer, curRng.endOffset);
+      }
+      return rng;
+    })
+    .exists((rng) => {
+      NavigationUtils.moveToRange(editor, rng);
+      return true;
+    });
+
 export {
   moveH,
   moveV,
-  moveToLineEndPoint
+  moveToLineEndPoint,
+  selectToEndPoint
 };

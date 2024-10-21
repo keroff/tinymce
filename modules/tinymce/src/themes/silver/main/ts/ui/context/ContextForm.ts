@@ -1,15 +1,8 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AlloySpec, AlloyTriggers, Behaviour, Input, Keying, Memento } from '@ephox/alloy';
+import { AlloySpec, AlloyTriggers, Behaviour, Input, Keying, Memento, SketchSpec } from '@ephox/alloy';
 import { InlineContent } from '@ephox/bridge';
 import { Id, Optional } from '@ephox/katamari';
 
-import { ToolbarMode } from '../../api/Settings';
+import { ToolbarMode } from '../../api/Options';
 import { UiFactoryBackstageProviders } from '../../backstage/Backstage';
 import { renderToolbar, ToolbarGroup } from '../toolbar/CommonToolbar';
 import { generate } from './ContextFormButtons';
@@ -64,14 +57,15 @@ const buildInitGroups = (ctx: InlineContent.ContextForm, providers: UiFactoryBac
   ];
 };
 
-const renderContextForm = (toolbarType: ToolbarMode, ctx: InlineContent.ContextForm, providers: UiFactoryBackstageProviders) => renderToolbar({
-  type: toolbarType,
-  uid: Id.generate('context-toolbar'),
-  initGroups: buildInitGroups(ctx, providers),
-  onEscape: Optional.none,
-  cyclicKeying: true,
-  providers
-});
+const renderContextForm = (toolbarType: ToolbarMode, ctx: InlineContent.ContextForm, providers: UiFactoryBackstageProviders): SketchSpec =>
+  renderToolbar({
+    type: toolbarType,
+    uid: Id.generate('context-toolbar'),
+    initGroups: buildInitGroups(ctx, providers),
+    onEscape: Optional.none,
+    cyclicKeying: true,
+    providers
+  });
 
 export const ContextForm = {
   renderContextForm,

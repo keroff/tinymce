@@ -11,17 +11,17 @@ import * as WindowManager from 'tinymce/themes/silver/ui/dialog/WindowManager';
 import * as TestExtras from '../../module/TestExtras';
 
 describe('webdriver.tinymce.themes.silver.dialogs.DialogFocusTest', () => {
-  const helpers = TestExtras.bddSetup();
+  const extrasHook = TestExtras.bddSetup();
 
   let windowManager: WindowManagerImpl;
   before(function () {
-    // This test won't work on all macOS browsers other than Chrome (webdriver actions appear to be ignored)
+    // This test won't work on Mac OS browsers other than Chrome (webdriver actions appear to be ignored)
     const platform = PlatformDetection.detect();
-    if (platform.os.isOSX() && !platform.browser.isChrome()) {
+    if (platform.os.isMacOS() && !platform.browser.isChromium()) {
       this.skip();
     }
 
-    windowManager = WindowManager.setup(helpers.extras());
+    windowManager = WindowManager.setup(extrasHook.access().extras);
   });
 
   TestHelpers.GuiSetup.bddAddStyles(SugarDocument.getDocument(), [

@@ -3,13 +3,12 @@ import { describe, it } from '@ephox/bedrock-client';
 import { TinyDom, TinyHooks } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.themes.silver.editor.header.HeaderLocationTest', () => {
   const hook = TinyHooks.bddSetup<Editor>({
     base_url: '/project/tinymce/js/tinymce',
     toolbar_location: 'bottom'
-  }, [ Theme ]);
+  }, []);
 
   it('Header should be located at the bottom in the editor container', () => {
     const editor = hook.editor();
@@ -35,11 +34,17 @@ describe('browser.tinymce.themes.silver.editor.header.HeaderLocationTest', () =>
                   classes: [ arr.has('tox-anchorbar') ]
                 })
               ]
-            })
+            }),
+            s.element('div', {
+              classes: [ arr.has('tox-bottom-anchorbar') ]
+            }),
+            s.element('div', {
+              classes: [ arr.has('tox-statusbar') ]
+            }),
           ]
         }),
         s.element('div', {
-          classes: [ arr.has('tox-statusbar') ]
+          classes: [ arr.has('tox-view-wrap') ]
         }),
         s.element('div', {
           classes: [ arr.has('tox-throbber') ]

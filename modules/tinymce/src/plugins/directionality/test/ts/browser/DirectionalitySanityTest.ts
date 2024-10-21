@@ -2,7 +2,6 @@ import { describe, it } from '@ephox/bedrock-client';
 import { TinyAssertions, TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Plugin from 'tinymce/plugins/directionality/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.plugins.directionality.DirectionalitySanityTest', () => {
   const hook = TinyHooks.bddSetupLight({
@@ -10,7 +9,7 @@ describe('browser.tinymce.plugins.directionality.DirectionalitySanityTest', () =
     toolbar: 'ltr rtl',
     base_url: '/project/tinymce/js/tinymce',
     indent: false
-  }, [ Plugin, Theme ]);
+  }, [ Plugin ]);
 
   it('TBA: Set and select content, click on the Right to left toolbar button and assert direction is right to left', () => {
     const editor = hook.editor();
@@ -131,11 +130,11 @@ describe('browser.tinymce.plugins.directionality.DirectionalitySanityTest', () =
     TinyAssertions.assertContent(editor, '<div dir="ltr"><p>foo</p><p>bar</p></div>');
   });
 
-  it('TINY-4589: should get computed dir from #target', () => {
+  it('TINY-4589: should get computed dir from #target-elm', () => {
     const editor = hook.editor();
     editor.setContent(
       '<div dir="rtl">' +
-        '<div id="target" dir="ltr">' +
+        '<div id="target-elm" dir="ltr">' +
           '<div dir="x">' +
             '<p>foo</p>' +
             '<p>bar</p>' +
@@ -147,7 +146,7 @@ describe('browser.tinymce.plugins.directionality.DirectionalitySanityTest', () =
     TinyUiActions.clickOnToolbar(editor, 'button[title="Right to left"]');
     TinyAssertions.assertContent(editor,
       '<div dir="rtl">' +
-        '<div id="target" dir="ltr">' +
+        '<div id="target-elm" dir="ltr">' +
           '<div dir="x">' +
             '<p dir="rtl">foo</p>' +
             '<p>bar</p>' +
@@ -158,7 +157,7 @@ describe('browser.tinymce.plugins.directionality.DirectionalitySanityTest', () =
     TinyUiActions.clickOnToolbar(editor, 'button[title="Left to right"]');
     TinyAssertions.assertContent(editor,
       '<div dir="rtl">' +
-        '<div id="target" dir="ltr">' +
+        '<div id="target-elm" dir="ltr">' +
           '<div dir="x">' +
             '<p>foo</p>' +
             '<p>bar</p>' +

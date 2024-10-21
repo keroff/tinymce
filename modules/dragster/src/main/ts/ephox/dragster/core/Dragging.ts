@@ -22,11 +22,12 @@ export interface Dragging {
   readonly go: (parent: SugarElement<Node>) => void;
   readonly on: () => void;
   readonly off: () => void;
+  readonly isActive: () => boolean;
   readonly destroy: () => void;
   readonly events: DragActionEvents['registry'];
 }
 
-const setup = (mutation: DragMutation, mode: DragMode, settings: Partial<BlockerOptions>): Dragging => {
+const setup = <T>(mutation: DragMutation, mode: DragMode<T>, settings: Partial<BlockerOptions>): Dragging => {
   let active = false;
 
   const events: DragActionEvents = Events.create({
@@ -52,7 +53,7 @@ const setup = (mutation: DragMutation, mode: DragMode, settings: Partial<Blocker
     events.trigger.start();
   };
 
-  const mousemove = (event: EventArgs) => {
+  const mousemove = (event: EventArgs<T>) => {
     throttledDrop.cancel();
     movement.onEvent(event, mode);
   };
@@ -69,6 +70,8 @@ const setup = (mutation: DragMutation, mode: DragMode, settings: Partial<Blocker
     active = false;
     // acivate some events here?
   };
+
+  const isActive = () => active;
 
   const runIfActive = <F extends (...args: any[]) => any> (f: F) => {
     return (...args: Parameters<F>) => {
@@ -96,6 +99,7 @@ const setup = (mutation: DragMutation, mode: DragMode, settings: Partial<Blocker
     go,
     on,
     off,
+    isActive,
     destroy,
     events: events.registry
   };

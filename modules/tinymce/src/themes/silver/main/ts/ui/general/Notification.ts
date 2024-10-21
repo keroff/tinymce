@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import {
   AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloySpec, Behaviour, Button, DomFactory, Focusing, GuiFactory, Memento, NativeEvents, Replacing, Sketcher,
   UiSketcher
@@ -24,26 +17,26 @@ export interface NotificationSketchApis {
 
 // tslint:disable-next-line:no-empty-interface
 export interface NotificationSketchSpec extends Sketcher.SingleSketchSpec {
-  text: string;
-  level: 'info' | 'warn' | 'warning' | 'error' | 'success';
-  icon: Optional<string>;
-  closeButton?: boolean;
-  progress: boolean;
-  onAction: Function;
-  iconProvider: Icons.IconProvider;
-  translationProvider: (text: Untranslated) => TranslatedString;
+  readonly text: string;
+  readonly level?: 'info' | 'warn' | 'warning' | 'error' | 'success';
+  readonly icon?: string;
+  readonly closeButton?: boolean;
+  readonly progress: boolean;
+  readonly onAction: Function;
+  readonly iconProvider: Icons.IconProvider;
+  readonly translationProvider: (text: Untranslated) => TranslatedString;
 }
 
 // tslint:disable-next-line:no-empty-interface
 export interface NotificationSketchDetail extends Sketcher.SingleSketchDetail {
-  text: string;
-  level: Optional<'info' | 'warn' | 'warning' | 'error' | 'success'>;
-  icon: Optional<string>;
-  closeButton: boolean;
-  onAction: Function;
-  progress: boolean;
-  iconProvider: Icons.IconProvider;
-  translationProvider: (text: Untranslated) => TranslatedString;
+  readonly text: string;
+  readonly level: Optional<'info' | 'warn' | 'warning' | 'error' | 'success'>;
+  readonly icon: Optional<string>;
+  readonly closeButton: boolean;
+  readonly onAction: Function;
+  readonly progress: boolean;
+  readonly iconProvider: Icons.IconProvider;
+  readonly translationProvider: (text: Untranslated) => TranslatedString;
 }
 
 export interface NotificationSketcher extends Sketcher.SingleSketch<NotificationSketchSpec>, NotificationSketchApis {
@@ -72,8 +65,8 @@ const factory: UiSketcher.SingleSketchFactory<NotificationSketchDetail, Notifica
     dom: {
       tag: 'div',
       classes: [ 'tox-bar' ],
-      attributes: {
-        style: `width: ${percent}%`
+      styles: {
+        width: `${percent}%`
       }
     }
   });
@@ -154,7 +147,7 @@ const factory: UiSketcher.SingleSketchFactory<NotificationSketchDetail, Notifica
     },
     components: [
       Icons.render('close', {
-        tag: 'div',
+        tag: 'span',
         classes: [ 'tox-icon' ],
         attributes: {
           'aria-label': detail.translationProvider('Close')
@@ -214,7 +207,7 @@ export const Notification: NotificationSketcher = Sketcher.single({
   configFields: [
     FieldSchema.option('level'),
     FieldSchema.required('progress'),
-    FieldSchema.required('icon'),
+    FieldSchema.option('icon'),
     FieldSchema.required('onAction'),
     FieldSchema.required('text'),
     FieldSchema.required('iconProvider'),

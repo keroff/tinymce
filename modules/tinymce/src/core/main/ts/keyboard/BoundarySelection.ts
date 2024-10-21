@@ -1,18 +1,11 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Cell, Fun } from '@ephox/katamari';
 import { SelectorFilter, SugarElement } from '@ephox/sugar';
 
 import DOMUtils from '../api/dom/DOMUtils';
 import Editor from '../api/Editor';
-import Env from '../api/Env';
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import * as CaretContainerRemove from '../caret/CaretContainerRemove';
+import * as CaretFinder from '../caret/CaretFinder';
 import CaretPosition from '../caret/CaretPosition';
 import * as WordSelection from '../selection/WordSelection';
 import * as BoundaryCaret from './BoundaryCaret';
@@ -20,16 +13,16 @@ import * as BoundaryLocation from './BoundaryLocation';
 import * as InlineUtils from './InlineUtils';
 import * as NavigationUtils from './NavigationUtils';
 
-const setCaretPosition = (editor: Editor, pos: CaretPosition) => {
+const setCaretPosition = (editor: Editor, pos: CaretPosition): void => {
   const rng = editor.dom.createRng();
   rng.setStart(pos.container(), pos.offset());
   rng.setEnd(pos.container(), pos.offset());
   editor.selection.setRng(rng);
 };
 
-type NodePredicate = (node: Node) => boolean;
+type NodePredicate = (node: Node) => node is Element;
 
-const setSelected = (state: boolean, elm: HTMLElement) => {
+const setSelected = (state: boolean, elm: Element) => {
   if (state) {
     elm.setAttribute('data-mce-selected', 'inline-boundary');
   } else {
@@ -37,15 +30,25 @@ const setSelected = (state: boolean, elm: HTMLElement) => {
   }
 };
 
-const renderCaretLocation = (editor: Editor, caret: Cell<Text>, location: BoundaryLocation.LocationAdt) =>
+const renderCaretLocation = (editor: Editor, caret: Cell<Text | null>, location: BoundaryLocation.LocationAdt) =>
   BoundaryCaret.renderCaret(caret, location).map((pos) => {
     setCaretPosition(editor, pos);
     return location;
   });
 
-const findLocation = (editor: Editor, caret: Cell<Text>, forward: boolean) => {
+const getPositionFromRange = (range: Range, root: HTMLElement, forward: boolean): CaretPosition => {
+  const start = CaretPosition.fromRangeStart(range);
+  if (range.collapsed) {
+    return start;
+  } else {
+    const end = CaretPosition.fromRangeEnd(range);
+    return forward ? CaretFinder.prevPosition(root, end).getOr(end) : CaretFinder.nextPosition(root, start).getOr(start);
+  }
+};
+
+const findLocation = (editor: Editor, caret: Cell<Text | null>, forward: boolean) => {
   const rootNode = editor.getBody();
-  const from = CaretPosition.fromRangeStart(editor.selection.getRng());
+  const from = getPositionFromRange(editor.selection.getRng(), rootNode, forward);
   const isInlineTarget = Fun.curry(InlineUtils.isInlineTarget, editor);
   const location = BoundaryLocation.findLocation(forward, isInlineTarget, rootNode, from);
   return location.bind((location) => renderCaretLocation(editor, caret, location));
@@ -59,17 +62,18 @@ const toggleInlines = (isInlineTarget: NodePredicate, dom: DOMUtils, elms: Node[
   Arr.each(Arr.difference(targetInlines, selectedInlines), Fun.curry(setSelected, true));
 };
 
-const safeRemoveCaretContainer = (editor: Editor, caret: Cell<Text>) => {
-  if (editor.selection.isCollapsed() && editor.composing !== true && caret.get()) {
+const safeRemoveCaretContainer = (editor: Editor, caret: Cell<Text | null>) => {
+  const caretValue = caret.get();
+  if (editor.selection.isCollapsed() && !editor.composing && caretValue) {
     const pos = CaretPosition.fromRangeStart(editor.selection.getRng());
-    if (CaretPosition.isTextPosition(pos) && InlineUtils.isAtZwsp(pos) === false) {
-      setCaretPosition(editor, CaretContainerRemove.removeAndReposition(caret.get(), pos));
+    if (CaretPosition.isTextPosition(pos) && !InlineUtils.isAtZwsp(pos)) {
+      setCaretPosition(editor, CaretContainerRemove.removeAndReposition(caretValue, pos));
       caret.set(null);
     }
   }
 };
 
-const renderInsideInlineCaret = (isInlineTarget: NodePredicate, editor: Editor, caret: Cell<Text>, elms: Node[]) => {
+const renderInsideInlineCaret = (isInlineTarget: NodePredicate, editor: Editor, caret: Cell<Text | null>, elms: Node[]) => {
   if (editor.selection.isCollapsed()) {
     const inlines = Arr.filter(elms, isInlineTarget);
     Arr.each(inlines, (_inline) => {
@@ -81,22 +85,18 @@ const renderInsideInlineCaret = (isInlineTarget: NodePredicate, editor: Editor, 
   }
 };
 
-const move = (editor: Editor, caret: Cell<Text>, forward: boolean) =>
-  Settings.isInlineBoundariesEnabled(editor) ? findLocation(editor, caret, forward).isSome() : false;
+const move = (editor: Editor, caret: Cell<Text | null>, forward: boolean): boolean =>
+  Options.isInlineBoundariesEnabled(editor) ? findLocation(editor, caret, forward).isSome() : false;
 
-const moveWord = (forward: boolean, editor: Editor, _caret: Cell<Text>) =>
-  Settings.isInlineBoundariesEnabled(editor) ? WordSelection.moveByWord(forward, editor) : false;
+const moveWord = (forward: boolean, editor: Editor, _caret: Cell<Text | null>) =>
+  Options.isInlineBoundariesEnabled(editor) ? WordSelection.moveByWord(forward, editor) : false;
 
-const setupSelectedState = (editor: Editor): Cell<Text> => {
-  const caret = Cell(null);
-  const isInlineTarget: NodePredicate = Fun.curry(InlineUtils.isInlineTarget, editor);
+const setupSelectedState = (editor: Editor): Cell<Text | null> => {
+  const caret = Cell<Text | null>(null);
+  const isInlineTarget = Fun.curry(InlineUtils.isInlineTarget, editor) as NodePredicate;
 
   editor.on('NodeChange', (e) => {
-    // IE will steal the focus when changing the selection since it uses a single selection model
-    // as such we should ignore the first node change, as we don't want the editor to steal focus
-    // during the initial load. If the content is changed afterwords then we are okay with it
-    // stealing focus since it likely means the editor is being interacted with.
-    if (Settings.isInlineBoundariesEnabled(editor) && !(Env.browser.isIE() && e.initial)) {
+    if (Options.isInlineBoundariesEnabled(editor)) {
       toggleInlines(isInlineTarget, editor.dom, e.parents);
       safeRemoveCaretContainer(editor, caret);
       renderInsideInlineCaret(isInlineTarget, editor, caret, e.parents);
@@ -109,8 +109,8 @@ const setupSelectedState = (editor: Editor): Cell<Text> => {
 const moveNextWord = Fun.curry(moveWord, true);
 const movePrevWord = Fun.curry(moveWord, false);
 
-const moveToLineEndPoint = (editor: Editor, forward: boolean, caret: Cell<Text>): boolean => {
-  if (Settings.isInlineBoundariesEnabled(editor)) {
+const moveToLineEndPoint = (editor: Editor, forward: boolean, caret: Cell<Text | null>): boolean => {
+  if (Options.isInlineBoundariesEnabled(editor)) {
     // Try to find the line endpoint, however if one isn't found then assume we're already at the end point
     const linePoint = NavigationUtils.getLineEndPoint(editor, forward).getOrThunk(() => {
       const rng = editor.selection.getRng();

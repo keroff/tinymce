@@ -1,13 +1,7 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { AlloyComponent, Disabling, ItemTypes } from '@ephox/alloy';
 import { Menu } from '@ephox/bridge';
 import { Fun, Optional } from '@ephox/katamari';
+import { Attribute, SelectorFind } from '@ephox/sugar';
 
 import { UiFactoryBackstageProviders } from 'tinymce/themes/silver/backstage/Backstage';
 
@@ -20,8 +14,13 @@ import { buildData, renderCommonItem } from './CommonMenuItem';
 const renderNestedItem = (spec: Menu.NestedMenuItem, itemResponse: ItemResponse, providersBackstage: UiFactoryBackstageProviders, renderIcons: boolean = true, downwardsCaret: boolean = false): ItemTypes.ItemSpec => {
   const caret = downwardsCaret ? renderDownwardsCaret(providersBackstage.icons) : renderSubmenuCaret(providersBackstage.icons);
   const getApi = (component: AlloyComponent): Menu.NestedMenuItemInstanceApi => ({
-    isDisabled: () => Disabling.isDisabled(component),
-    setDisabled: (state: boolean) => Disabling.set(component, state)
+    isEnabled: () => !Disabling.isDisabled(component),
+    setEnabled: (state: boolean) => Disabling.set(component, !state),
+    setIconFill: (id, value) => {
+      SelectorFind.descendant(component.element, `svg path[class="${id}"], rect[class="${id}"]`).each((underlinePath) => {
+        Attribute.set(underlinePath, 'fill', value);
+      });
+    },
   });
 
   const structure = renderItemStructure({
@@ -34,11 +33,10 @@ const renderNestedItem = (spec: Menu.NestedMenuItem, itemResponse: ItemResponse,
     checkMark: Optional.none(),
     shortcutContent: spec.shortcut
   }, providersBackstage, renderIcons);
-
   return renderCommonItem({
     data: buildData(spec),
     getApi,
-    disabled: spec.disabled,
+    enabled: spec.enabled,
     onAction: Fun.noop,
     onSetup: spec.onSetup,
     triggersSubmenu: true,

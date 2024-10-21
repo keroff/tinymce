@@ -5,12 +5,10 @@ import { Focus, Insert, Remove, SugarBody, SugarElement } from '@ephox/sugar';
 import { McEditor, TinySelections } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.themes.silver.editor.contexttoolbar.RemoveContextToolbarOnFocusoutTest', () => {
   let inputElm: SugarElement<HTMLInputElement>;
   before(() => {
-    Theme();
 
     inputElm = SugarElement.fromTag('input');
     Insert.append(SugarBody.body(), inputElm);
@@ -38,7 +36,7 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.RemoveContextToolb
       onAction: Fun.noop
     });
     ed.ui.registry.addContextToolbar('test-toolbar', {
-      predicate: (node) => node.nodeName && node.nodeName.toLowerCase() === 'a',
+      predicate: (node) => node.nodeName.toLowerCase() === 'a',
       items: 'alpha'
     });
   };

@@ -1,4 +1,4 @@
-import { assert, UnitTest } from '@ephox/bedrock-client';
+import { Assert, UnitTest } from '@ephox/bedrock-client';
 
 import * as Insert from 'ephox/sugar/api/dom/Insert';
 import * as Remove from 'ephox/sugar/api/dom/Remove';
@@ -24,29 +24,29 @@ UnitTest.test('TogglerTest', () => {
     check(false);
 
     toggler.on();
-    assert.eq(true, toggler.isOn());
+    Assert.eq('', true, toggler.isOn());
     check(true);
     toggler.on();
-    assert.eq(true, toggler.isOn());
+    Assert.eq('', true, toggler.isOn());
     check(true);
 
     toggler.off();
-    assert.eq(false, toggler.isOn());
+    Assert.eq('', false, toggler.isOn());
     check(false);
     toggler.off();
-    assert.eq(false, toggler.isOn());
+    Assert.eq('', false, toggler.isOn());
     check(false);
 
     toggler.on();
     toggler.off();
-    assert.eq(false, toggler.isOn());
+    Assert.eq('', false, toggler.isOn());
     check(false);
   };
 
   // this is all due for a good refactoring
 
   const checkClass = (has: boolean) => {
-    assert.eq(has, Class.has(c, 'blob'));
+    Assert.eq('', has, Class.has(c, 'blob'));
   };
 
   let c = Div();
@@ -59,11 +59,8 @@ UnitTest.test('TogglerTest', () => {
   // CSS toggles are silly - we should delete this and do it in a way that does not require detection
 
   const checkDisplayBlockRemoved = (has: boolean) => {
-    // oh IE, you bastard
-    // var isie = PlatformDetection.detect().browser.isIE();
-    // var off = isie ? 'block' : undefined;
     const v = has ? 'none' : 'block';
-    assert.eq(v, Css.get(c, 'display'));
+    Assert.eq('', v, Css.get(c, 'display'));
   };
 
   // behaviour when not connected and not specified - which the link dialog relies on
@@ -75,7 +72,7 @@ UnitTest.test('TogglerTest', () => {
 
   const checkDisplayBlockNone = (has: boolean) => {
     const v = has ? 'block' : 'none';
-    assert.eq(v, Css.get(c, 'display'));
+    Assert.eq('', v, Css.get(c, 'display'));
   };
 
   // normal behaviour
@@ -88,7 +85,7 @@ UnitTest.test('TogglerTest', () => {
 
   const checkVisibilityVisibleRemoved = (has: boolean) => {
     const v = has ? 'hidden' : 'visible';
-    assert.eq(v, Css.get(c, 'visibility'));
+    Assert.eq('', v, Css.get(c, 'visibility'));
   };
 
   // behaviour when not connected and not specified
@@ -100,7 +97,7 @@ UnitTest.test('TogglerTest', () => {
 
   const checkVisibilityVisibleHidden = (has: boolean) => {
     const v = has ? 'visible' : 'hidden';
-    assert.eq(v, Css.get(c, 'visibility'));
+    Assert.eq('', v, Css.get(c, 'visibility'));
   };
 
   // normal behaviour

@@ -1,47 +1,62 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Obj, Unicode } from '@ephox/katamari';
+import { Optional, Type, Unicode } from '@ephox/katamari';
 
 import { DomParserSettings, ParserArgs } from '../api/html/DomParser';
 import AstNode from '../api/html/Node';
 import Schema, { SchemaMap } from '../api/html/Schema';
 
-const paddEmptyNode = (settings: DomParserSettings, args: ParserArgs, blockElements: SchemaMap, node: AstNode): void => {
-  const brPreferred = settings.padd_empty_with_br || args.insert;
-
-  if (brPreferred && blockElements[node.name]) {
-    node.empty().append(new AstNode('br', 1)).shortEnded = true;
+const paddEmptyNode = (settings: DomParserSettings, args: ParserArgs, isBlock: (node: AstNode) => boolean, node: AstNode): void => {
+  const brPreferred = settings.pad_empty_with_br || args.insert;
+  if (brPreferred && isBlock(node)) {
+    const astNode = new AstNode('br', 1);
+    if (args.insert) {
+      astNode.attr('data-mce-bogus', '1');
+    }
+    node.empty().append(astNode);
   } else {
     node.empty().append(new AstNode('#text', 3)).value = Unicode.nbsp;
   }
 };
 
 const isPaddedWithNbsp = (node: AstNode): boolean =>
-  hasOnlyChild(node, '#text') && node.firstChild.value === Unicode.nbsp;
+  hasOnlyChild(node, '#text') && node?.firstChild?.value === Unicode.nbsp;
 
-const hasOnlyChild = (node: AstNode, name: string): boolean =>
-  node && node.firstChild && node.firstChild === node.lastChild && node.firstChild.name === name;
+const hasOnlyChild = (node: AstNode, name: string): boolean => {
+  const firstChild = node?.firstChild;
+  return Type.isNonNullable(firstChild) && firstChild === node.lastChild && firstChild.name === name;
+};
 
 const isPadded = (schema: Schema, node: AstNode): boolean => {
   const rule = schema.getElementRule(node.name);
-  return rule && rule.paddEmpty;
+  return rule?.paddEmpty === true;
 };
 
 const isEmpty = (schema: Schema, nonEmptyElements: SchemaMap, whitespaceElements: SchemaMap, node: AstNode): boolean =>
   node.isEmpty(nonEmptyElements, whitespaceElements, (node) => isPadded(schema, node));
 
-const isLineBreakNode = (node: AstNode | undefined, blockElements: SchemaMap): boolean =>
-  node && (Obj.has(blockElements, node.name) || node.name === 'br');
+const isLineBreakNode = (node: AstNode | null | undefined, isBlock: (node: AstNode) => boolean): boolean =>
+  Type.isNonNullable(node) && (isBlock(node) || node.name === 'br');
+
+const findClosestEditingHost = (scope: AstNode): Optional<AstNode> => {
+  let editableNode;
+
+  for (let node: AstNode | undefined | null = scope; node; node = node.parent) {
+    const contentEditable = node.attr('contenteditable');
+
+    if (contentEditable === 'false') {
+      break;
+    } else if (contentEditable === 'true') {
+      editableNode = node;
+    }
+  }
+
+  return Optional.from(editableNode);
+};
 
 export {
   paddEmptyNode,
   isPaddedWithNbsp,
   hasOnlyChild,
   isEmpty,
-  isLineBreakNode
+  isLineBreakNode,
+  findClosestEditingHost
 };

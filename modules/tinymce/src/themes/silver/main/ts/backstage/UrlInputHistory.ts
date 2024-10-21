@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Obj, Type } from '@ephox/katamari';
 
 import LocalStorage from 'tinymce/core/api/util/LocalStorage';
@@ -57,7 +50,7 @@ const getHistory = (fileType: string): string[] => {
   return Obj.get(history, fileType).getOr([]);
 };
 
-const addToHistory = (url: string, fileType: string) => {
+const addToHistory = (url: string, fileType: string): void => {
   if (!isHttpUrl(url)) {
     return;
   }
@@ -68,7 +61,7 @@ const addToHistory = (url: string, fileType: string) => {
   setAllHistory(history);
 };
 
-const clearHistory = () => {
+const clearHistory = (): void => {
   LocalStorage.removeItem(STORAGE_KEY);
 };
 

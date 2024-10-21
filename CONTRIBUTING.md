@@ -11,8 +11,6 @@ This repo is built with Yarn workspaces and uses publish tooling support from Le
 An important feature of this monorepo is the use of TypeScript 3.0 features "project references" and "build mode":
 https://www.typescriptlang.org/docs/handbook/project-references.html
 
-These are still quite new and some of the tooling is still catching up (e.g. webpack needs `tsc -b -w` running in the background).
-
 ### A quick note about `modules`
 
 Most monorepos use a `packages` folder to hold the included projects, but we have chosen `modules` instead. There are few reasons for this:
@@ -58,9 +56,7 @@ There are many top-level helper scripts for TinyMCE and Oxide (the default skin)
 ### TinyMCE
 
 `yarn start`
-This boots the TinyMCE webpack dev server at http://localhost:3000 and also starts a TypeScript watch process. With this running changes to _any_ `.ts` source file in the monorepo (excluding tests) should be reflected in WebPack within a few seconds.
-
-If WebPack later adds supports for TypeScript build mode the background TypeScript watch process won't be necessary which will speed up round trip time.
+This boots the TinyMCE webpack dev server at http://localhost:3000. With this running changes to _any_ `.ts` source file in the monorepo (excluding tests) should be reflected in WebPack within a few seconds.
 
 `yarn watch`
 runs `tsc -b -w` for those times when you don't need to iterate in the browser.
@@ -69,7 +65,7 @@ runs `tsc -b -w` for those times when you don't need to iterate in the browser.
 an alias to `tsc -b` just in case you forget
 
 `yarn eslint`
-runs `eslint` in _all_ projects, with a rule set that is far more strict than most projects were previously subject to. This is a good source of things to improve when bored.
+runs `eslint` across the entire repository with the rule set that is required to pass in CI. Use `yarn eslint --fix` to automatically fix minor problems. The [ESLint vscode plugin](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) can be used to apply lint fixes on save.
 
 `yarn tinymce-grunt`
 easy access to the TinyMCE grunt commands from the root folder.

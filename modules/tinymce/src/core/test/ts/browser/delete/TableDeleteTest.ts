@@ -7,13 +7,12 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import * as TableDelete from 'tinymce/core/delete/TableDelete';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.delete.TableDeleteTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     indent: false,
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ], true);
+  }, [], true);
 
   const assertRawNormalizedContent = (editor: Editor, expectedContent: string) => {
     const element = Replication.deep(TinyDom.body(editor));
@@ -27,23 +26,29 @@ describe('browser.tinymce.core.delete.TableDeleteTest', () => {
     Assertions.assertHtml('Should be expected contents', expectedContent, Html.get(element));
   };
 
+  const doCommand = (editor: Editor, forward: boolean) => {
+    const returnVal = TableDelete.backspaceDelete(editor, forward);
+    returnVal.each((apply) => apply());
+    return returnVal.isSome();
+  };
+
   const doDelete = (editor: Editor) => {
-    const returnVal = TableDelete.backspaceDelete(editor, true);
+    const returnVal = doCommand(editor, true);
     assert.isTrue(returnVal, 'Should return true since the operation should have done something');
   };
 
   const doBackspace = (editor: Editor) => {
-    const returnVal = TableDelete.backspaceDelete(editor, false);
+    const returnVal = doCommand(editor, false);
     assert.isTrue(returnVal, 'Should return true since the operation should have done something');
   };
 
   const noopDelete = (editor: Editor) => {
-    const returnVal = TableDelete.backspaceDelete(editor, true);
+    const returnVal = doCommand(editor, true);
     assert.isFalse(returnVal, 'Should return false since the operation is a noop');
   };
 
   const noopBackspace = (editor: Editor) => {
-    const returnVal = TableDelete.backspaceDelete(editor, false);
+    const returnVal = doCommand(editor, false);
     assert.isFalse(returnVal, 'Should return false since the operation is a noop');
   };
 

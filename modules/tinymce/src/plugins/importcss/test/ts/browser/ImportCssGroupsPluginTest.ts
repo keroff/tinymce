@@ -5,9 +5,9 @@ import { SugarDocument } from '@ephox/sugar';
 import { McEditor, TinyDom, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import { RawEditorSettings } from 'tinymce/core/api/SettingsTypes';
+import { RawEditorOptions } from 'tinymce/core/api/OptionTypes';
+import { Group } from 'tinymce/plugins/importcss/core/ImportCss';
 import Plugin from 'tinymce/plugins/importcss/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import { Navigation, pProcessNavigation } from '../module/MenuNavigationTestUtils';
 
@@ -22,13 +22,12 @@ interface Assertion {
 describe('browser.tinymce.plugins.importcss.ImportCssGroupsTest', () => {
   before(() => {
     Plugin();
-    Theme();
   });
 
-  const pTestEditorWithSettings = async (assertion: Assertion, pluginSettings: RawEditorSettings) => {
+  const pTestEditorWithSettings = async (assertion: Assertion, pluginSettings: RawEditorOptions) => {
     const editor = await McEditor.pFromSettings<Editor>({
       plugins: 'importcss',
-      toolbar: 'styleselect',
+      toolbar: 'styles',
       content_css: pluginSettings.content_css,
       importcss_append: pluginSettings.importcss_append,
       importcss_selector_filter: pluginSettings.importcss_selector_filter,
@@ -83,7 +82,7 @@ describe('browser.tinymce.plugins.importcss.ImportCssGroupsTest', () => {
         { title: 'Other', custom: '.DDD' }
       ],
 
-      importcss_selector_converter: (selector, group) => ({
+      importcss_selector_converter: (selector: string, group: Group & { custom: string }) => ({
         title: selector + group.custom,
         classes: [ 'converted' ],
         inline: 'span'
@@ -113,7 +112,7 @@ describe('browser.tinymce.plugins.importcss.ImportCssGroupsTest', () => {
         {
           title: 'Advanced',
           filter: /.adv/,
-          selector_converter: (selector, group) => {
+          selector_converter: (selector: string, group: Group | null) => {
             // eslint-disable-next-line no-console
             console.log('selector', selector, 'group', group);
             return {
@@ -126,7 +125,7 @@ describe('browser.tinymce.plugins.importcss.ImportCssGroupsTest', () => {
         },
         {
           title: 'Other',
-          selector_converter: (selector, _group) => ({
+          selector_converter: (selector: string, _group: Group | null) => ({
             title: selector + '.OtherGroup',
             selector: 'p',
             classes: selector.split('.')[1]

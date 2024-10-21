@@ -1,13 +1,13 @@
 import { Bounds, Boxes } from '@ephox/alloy';
 import { after, before, context, describe, it } from '@ephox/bedrock-client';
 import { InlineContent } from '@ephox/bridge';
-import { Css, Scroll, SelectorFind, SugarBody, SugarElement } from '@ephox/sugar';
+import { Css, Scroll, SelectorFind, SugarBody } from '@ephox/sugar';
 import { McEditor, TinyDom } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
-import { getContextToolbarBounds } from 'tinymce/themes/silver/ui/context/ContextToolbarBounds';
+import { RawEditorOptions } from 'tinymce/core/api/OptionTypes';
+import { getContextToolbarBounds, isVerticalOverlap } from 'tinymce/themes/silver/ui/context/ContextToolbarBounds';
 
 import TestBackstage from '../../../module/TestBackstage';
 import * as UiUtils from '../../../module/UiUtils';
@@ -20,9 +20,9 @@ interface TestBounds {
 }
 
 interface Scenario {
-  readonly settings: Record<string, any>;
+  readonly options: RawEditorOptions;
   readonly position: InlineContent.ContextPosition;
-  readonly scroll?: {
+  readonly scroll: {
     readonly relativeTop: boolean;
     readonly delta: number;
   };
@@ -39,7 +39,6 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
   const expectedMargin = 1;
 
   before(() => {
-    Theme();
     const body = SugarBody.body();
     Css.set(body, 'margin-left', '10px');
     Css.set(body, 'margin-right', '10px');
@@ -56,8 +55,8 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
   });
 
   const getBounds = (editor: Editor): TestBounds => {
-    const container = SugarElement.fromDom(editor.getContainer());
-    const contentAreaContainer = SugarElement.fromDom(editor.getContentAreaContainer());
+    const container = TinyDom.container(editor);
+    const contentAreaContainer = TinyDom.contentAreaContainer(editor);
     const header = SelectorFind.descendant<HTMLElement>(SugarBody.body(), '.tox-editor-header').getOrDie();
 
     return {
@@ -94,9 +93,10 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
   const pTestScenario = (scenario: Scenario) => async () => {
     const editor = await McEditor.pFromSettings<Editor>({
       base_url: '/project/tinymce/js/tinymce',
-      ...scenario.settings
+      ...scenario.options
     });
-    backstage.shared.header.setDockingMode(editor.settings.toolbar_location);
+    const toolbarLocation = editor.options.get('toolbar_location') === 'bottom' ? 'bottom' : 'top';
+    backstage.shared.header.setDockingMode(toolbarLocation);
     editor.focus();
     await UiUtils.pWaitForEditorToRender();
     scrollRelativeEditorContainer(editor, scenario.scroll.relativeTop, scenario.scroll.delta);
@@ -106,7 +106,7 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
 
   context('Context toolbar bounds with toolbar top', () => {
     it('Inline(full view): bottom of the header -> Bottom of the viewport', pTestScenario({
-      settings: { inline: true },
+      options: { inline: true },
       position: 'selection',
       scroll: { relativeTop: true, delta: -10 },
       assertBounds: (bounds) => ({
@@ -118,7 +118,7 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
     }));
 
     it('Distraction Free(full view): Top of the viewport -> Bottom of the viewport', pTestScenario({
-      settings: { menubar: false, inline: true, toolbar: false },
+      options: { menubar: false, inline: true, toolbar: false },
       position: 'selection',
       scroll: { relativeTop: true, delta: -10 },
       assertBounds: (bounds) => ({
@@ -130,7 +130,7 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
     }));
 
     it('Iframe(full view) selection toolbar: Bottom of the header -> Bottom of the content area', pTestScenario({
-      settings: { },
+      options: { },
       position: 'selection',
       scroll: { relativeTop: true, delta: -10 },
       assertBounds: (bounds) => ({
@@ -142,7 +142,7 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
     }));
 
     it('Iframe(full view) node toolbar: Bottom of the header -> Bottom of the content area', pTestScenario({
-      settings: { },
+      options: { },
       position: 'node',
       scroll: { relativeTop: true, delta: -10 },
       assertBounds: (bounds) => ({
@@ -154,7 +154,7 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
     }));
 
     it('Iframe(full view) line toolbar: Bottom of the header -> Bottom of the editor container', pTestScenario({
-      settings: { },
+      options: { },
       position: 'line',
       scroll: { relativeTop: true, delta: -10 },
       assertBounds: (bounds) => ({
@@ -166,7 +166,7 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
     }));
 
     it('Iframe(editor partly in view): Top of viewport -> Bottom of the content area', pTestScenario({
-      settings: { height: 400 },
+      options: { height: 400 },
       position: 'selection',
       scroll: { relativeTop: true, delta: 200 },
       assertBounds: (bounds) => ({
@@ -178,7 +178,7 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
     }));
 
     it('Iframe(editor partly in view): Bottom of viewport -> Top of the content area', pTestScenario({
-      settings: { height: 400 },
+      options: { height: 400 },
       position: 'selection',
       scroll: { relativeTop: false, delta: -200 },
       assertBounds: (bounds: TestBounds) => ({
@@ -192,7 +192,7 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
 
   context('Context toolbar bounds with toolbar bottom', () => {
     it('Iframe(full view): Top of the content area -> Top of the header', pTestScenario({
-      settings: { toolbar_location: 'bottom' },
+      options: { toolbar_location: 'bottom' },
       position: 'node',
       scroll: { relativeTop: true, delta: -10 },
       assertBounds: (bounds: TestBounds) => ({
@@ -204,7 +204,7 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
     }));
 
     it('Inline(full view): Top of the viewport -> Top of the header', pTestScenario({
-      settings: { inline: true, toolbar_location: 'bottom' },
+      options: { inline: true, toolbar_location: 'bottom' },
       position: 'selection',
       scroll: { relativeTop: true, delta: -10 },
       assertBounds: (bounds: TestBounds) => ({
@@ -214,5 +214,118 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarBoun
         bottom: bounds.header.y - expectedMargin
       })
     }));
+  });
+
+  context('isVerticalOverlap', () => {
+    const bY = 200;
+    const bBottom = 300;
+
+    // The threshold values are intentionally negative numbers, because the
+    // function is measuring overlap, so a negative value is not overlap. Using higher
+    // negative numbers for the threshold increases the chance of overlap.
+    const threshold = -10;
+    // We use a value of 5 instead of 10 to give us a bit of room to play with for
+    // before/after y values.
+    const withinThreshold = -5;
+
+    const beforeBOutsideThreshold = bY - 50;
+    const beforeBBWithinThreshold = bY + withinThreshold;
+
+    const midB = (bY + bBottom) / 2;
+
+    const afterBWithinThreshold = bBottom + Math.abs(withinThreshold);
+    const afterBOutsideThreshold = bBottom + 50;
+
+    const testAValue = (expected: boolean, aY: number, aBottom: number) => {
+      const a: any = { bottom: aBottom, y: aY };
+      const b: any = { bottom: bBottom, y: bY };
+
+      const actual = isVerticalOverlap(a, b, threshold);
+      assert.equal(actual, expected);
+    };
+
+    context('a starts above b and outside threshold', () => {
+      const aY = beforeBOutsideThreshold - 50;
+
+      it('a finishes before b, and outside threshold', () => {
+        testAValue(false, aY, beforeBOutsideThreshold);
+      });
+
+      it('a finishes before b, but within threshold', () => {
+        testAValue(true, aY, beforeBBWithinThreshold);
+      });
+
+      it('a finishes within b', () => {
+        testAValue(true, aY, midB);
+      });
+
+      it('a finishes after b, but within threshold', () => {
+        testAValue(true, aY, afterBWithinThreshold);
+      });
+
+      it('a finishes after b, and outside threshold', () => {
+        testAValue(true, aY, afterBOutsideThreshold);
+      });
+    });
+
+    context('a starts above b and inside threshold', () => {
+      // Because the within threshold is smaller than the threshold, this should
+      // still be within the threshold of bY
+      const aY = beforeBBWithinThreshold - 1;
+
+      it('a finishes before b, but within threshold', () => {
+        testAValue(true, aY, beforeBBWithinThreshold);
+      });
+
+      it('a finishes within b', () => {
+        testAValue(true, aY, midB);
+      });
+
+      it('a finishes after b, but within threshold', () => {
+        testAValue(true, aY, afterBWithinThreshold);
+      });
+
+      it('a finishes after b, and outside threshold', () => {
+        testAValue(true, aY, afterBOutsideThreshold);
+      });
+    });
+
+    context('a starts within b', () => {
+      const aY = midB;
+
+      it('a finishes within b', () => {
+        testAValue(true, aY, midB + 10);
+      });
+
+      it('a finishes after b, but within threshold', () => {
+        testAValue(true, aY, afterBWithinThreshold);
+      });
+
+      it('a finishes after b, but outside threshold', () => {
+        testAValue(true, aY, afterBOutsideThreshold);
+      });
+    });
+
+    context('a starts after b, but within threshold', () => {
+      // This value should be before afterBWithinThreshold, but after bBottom
+      const aY = bBottom + 1;
+
+      it('a finishes after b, but within threshold', () => {
+        testAValue(true, aY, afterBWithinThreshold);
+      });
+
+      it('a finishes after b, but outside threshold', () => {
+        testAValue(true, aY, afterBOutsideThreshold);
+      });
+    });
+
+    context('a starts after b, but outside threshold', () => {
+      // This value should be before afterBWithinThreshold, but after bBottom
+      const aY = afterBOutsideThreshold;
+
+      it('a finishes after b, but outside threshold', () => {
+        testAValue(false, aY, afterBOutsideThreshold + 50);
+      });
+    });
   });
 });

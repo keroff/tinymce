@@ -1,12 +1,13 @@
+import { TinyMCE } from 'tinymce/core/api/PublicApi';
 
-declare let tinymce: any;
+declare let tinymce: TinyMCE;
 
-export default () => {
+export default (): void => {
 
   tinymce.init({
     selector: 'textarea.tiny-text',
     theme: 'silver',
-    toolbar: 'styleselect',
+    toolbar: 'styles',
     plugins: [ 'lists', 'autolink', 'autosave', 'insertdatetime' ],
     style_formats: [
       { title: 'Bold text', inline: 'b' },
@@ -62,7 +63,7 @@ export default () => {
   tinymce.init({
     selector: 'textarea.tiny-text2',
     theme: 'silver',
-    toolbar: 'styleselect',
+    toolbar: 'styles',
     block_formats: 'Paragraph=p;Heading 1=h1;Heading 2=h2;Separator Name=|;Heading 3=h3',
     plugins: [ 'lists', 'autolink', 'autosave', 'insertdatetime' ]
   });

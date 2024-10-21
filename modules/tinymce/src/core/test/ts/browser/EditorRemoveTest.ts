@@ -1,17 +1,12 @@
 import { Waiter } from '@ephox/agar';
-import { before, describe, it } from '@ephox/bedrock-client';
+import { describe, it } from '@ephox/bedrock-client';
 import { McEditor } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import EditorManager from 'tinymce/core/api/EditorManager';
-import PromisePolyfill from 'tinymce/core/api/util/Promise';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.EditorRemoveTest', () => {
-  before(() => {
-    Theme();
-  });
 
   const settings = {
     base_url: '/project/tinymce/js/tinymce'
@@ -44,22 +39,23 @@ describe('browser.tinymce.core.EditorRemoveTest', () => {
           // Hook the function called when stylesheets are loaded
           // so we can remove the editor right after starting to load them.
           const realLoadAll = editor.ui.styleSheetLoader.loadAll;
-          editor.ui.styleSheetLoader.loadAll = (...args) => {
-            realLoadAll.apply(editor.ui.styleSheetLoader, args);
+          editor.ui.styleSheetLoader.loadAll = (urls: string[]) => {
+            const result = realLoadAll.call(editor.ui.styleSheetLoader, urls);
             editor.ui.styleSheetLoader.loadAll = realLoadAll;
             editor.remove();
+            return result;
           };
         });
       }
     }).then(
-      () => PromisePolyfill.reject('Expected editor would not load completely'),
+      () => Promise.reject('Expected editor would not load completely'),
       (err) => {
         // As we have deliberately removed the editor during the loading process
         // we have to intercept the error that is thrown by McEditor.pFromHtml.
         if (err === McEditor.errorMessageEditorRemoved) {
-          return PromisePolyfill.resolve();
+          return Promise.resolve();
         } else {
-          return PromisePolyfill.reject(err);
+          return Promise.reject(err);
         }
       }
     );
@@ -70,7 +66,7 @@ describe('browser.tinymce.core.EditorRemoveTest', () => {
   it('remove editor where the body has been removed', async () => {
     const editor = await McEditor.pFromHtml<Editor>('<textarea></textarea>', settings);
     const body = editor.getBody();
-    body.parentNode.removeChild(body);
+    body.parentNode?.removeChild(body);
     McEditor.remove(editor);
   });
 
@@ -100,6 +96,6 @@ describe('browser.tinymce.core.EditorRemoveTest', () => {
         });
       }
     });
-    editor.remove();
+    McEditor.remove(editor);
   });
 });

@@ -1,4 +1,4 @@
-import { assert, UnitTest } from '@ephox/bedrock-client';
+import { Assert, UnitTest } from '@ephox/bedrock-client';
 import { Arr } from '@ephox/katamari';
 import { SugarElement, TextContent } from '@ephox/sugar';
 
@@ -13,7 +13,7 @@ UnitTest.test('CellBounds.isWithin Test', () => {
     return elem;
   };
   const s = (elemText: string, rowspan: number, colspan: number) => Structs.detail(createCell(elemText), rowspan, colspan);
-  const f = (cells: Structs.Detail[], section: 'tbody') => Structs.rowdetail(SugarElement.fromTag('tr'), cells, section);
+  const f = (cells: Structs.Detail<HTMLTableCellElement>[], section: 'tbody') => Structs.rowdetail(SugarElement.fromTag('tr'), cells, section);
 
   const testTableA = [
     f([ s('a', 1, 1), s('b', 1, 1), s('c', 1, 1), s('d', 1, 1), s('e', 1, 1) ], 'tbody'),
@@ -29,13 +29,13 @@ UnitTest.test('CellBounds.isWithin Test', () => {
   const checkWithin = (expected: boolean, warehouse: Warehouse, bounds: Structs.Bounds, row: number, column: number) => {
     const cell = Warehouse.getAt(warehouse, row, column).getOrDie();
     const actual = CellBounds.isWithin(bounds, cell);
-    assert.eq(expected, actual);
+    Assert.eq('', expected, actual);
   };
 
   const checkInSelection = (expected: boolean, warehouse: Warehouse, bounds: Structs.Bounds, row: number, column: number) => {
     const cell = Warehouse.getAt(warehouse, row, column).getOrDie();
     const actual = CellBounds.inSelection(bounds, cell);
-    assert.eq(expected, actual);
+    Assert.eq('', expected, actual);
   };
 
   checkWithin(false, inputA, bounds1To3, 2, 2);

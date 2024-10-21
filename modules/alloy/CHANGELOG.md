@@ -6,6 +6,120 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+### Fixed
+- Incorrect typing on `DropdownSpec`, `getAnchorOverrides`. Function returns an object, not another function. #TINY-9978
+- Going back from a view to the editor in mobile caused an error. #TINY-10003
+- Going back from a view to the editor in mobile visualization on browser caused an error. #TINY-10165
+
+## 13.0.0 - 2023-07-12
+
+### Added
+- Added new `isBlocked` API to the `Blocking` behaviour.
+
+### Changed
+- `ModalDialogApis.getFooter` now returns an `Optional<AlloyComponent>` instead of `AlloyComponent`. #TINY-9996
+
+### Fixed
+- Tab navigation did not forward focus over pseudo tab stops. #TINY-9815
+
+## 12.2.0 - 2023-06-12
+
+### Fixed
+- Select would in some situations when it was reused or otherwise reset not have an initial selected value when expected to. #TINY-9679
+- In dialogs, the `aria-describedby` element would be the body of the dialog. #TINY-9816
+
+### Improved
+- `SelectionAnchor` now uses the bounds of table cell selection, if the selection contains more than one table cell. #TINY-8297
+
+### Changed
+- Changed `SelectionAnchorSpec.getSelection` to support the selection of both `SimRange` and `SelectionTableCellRange`.
+
+## 12.1.0 - 2023-03-15
+
+### Added
+- Added `firstTabstop` optional property to `ModalDialogDetail`, to specify the index of elements to focus on when dialog shows. #TINY-9520
+- Exposed `OffsetOrigin` module and `DockingType` type in api main entry point. #TINY-9414
+
+### Changed
+-  `aria-activedescendant` attribute for `Typeahead` input component is updated to the menu item that is highlighted. #TINY-9280
+
+### Removed
+- Removed `positionWithin` from `Positioning` behaviour's APIs. #TINY-9226
+- Removed `showWithin` from `InlineView` sketcher's APIs. #TINY-9226
+- Removed unused custom `placer` from `Anchorage`. #TINY-9226
+
+## 12.0.0 - 2022-11-23
+
+### Added
+- Added `previousSelector` optional property to `MenuMatrixMovementSpec`, to start with the selected item in focus. #TINY-9283
+- Added the `onToggled` callback for the `FloatingToolbarButton` component. #TINY-9271
+- Added the `onOpened` and `onClosed` callbacks for the `SplitFloatingToolbar` component. #TINY-9271
+
+### Removed
+- Moved `TestStore` to Agar. #TINY-9157
+
+## 11.0.0 - 2022-09-08
+
+### Added
+- Added new `retargetAndDispatchWith` API to `AlloyTriggers` to allow for redispatching of events to different targets. #TINY-8952
+- Added new `refetch` API to `Dropdown` that triggers a fetch and redraw for the dropdown menu. #TINY-8952
+- Added new `onHighlightItem` and `onDehighlightItem` settings to `TieredMenu`. #TINY-8952
+- Added new `getExistingCoupled` API to `Coupling` that gets an existing coupled component, but does not create it if it doesn't already exist. #TINY-8952
+
+### Improved
+- The `GuiSetup` BDD test helpers now provide a way to create a custom `GuiSystem`.
+
+### Changed
+- The `highlightImmediately` setting for `TieredMenu` was replaced with the more granular `highlightOnOpen`. #TINY-8952
+
+### Fixed
+- The `lazyViewport` property incorrectly marked the passed component as optional for the `Docking` behaviour.
+- The `TypeaheadSpec` type did not correctly extend `InputSpec`.
+- The `TypeaheadSpec` type had a typo in the `populateFromBrowse` property.
+- The `Highlighting.highlight` API was not properly skipping the target when dehighlighting existing highlighted items. #TINY-8952
+- The various models in `Typeahead` were not functioning correctly. #TINY-8952
+- The `Typeahead` did not work correctly when its menu was in another mothership. #TINY-8952
+
+### Removed
+- The `onHighlight` setting in `TieredMenu` was removed in favour of `onHighlightItem`. #TINY-8952
+
+## 10.1.0 - 2022-06-29
+
+### Added
+- Added new `immediateGrow` API to the `Sliding` behaviour #TINY-8710
+- Added new `onToggled` callback property to the `Toggling` behaviour configuration #TINY-8602
+
+### Improved
+- Toggleable menu items can now be configured as `exclusive` and alloy will ensure only 1 exclusive item is toggled in the menu #TINY-8602
+
+### Changed
+- Changed tabbing behavior escape key handling to run from `keydown` to `keyup` to prevent unwanted key event propagation #TINY-7005
+
+### Fixed
+- The `fakeFocus` property for `InlineView` menus was not respected.
+- The value of togglable elements was not reset if its config was not specified in the definition #TINY-8763
+
+## 10.0.0 - 2022-03-03
+
+### Added
+- Added a new `buildOrPatch` function to the `SystemApi` to allow reusing the passed obsoleted dom element.
+
+### Improved
+- The `Replacing` and `Reflecting` behaviours will now attempt to reuse existing DOM elements when replacing components. The `reuseDom` config can be used to disable this behaviour for specific components.
+- The `GuiSetup` test helper will now keep the elements in the DOM on test failures.
+
+### Changed
+- Upgraded to Katamari 9.0, which includes breaking changes to the `Optional` API used in this module.
+- Dropdowns now use an "aria-controls" attribute rather than an "aria-owns" attribute when activated.
+- Firefox will now use the native `focusin` and `focusout` events instead of capturing the `focus` and `blur` events.
+- Horizontal and Vertical slider data is now just a number, instead of objects with single `x` or `y` properties #TINY-8304
+
+### Fixed
+- Slider components did not respond to `Representing.setValue` #TINY-8304
+
+### Removed
+- Removed support for Microsoft Internet Explorer and legacy Microsoft Edge.
+
 ## 9.0.2 - 2021-10-11
 
 ### Fixed

@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import Env from '../Env';
 
 interface KeyboardLikeEvent {
@@ -60,7 +53,7 @@ const VK: VK = {
 
   metaKeyPressed: (e: KeyboardLikeEvent): boolean => {
     // Check if ctrl or meta key is pressed. Edge case for AltGr on Windows where it produces ctrlKey+altKey states
-    return (Env.mac ? e.metaKey : e.ctrlKey && !e.altKey);
+    return Env.os.isMacOS() || Env.os.isiOS() ? e.metaKey : e.ctrlKey && !e.altKey;
   }
 };
 

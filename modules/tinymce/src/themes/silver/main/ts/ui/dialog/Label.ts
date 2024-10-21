@@ -1,28 +1,28 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AlloySpec, Behaviour, Keying, Replacing, SimpleSpec } from '@ephox/alloy';
+import { AlloySpec, Behaviour, GuiFactory, Keying, Replacing, SimpleSpec } from '@ephox/alloy';
 import { Dialog } from '@ephox/bridge';
 import { Arr, Optional } from '@ephox/katamari';
 
 import { UiFactoryBackstageShared } from '../../backstage/Backstage';
 import { ComposingConfigs } from '../alien/ComposingConfigs';
-import { RepresentingConfigs } from '../alien/RepresentingConfigs';
+import * as RepresentingConfigs from '../alien/RepresentingConfigs';
 
 type LabelSpec = Omit<Dialog.Label, 'type'>;
 
 export const renderLabel = (spec: LabelSpec, backstageShared: UiFactoryBackstageShared): SimpleSpec => {
-  const label = {
+  const baseClass = 'tox-label';
+  const centerClass = spec.align === 'center' ? [ `${baseClass}--center` ] : [];
+  const endClass = spec.align === 'end' ? [ `${baseClass}--end` ] : [];
+
+  const label: AlloySpec = {
     dom: {
       tag: 'label',
-      innerHtml: backstageShared.providers.translate(spec.label),
-      classes: [ 'tox-label' ]
-    }
-  } as AlloySpec;
+      classes: [ baseClass, ...centerClass, ...endClass ]
+    },
+    components: [
+      GuiFactory.text(backstageShared.providers.translate(spec.label))
+    ]
+  };
+
   const comps = Arr.map(spec.items, backstageShared.interpreter);
   return {
     dom: {
@@ -30,8 +30,9 @@ export const renderLabel = (spec: LabelSpec, backstageShared: UiFactoryBackstage
       classes: [ 'tox-form__group' ]
     },
     components: [
-      label
-    ].concat(comps),
+      label,
+      ...comps
+    ],
     behaviours: Behaviour.derive([
       ComposingConfigs.self(),
       Replacing.config({}),

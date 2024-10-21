@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { AnchorSpec, MakeshiftAnchorSpec, NodeAnchorSpec, SelectionAnchorSpec } from '@ephox/alloy';
 import { Optional } from '@ephox/katamari';
 import { SugarElement } from '@ephox/sugar';
@@ -15,8 +8,8 @@ import Editor from 'tinymce/core/api/Editor';
 export type AnchorType = 'node' | 'selection' | 'point';
 
 interface Position {
-  x: number;
-  y: number;
+  readonly x: number;
+  readonly y: number;
 }
 
 const nu = (x: number, y: number): MakeshiftAnchorSpec => ({
@@ -54,8 +47,8 @@ const transposeContentAreaContainer = (element: HTMLElement, pos: Position) => {
   return transpose(pos, containerPos.x, containerPos.y);
 };
 
-export const getPointAnchor = (editor: Editor, e: MouseEvent | TouchEvent) => {
-  // If the contextmenu event is fired via the editor.fire() API or some other means, fall back to selection anchor
+export const getPointAnchor = (editor: Editor, e: MouseEvent | TouchEvent): MakeshiftAnchorSpec | SelectionAnchorSpec => {
+  // If the contextmenu event is fired via the editor.dispatch() API or some other means, fall back to selection anchor
   if (e.type === 'contextmenu' || e.type === 'longpress') {
     if (editor.inline) {
       return fromPageXY(e);

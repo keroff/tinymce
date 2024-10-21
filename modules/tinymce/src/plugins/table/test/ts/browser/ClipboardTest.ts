@@ -1,55 +1,47 @@
 import { Clipboard } from '@ephox/agar';
 import { describe, it } from '@ephox/bedrock-client';
+import { Arr, Optional } from '@ephox/katamari';
+import { SugarElement, SugarNode, Traverse } from '@ephox/sugar';
 import { LegacyUnit, TinyAssertions, TinyDom, TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Tools from 'tinymce/core/api/util/Tools';
-import PastePlugin from 'tinymce/plugins/paste/Plugin';
-import { TableEventData } from 'tinymce/plugins/table/api/Events';
+import { TableEventData } from 'tinymce/core/api/EventTypes';
+import * as FakeClipboard from 'tinymce/plugins/table/api/Clipboard';
 import TablePlugin from 'tinymce/plugins/table/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
+
+import * as TableTestUtils from '../module/test/TableTestUtils';
 
 describe('browser.tinymce.plugins.table.ClipboardTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
-    plugins: 'paste table',
+    plugins: 'table',
     indent: false,
     valid_styles: {
       '*': 'width,height,vertical-align,text-align,float,border-color,background-color,border,padding,border-spacing,border-collapse'
     },
     base_url: '/project/tinymce/js/tinymce'
-  }, [ PastePlugin, TablePlugin, Theme ], true);
+  }, [ TablePlugin ], true);
 
   const cleanTableHtml = (html: string) => html.replace(/<p>(&nbsp;|<br[^>]+>)<\/p>$/, '');
 
   const selectOne = (editor: Editor, start: string) => {
-    const startElm = editor.$(start)[0];
+    const startElm = editor.dom.select(start)[0];
 
-    editor.fire('mousedown', { target: startElm, button: 0 } as unknown as MouseEvent);
-    editor.fire('mouseup', { target: startElm, button: 0 } as unknown as MouseEvent);
+    editor.dispatch('mousedown', { target: startElm, button: 0 } as unknown as MouseEvent);
+    editor.dispatch('mouseup', { target: startElm, button: 0 } as unknown as MouseEvent);
 
     LegacyUnit.setSelection(editor, startElm, 0);
   };
 
   const selectRangeXY = (editor: Editor, start: string, end: string) => {
-    const startElm = editor.$(start)[0];
-    const endElm = editor.$(end)[0];
+    const startElm = editor.dom.select(start)[0];
+    const endElm = editor.dom.select(end)[0];
 
-    editor.fire('mousedown', { target: startElm, button: 0 } as unknown as MouseEvent);
-    editor.fire('mouseover', { target: endElm, button: 0 } as unknown as MouseEvent);
-    editor.fire('mouseup', { target: endElm, button: 0 } as unknown as MouseEvent);
+    editor.dispatch('mousedown', { target: startElm, button: 0 } as unknown as MouseEvent);
+    editor.dispatch('mouseover', { target: endElm, button: 0 } as unknown as MouseEvent);
+    editor.dispatch('mouseup', { target: endElm, button: 0 } as unknown as MouseEvent);
 
     LegacyUnit.setSelection(editor, endElm, 0);
-  };
-
-  const createRow = (editor: Editor, cellContents: string[]) => {
-    const tr = editor.dom.create('tr');
-
-    Tools.each(cellContents, (html) => {
-      tr.appendChild(editor.dom.create('td', null, html));
-    });
-
-    return tr;
   };
 
   it('TBA: selection.getContent with format equal to text', () => {
@@ -410,15 +402,15 @@ describe('browser.tinymce.plugins.table.ClipboardTest', () => {
     LegacyUnit.setSelection(editor, 'tr:nth-child(1) td', 0);
     editor.execCommand('mceTableCopyRow');
 
-    const clipboardRows = editor.plugins.table.getClipboardRows();
+    const clipboardRows = FakeClipboard.getRows().getOr([] as SugarElement<HTMLTableRowElement>[]);
 
     assert.equal(clipboardRows.length, 1);
-    assert.equal(clipboardRows[0].tagName, 'TR');
+    assert.isTrue(SugarNode.isTag('tr')(clipboardRows[0]));
 
-    editor.plugins.table.setClipboardRows(clipboardRows.concat([
-      createRow(editor, [ 'a', 'b' ]),
-      createRow(editor, [ 'c', 'd' ])
-    ]));
+    FakeClipboard.setRows(Optional.some(clipboardRows.concat([
+      TableTestUtils.createRow([ 'a', 'b' ]),
+      TableTestUtils.createRow([ 'c', 'd' ])
+    ])));
 
     LegacyUnit.setSelection(editor, 'tr:nth-child(2) td', 0);
     editor.execCommand('mceTablePasteRowAfter');
@@ -532,18 +524,18 @@ describe('browser.tinymce.plugins.table.ClipboardTest', () => {
     LegacyUnit.setSelection(editor, 'tr td:nth-child(1)', 0);
     editor.execCommand('mceTableCopyCol');
 
-    const clipboardCols = editor.plugins.table.getClipboardCols();
+    const clipboardCols = FakeClipboard.getColumns().getOr([]);
 
     assert.equal(clipboardCols.length, 2);
-    assert.equal(clipboardCols[0].tagName, 'TR');
-    const cells = clipboardCols[0].childNodes;
+    assert.isTrue(SugarNode.isTag('tr')(clipboardCols[0]));
+    const cells = Traverse.children(clipboardCols[0]);
     assert.equal(cells.length, 1);
-    assert.equal(cells[0].nodeName, 'TD');
+    assert.isTrue(SugarNode.isTag('td')(cells[0]));
 
-    editor.plugins.table.setClipboardCols([
-      createRow(editor, [ 'a', 'b' ]),
-      createRow(editor, [ 'c', 'd' ])
-    ]);
+    FakeClipboard.setColumns(Optional.some([
+      TableTestUtils.createRow([ 'a', 'b' ]),
+      TableTestUtils.createRow([ 'c', 'd' ])
+    ]));
 
     LegacyUnit.setSelection(editor, 'tr td:nth-child(2)', 0);
     editor.execCommand('mceTablePasteColAfter');
@@ -581,7 +573,7 @@ describe('browser.tinymce.plugins.table.ClipboardTest', () => {
       cleanTableHtml(editor.getContent()),
 
       '<table>' +
-      '<colgroup><col /><col /><col /></colgroup>' +
+      '<colgroup><col><col><col></colgroup>' +
       '<tbody>' +
       '<tr><td>2</td><td>1</td><td>2</td></tr>' +
       '<tr><td>3</td><td>2</td><td>3</td></tr>' +
@@ -611,7 +603,7 @@ describe('browser.tinymce.plugins.table.ClipboardTest', () => {
       cleanTableHtml(editor.getContent()),
 
       '<table>' +
-      '<colgroup><col /><col /><col /><col /></colgroup>' +
+      '<colgroup><col><col><col><col></colgroup>' +
       '<tbody>' +
       '<tr><td>1</td><td>2</td><td>1</td><td>3</td></tr>' +
       '<tr><td>2</td><td>3</td><td>2</td><td>4</td></tr>' +
@@ -642,7 +634,7 @@ describe('browser.tinymce.plugins.table.ClipboardTest', () => {
       cleanTableHtml(editor.getContent()),
 
       '<table data-snooker-locked-cols="0">' +
-      '<colgroup><col /><col /><col /></colgroup>' +
+      '<colgroup><col><col><col></colgroup>' +
       '<tbody>' +
       '<tr><td>1</td><td>2</td><td>2</td></tr>' +
       '<tr><td>2</td><td>3</td><td>3</td></tr>' +
@@ -673,7 +665,7 @@ describe('browser.tinymce.plugins.table.ClipboardTest', () => {
       cleanTableHtml(editor.getContent()),
 
       '<table data-snooker-locked-cols="2">' +
-      '<colgroup><col /><col /><col /></colgroup>' +
+      '<colgroup><col><col><col></colgroup>' +
       '<tbody>' +
       '<tr><td>1</td><td>1</td><td>2</td></tr>' +
       '<tr><td>2</td><td>2</td><td>3</td></tr>' +
@@ -762,5 +754,41 @@ describe('browser.tinymce.plugins.table.ClipboardTest', () => {
     assert.deepEqual(events, [{ structure: true, style: true }]);
 
     editor.off('TableModified', callback);
+  });
+
+  it('TINY-8568: should correctly copy and paste colgroup table with complex selection', () => {
+    const editor = hook.editor();
+
+    const inputTable = '<table>' +
+    '<colgroup><col data-col-id="0"><col data-col-id="1"><col data-col-id="2"><col data-col-id="3"><col data-col-id="4"></colgroup>' +
+    '<tbody>' +
+    '<tr><td>&nbsp;</td><td>&nbsp;</td><td>a</td><td>&nbsp;</td><td>&nbsp;</td></tr>' +
+    '<tr><td>&nbsp;</td><td colspan="2">b</td><td>&nbsp;</td><td>&nbsp;</td></tr>' +
+    '<tr><td>&nbsp;</td><td>&nbsp;</td><td colspan="2">c</td><td>&nbsp;</td></tr>' +
+    '<tr><td>&nbsp;</td><td>&nbsp;</td><td>d</td><td>&nbsp;</td><td>&nbsp;</td></tr>' +
+    '</tbody>' +
+    '</table>';
+
+    const expectedTable = '<table>' +
+    '<colgroup><col data-col-id="1"><col data-col-id="2"><col data-col-id="3"></colgroup>' +
+    '<tbody>' +
+    '<tr><td>&nbsp;</td><td>a</td><td>&nbsp;</td></tr>' +
+    '<tr><td colspan="2">b</td><td>&nbsp;</td></tr>' +
+    '<tr><td>&nbsp;</td><td colspan="2">c</td></tr>' +
+    '<tr><td>&nbsp;</td><td>d</td><td>&nbsp;</td></tr>' +
+    '</tbody>' +
+    '</table>';
+
+    editor.setContent(
+      inputTable +
+      '<p>&nbsp;</p>'
+    );
+    selectRangeXY(editor, 'table tr:nth-child(1) td:nth-child(3)', 'table tr:nth-child(4) td:nth-child(3)');
+
+    const dataTransfer = Clipboard.copy(TinyDom.body(editor));
+    assert.equal(dataTransfer.getData('text/html'), '<!-- x-tinymce/html -->' + expectedTable);
+    TinySelections.setCursor(editor, [ 1, 0 ], 0);
+    Clipboard.pasteItems(TinyDom.body(editor), Arr.mapToObject(dataTransfer.types, (type) => dataTransfer.getData(type)));
+    TinyAssertions.assertContent(editor, inputTable + expectedTable);
   });
 });

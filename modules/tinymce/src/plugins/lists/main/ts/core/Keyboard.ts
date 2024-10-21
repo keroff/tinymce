@@ -1,15 +1,8 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import Editor from 'tinymce/core/api/Editor';
 import VK from 'tinymce/core/api/util/VK';
 
 import { indentListSelection, outdentListSelection } from '../actions/Indendation';
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import * as Delete from './Delete';
 
 const setupTabKey = (editor: Editor): void => {
@@ -28,7 +21,7 @@ const setupTabKey = (editor: Editor): void => {
 };
 
 const setup = (editor: Editor): void => {
-  if (Settings.shouldIndentOnTab(editor)) {
+  if (Options.shouldIndentOnTab(editor)) {
     setupTabKey(editor);
   }
 

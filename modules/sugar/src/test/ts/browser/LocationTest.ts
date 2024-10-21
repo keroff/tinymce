@@ -1,4 +1,4 @@
-import { assert, UnitTest } from '@ephox/bedrock-client';
+import { Assert, UnitTest } from '@ephox/bedrock-client';
 import { Arr, Fun, Optional } from '@ephox/katamari';
 import { PlatformDetection } from '@ephox/sand';
 
@@ -46,10 +46,10 @@ UnitTest.asynctest('LocationTest', (success, failure) => {
     // Chrome adds the scrollbar to the left in rtl mode as of Chrome 70+
     SugarLocation.relative(Traverse.documentElement(doc.body)).left;
 
-  const asserteq = <T>(expected: T, actual: T, message: string) => {
+  const asserteq = <T>(expected: T, actual: T, message?: string) => {
     // I wish assert.eq printed expected and actual on failure
-    const m = message === undefined ? undefined : 'expected ' + expected + ', was ' + actual + ': ' + message;
-    assert.eq(expected, actual, m);
+    const m = message === undefined ? '' : 'expected ' + expected + ', was ' + actual + ': ' + message;
+    Assert.eq(m, expected, actual);
   };
 
   const testOne = (i: string, attrMap: TestAttrMap, next: () => void) => {
@@ -128,32 +128,32 @@ UnitTest.asynctest('LocationTest', (success, failure) => {
     // these checks actually depend on the tunic stylesheet. They might not actually be useful.
     const body = SugarBody.body();
     let pos = SugarLocation.absolute(body);
-    assert.eq(0, pos.top);
-    assert.eq(0, pos.left);
+    Assert.eq('', 0, pos.top);
+    Assert.eq('', 0, pos.left);
     pos = SugarLocation.relative(body);
-    assert.eq(0, pos.top); // JQuery doesn't return 0, but this makes more sense
-    assert.eq(0, pos.left);
+    Assert.eq('', 0, pos.top); // JQuery doesn't return 0, but this makes more sense
+    Assert.eq('', 0, pos.left);
     pos = SugarLocation.viewport(body);
-    assert.eq(0, pos.top);
-    assert.eq(0, pos.left);
+    Assert.eq('', 0, pos.top);
+    Assert.eq('', 0, pos.left);
 
     // TINY-9203: due to Win11 FF adopting native hidden scrollbar behavior and current inability to distinguish between Win10 and Win11
     // (both os.version.major === 10), allow scrollbar to be either hidden or visible when on Win10/11 FF
-    const noVisibleScrollbarBrowser = platform.os.isOSX() || (platform.browser.isFirefox() && platform.os.isLinux()) || (platform.browser.isFirefox() && platform.os.isWindows() && platform.os.version.major >= 10);
-    assert.eq(true, scrollBarWidth > 5 && scrollBarWidth < 50 || (noVisibleScrollbarBrowser && scrollBarWidth === 0), 'scroll bar width, got=' + scrollBarWidth);
+    const noVisibleScrollbarBrowser = platform.os.isMacOS() || (platform.browser.isFirefox() && platform.os.isLinux()) || (platform.browser.isFirefox() && platform.os.isWindows() && platform.os.version.major >= 10);
+    Assert.eq('scroll bar width, got=' + scrollBarWidth, true, scrollBarWidth > 5 && scrollBarWidth < 50 || (noVisibleScrollbarBrowser && scrollBarWidth === 0));
   };
 
   const disconnectedChecks = () => {
     const div = SugarElement.fromTag('div');
     let pos = SugarLocation.absolute(div);
-    assert.eq(0, pos.top);
-    assert.eq(0, pos.left);
+    Assert.eq('', 0, pos.top);
+    Assert.eq('', 0, pos.left);
     pos = SugarLocation.relative(div);
-    assert.eq(0, pos.top);
-    assert.eq(0, pos.left);
+    Assert.eq('', 0, pos.top);
+    Assert.eq('', 0, pos.left);
     pos = SugarLocation.viewport(div);
-    assert.eq(0, pos.top);
-    assert.eq(0, pos.left);
+    Assert.eq('', 0, pos.top);
+    Assert.eq('', 0, pos.left);
   };
 
   const absoluteChecks = (doc: TestDocSpec) => {
@@ -329,7 +329,7 @@ UnitTest.asynctest('LocationTest', (success, failure) => {
     // the difference between table.getBoundingClientRect() and cell.getBoundingClientRect() is correct.
     // I don't want to make every browser pay for Chrome's mistake in a scenario we don't need for TBIO, so we're living with it.
     // Firefox 71 has also started behaving the same as chrome
-    if (platform.browser.isChrome() || platform.browser.isFirefox() && platform.browser.version.major >= 71) {
+    if (platform.browser.isChromium() || platform.browser.isFirefox() && platform.browser.version.major >= 71) {
       const chromeDifference = -2;
       Arr.each(tests, (t) => {
         if (t.id !== 'table-1') {
@@ -371,7 +371,7 @@ UnitTest.asynctest('LocationTest', (success, failure) => {
     ];
 
     // relative scroll
-    const leftScroll = (doc.rtl && (platform.browser.isIE() || platform.browser.isEdge())) ? -1000 : 1000; // IE has RTL -ve direction from left to right
+    const leftScroll = 1000;
     const topScroll = 2000;
     // GUESS: 1px differences from JQuery is due to the 1px margin on the body
     const withScroll = [
@@ -407,8 +407,8 @@ UnitTest.asynctest('LocationTest', (success, failure) => {
     runChecks(doc, noScroll);
 
     const scr = Scroll.get(doc.rawDoc);
-    assert.eq(0, scr.left, 'expected 0, left is=' + scr.left);
-    assert.eq(0, scr.top, 'expected 0, top is ' + scr.top);
+    Assert.eq('expected 0, left is=' + scr.left, 0, scr.left);
+    Assert.eq('expected 0, top is ' + scr.top, 0, scr.top);
 
     Scroll.by(leftScroll, topScroll, doc.rawDoc);
     runChecks(doc, withScroll);
@@ -420,14 +420,14 @@ UnitTest.asynctest('LocationTest', (success, failure) => {
   const bodyChecks = (doc: TestDocSpec) => {
     Scroll.to(1000, 1000, doc.rawDoc);
     let pos = SugarLocation.absolute(doc.body);
-    assert.eq(0, pos.top);
-    assert.eq(0, pos.left);
+    Assert.eq('', 0, pos.top);
+    Assert.eq('', 0, pos.left);
     pos = SugarLocation.relative(doc.body);
-    assert.eq(0, pos.top);
-    assert.eq(0, pos.left);
+    Assert.eq('', 0, pos.top);
+    Assert.eq('', 0, pos.left);
     pos = SugarLocation.viewport(doc.body);
-    assert.eq(0, pos.top);
-    assert.eq(0, pos.left);
+    Assert.eq('', 0, pos.top);
+    Assert.eq('', 0, pos.left);
   };
 
   /* Simple verification logic */

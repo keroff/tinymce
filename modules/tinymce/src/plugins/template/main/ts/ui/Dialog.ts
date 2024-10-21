@@ -1,20 +1,11 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Optional } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
 import Env from 'tinymce/core/api/Env';
 import { Dialog } from 'tinymce/core/api/ui/Ui';
-import Promise from 'tinymce/core/api/util/Promise';
 import Tools from 'tinymce/core/api/util/Tools';
-import XHR from 'tinymce/core/api/util/XHR';
 
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import * as Templates from '../core/Templates';
 import { DialogData, ExternalTemplate, InternalTemplate, UrlTemplate } from '../core/Types';
 import * as Utils from '../core/Utils';
@@ -22,11 +13,12 @@ import * as Utils from '../core/Utils';
 type UpdateDialogCallback = (dialogApi: Dialog.DialogInstanceApi<DialogData>, template: InternalTemplate, previewHtml: string) => void;
 
 const getPreviewContent = (editor: Editor, html: string): string => {
+  let previewHtml = Utils.parseAndSerialize(editor, html);
   if (html.indexOf('<html>') === -1) {
     let contentCssEntries = '';
-    const contentStyle = Settings.getContentStyle(editor);
+    const contentStyle = Options.getContentStyle(editor) ?? '';
 
-    const cors = Settings.shouldUseContentCssCors(editor) ? ' crossorigin="anonymous"' : '';
+    const cors = Options.shouldUseContentCssCors(editor) ? ' crossorigin="anonymous"' : '';
 
     Tools.each(editor.contentCSS, (url) => {
       contentCssEntries += '<link type="text/css" rel="stylesheet" href="' +
@@ -38,11 +30,11 @@ const getPreviewContent = (editor: Editor, html: string): string => {
       contentCssEntries += '<style type="text/css">' + contentStyle + '</style>';
     }
 
-    const bodyClass = Settings.getBodyClass(editor);
+    const bodyClass = Options.getBodyClass(editor);
 
     const encode = editor.dom.encode;
 
-    const isMetaKeyPressed = Env.mac ? 'e.metaKey' : 'e.ctrlKey && !e.altKey';
+    const isMetaKeyPressed = Env.os.isMacOS() || Env.os.isiOS() ? 'e.metaKey' : 'e.ctrlKey && !e.altKey';
 
     const preventClicksOnLinksScript = (
       '<script>' +
@@ -59,7 +51,7 @@ const getPreviewContent = (editor: Editor, html: string): string => {
     const directionality = editor.getBody().dir;
     const dirAttr = directionality ? ' dir="' + encode(directionality) + '"' : '';
 
-    html = (
+    previewHtml = (
       '<!DOCTYPE html>' +
       '<html>' +
       '<head>' +
@@ -68,13 +60,13 @@ const getPreviewContent = (editor: Editor, html: string): string => {
       preventClicksOnLinksScript +
       '</head>' +
       '<body class="' + encode(bodyClass) + '"' + dirAttr + '>' +
-      html +
+      previewHtml +
       '</body>' +
       '</html>'
     );
   }
 
-  return Templates.replaceTemplateValues(html, Settings.getPreviewReplaceValues(editor));
+  return Templates.replaceTemplateValues(previewHtml, Options.getPreviewReplaceValues(editor));
 };
 
 const open = (editor: Editor, templateList: ExternalTemplate[]): void => {
@@ -110,17 +102,11 @@ const open = (editor: Editor, templateList: ExternalTemplate[]): void => {
     editor.windowManager.alert('Could not load the specified template.', () => api.focus('template'));
   };
 
-  const getTemplateContent = (t: InternalTemplate) => new Promise<string>((resolve, reject) => {
-    t.value.url.fold(() => resolve(t.value.content.getOr('')), (url) => XHR.send({
-      url,
-      success: (html: string) => {
-        resolve(html);
-      },
-      error: (e) => {
-        reject(e);
-      }
-    }));
-  });
+  const getTemplateContent = (t: InternalTemplate): Promise<string> =>
+    t.value.url.fold(
+      () => Promise.resolve(t.value.content.getOr('')),
+      (url) => fetch(url).then((res) => res.ok ? res.text() : Promise.reject())
+    );
 
   const onChange = (templates: InternalTemplate[], updateDialog: UpdateDialogCallback) =>
     (api: Dialog.DialogInstanceApi<DialogData>, change: { name: string }) => {
@@ -132,7 +118,7 @@ const open = (editor: Editor, templateList: ExternalTemplate[]): void => {
             updateDialog(api, t, previewHtml);
           }).catch(() => {
             updateDialog(api, t, '');
-            api.disable('save');
+            api.setEnabled('save', false);
             loadFailedAlert(api);
           });
         });
@@ -146,7 +132,7 @@ const open = (editor: Editor, templateList: ExternalTemplate[]): void => {
         editor.execCommand('mceInsertTemplate', false, previewHtml);
         api.close();
       }).catch(() => {
-        api.disable('save');
+        api.setEnabled('save', false);
         loadFailedAlert(api);
       });
     });
@@ -184,7 +170,7 @@ const open = (editor: Editor, templateList: ExternalTemplate[]): void => {
       const content = getPreviewContent(editor, previewHtml);
       const bodyItems: Dialog.BodyComponentSpec[] = [
         {
-          type: 'selectbox',
+          type: 'listbox',
           name: 'template',
           label: 'Templates',
           items: selectBoxItems
@@ -197,7 +183,8 @@ const open = (editor: Editor, templateList: ExternalTemplate[]): void => {
           label: 'Preview',
           type: 'iframe',
           name: 'preview',
-          sandboxed: false
+          sandboxed: false,
+          transparent: false
         }
       ];
 
@@ -218,7 +205,7 @@ const open = (editor: Editor, templateList: ExternalTemplate[]): void => {
       updateDialog(dialogApi, templates[0], previewHtml);
     }).catch(() => {
       updateDialog(dialogApi, templates[0], '');
-      dialogApi.disable('save');
+      dialogApi.setEnabled('save', false);
       loadFailedAlert(dialogApi);
     });
   };

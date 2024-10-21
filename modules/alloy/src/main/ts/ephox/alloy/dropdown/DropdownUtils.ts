@@ -1,5 +1,5 @@
 import { Arr, Fun, Future, Optional, Result } from '@ephox/katamari';
-import { Css, SugarElement, Width } from '@ephox/sugar';
+import { Css, Width } from '@ephox/sugar';
 
 import * as ComponentStructure from '../alien/ComponentStructure';
 import { Composing } from '../api/behaviour/Composing';
@@ -14,13 +14,14 @@ import { AlloyComponent } from '../api/component/ComponentApi';
 import { SketchBehaviours } from '../api/component/SketchBehaviours';
 import { AlloySpec, SketchSpec } from '../api/component/SpecTypes';
 import { TieredData, tieredMenu as TieredMenu } from '../api/ui/TieredMenu';
-import * as AriaOwner from '../aria/AriaOwner';
+import * as AriaControls from '../aria/AriaControls';
 import * as InternalSink from '../parts/InternalSink';
 import { HotspotAnchorSpec } from '../positioning/mode/Anchoring';
 import * as Tagger from '../registry/Tagger';
 import * as Dismissal from '../sandbox/Dismissal';
 import * as Reposition from '../sandbox/Reposition';
 import { CommonDropdownDetail } from '../ui/types/DropdownTypes';
+import { HighlightOnOpen } from '../ui/types/TieredMenuTypes';
 
 type OnOpenSyncFunc = (sandbox: AlloyComponent) => void;
 type MapFetch = (tdata: Optional<TieredData>) => Optional<TieredData>;
@@ -29,8 +30,6 @@ export interface SandboxExtras {
   onClose?: (component: AlloyComponent, menu: AlloyComponent) => void;
   onOpen?: (component: AlloyComponent, menu: AlloyComponent) => void;
 }
-
-export enum HighlightOnOpen { HighlightFirst, HighlightNone }
 
 const getAnchor = (
   detail: CommonDropdownDetail<TieredData>,
@@ -69,12 +68,14 @@ const openF = (
 
   // TODO: Make this potentially a single menu also
   return futureData.map((tdata) => tdata.bind((data) => Optional.from(TieredMenu.sketch({
+    // Externals are configured by the "menu" part. It's called external because it isn't contained
+    // within the DOM descendants of the dropdown. You can configure things like `fakeFocus` here.
     ...externals.menu(),
 
     uid: Tagger.generate(''),
     data,
 
-    highlightImmediately: highlightOnOpen === HighlightOnOpen.HighlightFirst,
+    highlightOnOpen,
 
     onOpenMenu: (tmenu, menu) => {
       const sink = getLazySink().getOrDie();
@@ -213,11 +214,11 @@ const makeSandbox = (
   hotspot: AlloyComponent,
   extras?: SandboxExtras
 ): AlloySpec => {
-  const ariaOwner = AriaOwner.manager();
+  const ariaControls = AriaControls.manager();
 
   const onOpen = (component: AlloyComponent, menu: AlloyComponent) => {
     const anchor = getAnchor(detail, hotspot);
-    ariaOwner.link(hotspot.element);
+    ariaControls.link(hotspot.element);
     if (detail.matchWidth) {
       matchWidth(anchor.hotspot, menu, detail.useMinWidth);
     }
@@ -228,7 +229,7 @@ const makeSandbox = (
   };
 
   const onClose = (component: AlloyComponent, menu: AlloyComponent) => {
-    ariaOwner.unlink(hotspot.element);
+    ariaControls.unlink(hotspot.element);
     if (extras !== undefined && extras.onClose !== undefined) {
       extras.onClose(component, menu);
     }
@@ -242,7 +243,7 @@ const makeSandbox = (
       classes: detail.sandboxClasses,
       // TODO: Add aria-selected attribute
       attributes: {
-        id: ariaOwner.id,
+        id: ariaControls.id,
         role: 'listbox'
       }
     },
@@ -258,13 +259,15 @@ const makeSandbox = (
         Sandboxing.config({
           onOpen,
           onClose,
-          isPartOf: (container: AlloyComponent, data: AlloyComponent, queryElem: SugarElement): boolean => {
+          isPartOf: (container, data, queryElem): boolean => {
             return ComponentStructure.isPartOf(data, queryElem) || ComponentStructure.isPartOf(hotspot, queryElem);
           },
           getAttachPoint: () => {
             return lazySink().getOrDie();
           }
         }),
+        // The Composing of the dropdown here is the the active menu of the TieredMenu
+        // inside the sandbox.
         Composing.config({
           find: (sandbox: AlloyComponent): Optional<AlloyComponent> => {
             return Sandboxing.getState(sandbox).bind((menu) => Composing.getCurrent(menu));

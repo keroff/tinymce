@@ -1,24 +1,17 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AlloySpec, GuiFactory } from '@ephox/alloy';
+import { AlloySpec, GuiFactory, SimpleSpec } from '@ephox/alloy';
 import { Menu } from '@ephox/bridge';
 import { Optional } from '@ephox/katamari';
 
 import I18n from 'tinymce/core/api/util/I18n';
 
+import * as ConvertShortcut from '../../../alien/ConvertShortcut';
 import * as Icons from '../../../icons/Icons';
-import * as ConvertShortcut from '../alien/ConvertShortcut';
 import * as ItemClasses from '../ItemClasses';
 
-const renderIcon = (name: string, icons: Icons.IconProvider, classes: string[] = [ ItemClasses.iconClass ]) =>
+const renderIcon = (name: string, icons: Icons.IconProvider, classes: string[] = [ ItemClasses.iconClass ]): SimpleSpec =>
   Icons.render(name, { tag: 'div', classes }, icons);
 
-const renderText = (text: string): AlloySpec => ({
+const renderText = (text: string): SimpleSpec => ({
   dom: {
     tag: 'div',
     classes: [ ItemClasses.textClass ]
@@ -26,7 +19,7 @@ const renderText = (text: string): AlloySpec => ({
   components: [ GuiFactory.text(I18n.translate(text)) ]
 });
 
-const renderHtml = (html: string, classes: string[]): AlloySpec => ({
+const renderHtml = (html: string, classes: string[]): SimpleSpec => ({
   dom: {
     tag: 'div',
     classes,
@@ -39,7 +32,7 @@ interface StyleProps {
   styles: Record<string, string>;
 }
 
-const renderStyledText = (style: StyleProps, text: string): AlloySpec => ({
+const renderStyledText = (style: StyleProps, text: string): SimpleSpec => ({
   dom: {
     tag: 'div',
     classes: [ ItemClasses.textClass ]
@@ -55,24 +48,26 @@ const renderStyledText = (style: StyleProps, text: string): AlloySpec => ({
   ]
 });
 
-const renderShortcut = (shortcut: string): AlloySpec => ({
+const renderShortcut = (shortcut: string): SimpleSpec => ({
   dom: {
     tag: 'div',
-    classes: [ ItemClasses.accessoryClass ],
-    innerHtml: ConvertShortcut.convertText(shortcut)
-  }
+    classes: [ ItemClasses.accessoryClass ]
+  },
+  components: [
+    GuiFactory.text(ConvertShortcut.convertText(shortcut))
+  ]
 });
 
-const renderCheckmark = (icons: Icons.IconProvider): AlloySpec =>
+const renderCheckmark = (icons: Icons.IconProvider): SimpleSpec =>
   renderIcon('checkmark', icons, [ ItemClasses.checkmarkClass ]);
 
-const renderSubmenuCaret = (icons: Icons.IconProvider): AlloySpec =>
+const renderSubmenuCaret = (icons: Icons.IconProvider): SimpleSpec =>
   renderIcon('chevron-right', icons, [ ItemClasses.caretClass ]);
 
-const renderDownwardsCaret = (icons: Icons.IconProvider): AlloySpec =>
+const renderDownwardsCaret = (icons: Icons.IconProvider): SimpleSpec =>
   renderIcon('chevron-down', icons, [ ItemClasses.caretClass ]);
 
-const renderContainer = (container: Menu.CardContainer, components: Array<AlloySpec>): AlloySpec => {
+const renderContainer = (container: Menu.CardContainer, components: AlloySpec[]): SimpleSpec => {
   const directionClass = container.direction === 'vertical' ? ItemClasses.containerColumnClass : ItemClasses.containerRowClass;
   const alignClass = container.align === 'left' ? ItemClasses.containerAlignLeftClass : ItemClasses.containerAlignRightClass;
 
@@ -101,7 +96,7 @@ const renderContainer = (container: Menu.CardContainer, components: Array<AlloyS
   };
 };
 
-const renderImage = (src: string, classes: string[], alt: Optional<string>): AlloySpec => ({
+const renderImage = (src: string, classes: string[], alt: Optional<string>): SimpleSpec => ({
   dom: {
     tag: 'img',
     classes,

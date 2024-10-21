@@ -1,15 +1,8 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Cell } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
 
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import * as VisualBlocks from './VisualBlocks';
 
 const setup = (editor: Editor, pluginUrl: string, enabledState: Cell<boolean>): void => {
@@ -21,7 +14,7 @@ const setup = (editor: Editor, pluginUrl: string, enabledState: Cell<boolean>): 
   });
 
   editor.on('init', () => {
-    if (Settings.isEnabledByDefault(editor)) {
+    if (Options.isEnabledByDefault(editor)) {
       VisualBlocks.toggleVisualBlocks(editor, pluginUrl, enabledState);
     }
   });

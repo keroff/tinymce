@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Fun } from '@ephox/katamari';
 
 import * as NodeType from '../dom/NodeType';
@@ -27,10 +20,10 @@ export interface CaretWalker {
  * @private
  * @class tinymce.caret.CaretWalker
  * @example
- * var caretWalker = new CaretWalker(rootElm);
+ * const caretWalker = CaretWalker(rootElm);
  *
- * var prevLogicalCaretPosition = caretWalker.prev(CaretPosition.fromRangeStart(range));
- * var nextLogicalCaretPosition = caretWalker.next(CaretPosition.fromRangeEnd(range));
+ * const prevLogicalCaretPosition = caretWalker.prev(CaretPosition.fromRangeStart(range));
+ * const nextLogicalCaretPosition = caretWalker.next(CaretPosition.fromRangeEnd(range));
  */
 
 export enum HDirection {
@@ -49,9 +42,10 @@ const isEditableCaretCandidate = CaretCandidate.isEditableCaretCandidate;
 const getParents = (node: Node, root: Node): Node[] => {
   const parents: Node[] = [];
 
-  while (node && node !== root) {
-    parents.push(node);
-    node = node.parentNode;
+  let tempNode: Node | null = node;
+  while (tempNode && tempNode !== root) {
+    parents.push(tempNode);
+    tempNode = tempNode.parentNode;
   }
 
   return parents;
@@ -112,9 +106,9 @@ const moveForwardFromBr = (root: Element, nextNode: Node): CaretPosition | null 
 };
 
 const findCaretPosition = (direction: HDirection, startPos: CaretPosition | null, root: Node): CaretPosition | null => {
-  let node: Node;
-  let nextNode: Node;
-  let innerNode: Node;
+  let node: Node | null | undefined;
+  let nextNode: Node | null | undefined;
+  let innerNode: Node | null | undefined;
   let caretPosition: CaretPosition;
 
   if (!isElement(root) || !startPos) {
@@ -195,14 +189,14 @@ const findCaretPosition = (direction: HDirection, startPos: CaretPosition | null
     node = nextNode ? nextNode : caretPosition.getNode();
   }
 
-  if ((isForwards(direction) && caretPosition.isAtEnd()) || (isBackwards(direction) && caretPosition.isAtStart())) {
+  if (node && ((isForwards(direction) && caretPosition.isAtEnd()) || (isBackwards(direction) && caretPosition.isAtStart()))) {
     node = findNode(node, direction, Fun.always, root, true);
     if (isEditableCaretCandidate(node, root)) {
       return getCaretCandidatePosition(direction, node);
     }
   }
 
-  nextNode = findNode(node, direction, isEditableCaretCandidate, root);
+  nextNode = node ? findNode(node, direction, isEditableCaretCandidate, root) : node;
 
   const rootContentEditableFalseElm = ArrUtils.last(Arr.filter(getParents(container, root), isContentEditableFalse));
   if (rootContentEditableFalseElm && (!nextNode || !rootContentEditableFalseElm.contains(nextNode))) {

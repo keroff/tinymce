@@ -2,73 +2,81 @@ import { context, describe, it } from '@ephox/bedrock-client';
 import { Arr, Obj, Type } from '@ephox/katamari';
 import { assert } from 'chai';
 
-import Schema from 'tinymce/core/api/html/Schema';
+import Schema, { AttributePattern, SchemaElement } from 'tinymce/core/api/html/Schema';
 
 describe('browser.tinymce.core.html.SchemaTest', () => {
+  const getElementRule = (schema: Schema, name: string) =>
+    schema.getElementRule(name) as SchemaElement;
+
+  const getFirstAttributePattern = (schema: Schema, name: string) => {
+    const rule = getElementRule(schema, name);
+    return rule.attributePatterns?.[0] as AttributePattern;
+  };
+
   it('Valid elements global rule', () => {
     const schema = Schema({ valid_elements: '@[id|style],img[src|-style]' });
-    assert.deepEqual(schema.getElementRule('img'), { attributes: { id: {}, src: {}}, attributesOrder: [ 'id', 'src' ] });
+    assert.deepEqual(getElementRule(schema, 'img'), { attributes: { id: {}, src: {}}, attributesOrder: [ 'id', 'src' ] });
   });
 
   it('Wildcard element rule', () => {
     let schema = Schema({ valid_elements: '*[id|class]' });
-    assert.deepEqual(schema.getElementRule('b').attributes, { id: {}, class: {}});
-    assert.deepEqual(schema.getElementRule('b').attributesOrder, [ 'id', 'class' ]);
+    assert.deepEqual(getElementRule(schema, 'b').attributes, { id: {}, class: {}});
+    assert.deepEqual(getElementRule(schema, 'b').attributesOrder, [ 'id', 'class' ]);
 
     schema = Schema({ valid_elements: 'b*[id|class]' });
-    assert.deepEqual(schema.getElementRule('b').attributes, { id: {}, class: {}});
-    assert.deepEqual(schema.getElementRule('b').attributesOrder, [ 'id', 'class' ]);
-    assert.deepEqual(schema.getElementRule('body').attributes, { id: {}, class: {}});
-    assert.deepEqual(schema.getElementRule('body').attributesOrder, [ 'id', 'class' ]);
-    assert.isUndefined(schema.getElementRule('img'));
+    assert.deepEqual(getElementRule(schema, 'b').attributes, { id: {}, class: {}});
+    assert.deepEqual(getElementRule(schema, 'b').attributesOrder, [ 'id', 'class' ]);
+    assert.deepEqual(getElementRule(schema, 'body').attributes, { id: {}, class: {}});
+    assert.deepEqual(getElementRule(schema, 'body').attributesOrder, [ 'id', 'class' ]);
+    assert.isUndefined(getElementRule(schema, 'img'));
 
     schema = Schema({ valid_elements: 'b?[id|class]' });
-    assert.deepEqual(schema.getElementRule('b').attributes, { id: {}, class: {}});
-    assert.deepEqual(schema.getElementRule('b').attributesOrder, [ 'id', 'class' ]);
-    assert.deepEqual(schema.getElementRule('bx').attributes, { id: {}, class: {}});
-    assert.deepEqual(schema.getElementRule('bx').attributesOrder, [ 'id', 'class' ]);
-    assert.isUndefined(schema.getElementRule('body'));
+    assert.deepEqual(getElementRule(schema, 'b').attributes, { id: {}, class: {}});
+    assert.deepEqual(getElementRule(schema, 'b').attributesOrder, [ 'id', 'class' ]);
+    assert.deepEqual(getElementRule(schema, 'bx').attributes, { id: {}, class: {}});
+    assert.deepEqual(getElementRule(schema, 'bx').attributesOrder, [ 'id', 'class' ]);
+    assert.isUndefined(getElementRule(schema, 'body'));
 
     schema = Schema({ valid_elements: 'b+[id|class]' });
-    assert.deepEqual(schema.getElementRule('body').attributes, { id: {}, class: {}});
-    assert.deepEqual(schema.getElementRule('body').attributesOrder, [ 'id', 'class' ]);
-    assert.deepEqual(schema.getElementRule('bx').attributes, { id: {}, class: {}});
-    assert.deepEqual(schema.getElementRule('bx').attributesOrder, [ 'id', 'class' ]);
-    assert.isUndefined(schema.getElementRule('b'));
+    assert.deepEqual(getElementRule(schema, 'body').attributes, { id: {}, class: {}});
+    assert.deepEqual(getElementRule(schema, 'body').attributesOrder, [ 'id', 'class' ]);
+    assert.deepEqual(getElementRule(schema, 'bx').attributes, { id: {}, class: {}});
+    assert.deepEqual(getElementRule(schema, 'bx').attributesOrder, [ 'id', 'class' ]);
+    assert.isUndefined(getElementRule(schema, 'b'));
   });
 
   it('Wildcard attribute rule', () => {
     let schema = Schema({ valid_elements: 'b[id|class|*]' });
-    assert.deepEqual(schema.getElementRule('b').attributes, { id: {}, class: {}});
-    assert.deepEqual(schema.getElementRule('b').attributesOrder, [ 'id', 'class' ]);
-    assert.isTrue(schema.getElementRule('b').attributePatterns[0].pattern.test('x'));
+    assert.deepEqual(getElementRule(schema, 'b').attributes, { id: {}, class: {}});
+    assert.deepEqual(getElementRule(schema, 'b').attributesOrder, [ 'id', 'class' ]);
+    assert.isTrue(getFirstAttributePattern(schema, 'b').pattern.test('x'));
 
     schema = Schema({ valid_elements: 'b[id|class|x?]' });
-    assert.deepEqual(schema.getElementRule('b').attributes, { id: {}, class: {}});
-    assert.deepEqual(schema.getElementRule('b').attributesOrder, [ 'id', 'class' ]);
-    assert.isTrue(schema.getElementRule('b').attributePatterns[0].pattern.test('xy'));
-    assert.isFalse(schema.getElementRule('b').attributePatterns[0].pattern.test('xba'));
-    assert.isFalse(schema.getElementRule('b').attributePatterns[0].pattern.test('a'));
+    assert.deepEqual(getElementRule(schema, 'b').attributes, { id: {}, class: {}});
+    assert.deepEqual(getElementRule(schema, 'b').attributesOrder, [ 'id', 'class' ]);
+    assert.isTrue(getFirstAttributePattern(schema, 'b').pattern.test('xy'));
+    assert.isFalse(getFirstAttributePattern(schema, 'b').pattern.test('xba'));
+    assert.isFalse(getFirstAttributePattern(schema, 'b').pattern.test('a'));
 
     schema = Schema({ valid_elements: 'b[id|class|x+]' });
-    assert.deepEqual(schema.getElementRule('b').attributes, { id: {}, class: {}});
-    assert.deepEqual(schema.getElementRule('b').attributesOrder, [ 'id', 'class' ]);
-    assert.isFalse(schema.getElementRule('b').attributePatterns[0].pattern.test('x'));
-    assert.isTrue(schema.getElementRule('b').attributePatterns[0].pattern.test('xb'));
-    assert.isTrue(schema.getElementRule('b').attributePatterns[0].pattern.test('xba'));
+    assert.deepEqual(getElementRule(schema, 'b').attributes, { id: {}, class: {}});
+    assert.deepEqual(getElementRule(schema, 'b').attributesOrder, [ 'id', 'class' ]);
+    assert.isFalse(getFirstAttributePattern(schema, 'b').pattern.test('x'));
+    assert.isTrue(getFirstAttributePattern(schema, 'b').pattern.test('xb'));
+    assert.isTrue(getFirstAttributePattern(schema, 'b').pattern.test('xba'));
   });
 
   it('Valid attributes and attribute order', () => {
     const schema = Schema({ valid_elements: 'div,a[href|title],b[title]' });
-    assert.deepEqual(schema.getElementRule('div'), { attributes: {}, attributesOrder: [] });
-    assert.deepEqual(schema.getElementRule('a'), { attributes: { href: {}, title: {}}, attributesOrder: [ 'href', 'title' ] });
-    assert.deepEqual(schema.getElementRule('b'), { attributes: { title: {}}, attributesOrder: [ 'title' ] });
+    assert.deepEqual(getElementRule(schema, 'div'), { attributes: {}, attributesOrder: [] });
+    assert.deepEqual(getElementRule(schema, 'a'), { attributes: { href: {}, title: {}}, attributesOrder: [ 'href', 'title' ] });
+    assert.deepEqual(getElementRule(schema, 'b'), { attributes: { title: {}}, attributesOrder: [ 'title' ] });
   });
 
   it('Required any attributes', () => {
     const schema = Schema({ valid_elements: 'a![id|style|href]' });
     assert.deepEqual(
-      schema.getElementRule('a'),
+      getElementRule(schema, 'a'),
       { attributes: { href: {}, id: {}, style: {}}, attributesOrder: [ 'id', 'style', 'href' ], removeEmptyAttrs: true }
     );
   });
@@ -76,7 +84,7 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
   it('Required attributes', () => {
     const schema = Schema({ valid_elements: 'a[!href|!name]' });
     assert.deepEqual(
-      schema.getElementRule('a'),
+      getElementRule(schema, 'a'),
       {
         attributes: { href: { required: true }, name: { required: true }},
         attributesOrder: [ 'href', 'name' ], attributesRequired: [ 'href', 'name' ]
@@ -87,7 +95,7 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
   it('Default attribute values', () => {
     const schema = Schema({ valid_elements: 'img[border=0]' });
     assert.deepEqual(
-      schema.getElementRule('img'),
+      getElementRule(schema, 'img'),
       {
         attributes: { border: { defaultValue: '0' }},
         attributesOrder: [ 'border' ],
@@ -97,13 +105,22 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
   });
 
   it('Forced attribute values', () => {
-    const schema = Schema({ valid_elements: 'img[border:0]' });
+    const schema = Schema({ valid_elements: 'img[border~0]' });
+    schema.addValidElements('a[href~a|xlink:href~b]');
     assert.deepEqual(
-      schema.getElementRule('img'),
+      getElementRule(schema, 'img'),
       {
         attributes: { border: { forcedValue: '0' }},
         attributesOrder: [ 'border' ],
         attributesForced: [{ name: 'border', value: '0' }]
+      }
+    );
+    assert.deepEqual(
+      getElementRule(schema, 'a'),
+      {
+        attributes: { 'href': { forcedValue: 'a' }, 'xlink:href': { forcedValue: 'b' }},
+        attributesOrder: [ 'href', 'xlink:href' ],
+        attributesForced: [{ name: 'href', value: 'a' }, { name: 'xlink:href', value: 'b' }]
       }
     );
   });
@@ -111,7 +128,7 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
   it('Required attribute values', () => {
     const schema = Schema({ valid_elements: 'span[dir<ltr?rtl]' });
     assert.deepEqual(
-      schema.getElementRule('span'),
+      getElementRule(schema, 'span'),
       {
         attributes: { dir: { validValues: { rtl: {}, ltr: {}}}},
         attributesOrder: [ 'dir' ]
@@ -121,28 +138,28 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
 
   it('Required parents', () => {
     const schema = Schema();
-    assert.deepEqual(schema.getElementRule('tr').parentsRequired, [ 'tbody', 'thead', 'tfoot' ]);
-    assert.deepEqual(schema.getElementRule('li').parentsRequired, [ 'ul', 'ol' ]);
-    assert.isUndefined(schema.getElementRule('div').parentsRequired);
+    assert.deepEqual(getElementRule(schema, 'tr').parentsRequired, [ 'tbody', 'thead', 'tfoot' ]);
+    assert.deepEqual(getElementRule(schema, 'li').parentsRequired, [ 'ul', 'ol' ]);
+    assert.isUndefined(getElementRule(schema, 'div').parentsRequired);
   });
 
   it('Remove empty elements', () => {
     let schema = Schema({ valid_elements: '-span' });
-    assert.deepEqual(schema.getElementRule('span'), { attributes: {}, attributesOrder: [], removeEmpty: true });
+    assert.deepEqual(getElementRule(schema, 'span'), { attributes: {}, attributesOrder: [], removeEmpty: true });
 
     schema = Schema({ valid_elements: '#span' });
-    assert.deepEqual(schema.getElementRule('span'), { attributes: {}, attributesOrder: [], paddEmpty: true });
+    assert.deepEqual(getElementRule(schema, 'span'), { attributes: {}, attributesOrder: [], paddEmpty: true });
 
     // Empty table rows should not be removed
     schema = Schema();
-    assert.isUndefined(schema.getElementRule('tr').removeEmpty);
+    assert.isUndefined(getElementRule(schema, 'tr').removeEmpty);
   });
 
   it('addValidElements', () => {
     const schema = Schema({ valid_elements: '@[id|style],img[src|-style]' });
     schema.addValidElements('b[class]');
     assert.deepEqual(
-      schema.getElementRule('b'),
+      getElementRule(schema, 'b'),
       {
         attributes: { id: {}, style: {}, class: {}},
         attributesOrder: [ 'id', 'style', 'class' ]
@@ -150,7 +167,7 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
     );
     schema.addValidElements('custom-element[custom-attribute]');
     assert.deepEqual(
-      schema.getElementRule('custom-element'),
+      getElementRule(schema, 'custom-element'),
       {
         attributes: { 'id': {}, 'style': {}, 'custom-attribute': {}},
         attributesOrder: [ 'id', 'style', 'custom-attribute' ]
@@ -159,10 +176,11 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
   });
 
   it(`addValidElements when there's a colon in an attribute name`, () => {
+    // Test that both a literal and escaped colon are correctly handled
     const schema = Schema({ valid_elements: '@[xml\\:space]' });
-    schema.addValidElements('pre[xml\\:lang]');
+    schema.addValidElements('pre[xml:lang]');
     assert.deepEqual(
-      schema.getElementRule('pre'),
+      getElementRule(schema, 'pre'),
       {
         attributes: { 'xml:space': {}, 'xml:lang': {}},
         attributesOrder: [ 'xml:space', 'xml:lang' ]
@@ -173,13 +191,13 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
   it('setValidElements', () => {
     let schema = Schema({ valid_elements: '@[id|style],img[src|-style]' });
     schema.setValidElements('b[class]');
-    assert.isUndefined(schema.getElementRule('img'));
-    assert.deepEqual(schema.getElementRule('b'), { attributes: { class: {}}, attributesOrder: [ 'class' ] });
+    assert.isUndefined(getElementRule(schema, 'img'));
+    assert.deepEqual(getElementRule(schema, 'b'), { attributes: { class: {}}, attributesOrder: [ 'class' ] });
 
     schema = Schema({ valid_elements: 'img[src]' });
     schema.setValidElements('@[id|style],img[src]');
     assert.deepEqual(
-      schema.getElementRule('img'),
+      getElementRule(schema, 'img'),
       {
         attributes: { id: {}, style: {}, src: {}},
         attributesOrder: [ 'id', 'style', 'src' ]
@@ -189,10 +207,10 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
   it('getBoolAttrs', () => {
     const schema = Schema();
     assert.deepEqual(schema.getBoolAttrs(), {
-      CONTROLS: {}, LOOP: {}, AUTOPLAY: {}, SELECTED: {}, READONLY: {}, NOWRAP: {},
+      ALLOWFULLSCREEN: {}, CONTROLS: {}, LOOP: {}, AUTOPLAY: {}, SELECTED: {}, READONLY: {}, NOWRAP: {},
       NOSHADE: {}, NORESIZE: {}, NOHREF: {}, MULTIPLE: {}, ISMAP: {}, DISABLED: {}, DEFER: {},
       DECLARE: {}, COMPACT: {}, CHECKED: {},
-      controls: {}, loop: {}, autoplay: {}, selected: {}, readonly: {}, nowrap: {},
+      allowfullscreen: {}, controls: {}, loop: {}, autoplay: {}, selected: {}, readonly: {}, nowrap: {},
       noshade: {}, noresize: {}, nohref: {}, multiple: {}, ismap: {}, disabled: {}, defer: {},
       declare: {}, compact: {}, checked: {}
     });
@@ -216,9 +234,9 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
     });
   });
 
-  it('getShortEndedElements', () => {
+  it('getVoidElements', () => {
     const schema = Schema();
-    assert.deepEqual(schema.getShortEndedElements(), {
+    assert.deepEqual(schema.getVoidElements(), {
       EMBED: {}, PARAM: {}, META: {}, LINK: {}, ISINDEX: {},
       INPUT: {}, IMG: {}, HR: {}, FRAME: {}, COL: {}, BR: {},
       BASEFONT: {}, BASE: {}, AREA: {}, SOURCE: {}, WBR: {}, TRACK: {},
@@ -244,9 +262,9 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
     });
   });
 
-  it('getWhiteSpaceElements', () => {
+  it('getWhitespaceElements', () => {
     const schema = Schema();
-    assert.deepEqual(schema.getWhiteSpaceElements(), {
+    assert.deepEqual(schema.getWhitespaceElements(), {
       IFRAME: {}, NOSCRIPT: {}, OBJECT: {}, PRE: {}, CODE: {},
       SCRIPT: {}, STYLE: {}, TEXTAREA: {}, VIDEO: {}, AUDIO: {},
       iframe: {}, noscript: {}, object: {}, pre: {}, code: {},
@@ -268,13 +286,21 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
     });
   });
 
+  it('getTransparentElements', () => {
+    const schema = Schema();
+    assert.deepEqual(schema.getTransparentElements(), {
+      MAP: {}, CANVAS: {}, DEL: {}, INS: {}, A: {},
+      map: {}, canvas: {}, del: {}, ins: {}, a: {}
+    });
+  });
+
   it('getTextInlineElements', () => {
     const schema = Schema();
     assert.deepEqual(schema.getTextInlineElements(), {
-      B: {}, CITE: {}, CODE: {}, DFN: {}, EM: {}, FONT: {}, I: {}, MARK: {}, Q: {},
-      SAMP: {}, SPAN: {}, S: {}, STRIKE: {}, STRONG: {}, SUB: {}, SUP: {}, U: {}, VAR: {},
-      b: {}, cite: {}, code: {}, dfn: {}, em: {}, font: {}, i: {}, mark: {}, q: {},
-      samp: {}, span: {}, s: {}, strike: {}, strong: {}, sub: {}, sup: {}, u: {}, var: {}
+      B: {}, CITE: {}, CODE: {}, DFN: {}, EM: {}, FONT: {}, I: {}, MARK: {}, Q: {}, SAMP: {},
+      SPAN: {}, S: {}, STRIKE: {}, STRONG: {}, SUB: {}, SUP: {}, U: {}, VAR: {},
+      b: {}, cite: {}, code: {}, dfn: {}, em: {}, font: {}, i: {}, mark: {}, q: {}, samp: {},
+      span: {}, s: {}, strike: {}, strong: {}, sub: {}, sup: {}, u: {}, var: {}
     });
   });
 
@@ -290,7 +316,8 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
       'title',
       'style',
       'textarea',
-      'xmp'
+      'xmp',
+      'plaintext'
     ], 'special elements');
   });
 
@@ -306,22 +333,22 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
 
   it('getElementRule', () => {
     const schema = Schema();
-    assert.isObject(schema.getElementRule('b'));
-    assert.isUndefined(schema.getElementRule('bx'));
-    assert.isUndefined(schema.getElementRule(null));
+    assert.isObject(getElementRule(schema, 'b'));
+    assert.isUndefined(getElementRule(schema, 'bx'));
+    assert.isUndefined(schema.getElementRule(null as any));
   });
 
   it('addCustomElements', () => {
     const schema = Schema({ valid_elements: 'inline,block' });
     schema.addCustomElements('~inline,block');
-    assert.isObject(schema.getElementRule('inline'));
-    assert.isObject(schema.getElementRule('block'));
+    assert.isObject(getElementRule(schema, 'inline'));
+    assert.isObject(getElementRule(schema, 'block'));
     assert.isTrue(schema.isValidChild('body', 'block'));
     assert.isTrue(schema.isValidChild('block', 'inline'));
     assert.isTrue(schema.isValidChild('p', 'inline'));
   });
 
-  it('addValidChildren', () => {
+  it('addValidChildren add, remove', () => {
     let schema = Schema();
     assert.isTrue(schema.isValidChild('body', 'p'));
     assert.isFalse(schema.isValidChild('body', 'body'));
@@ -336,6 +363,18 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
     assert.isFalse(schema.isValidChild('body', 'p'));
   });
 
+  it('addValidChildren replace should remove all children except the specified ones', () => {
+    const schema = Schema();
+
+    assert.isTrue(schema.isValidChild('a', 'span'));
+    assert.isTrue(schema.isValidChild('a', 'b'));
+
+    schema.addValidChildren('a[span]');
+
+    assert.isTrue(schema.isValidChild('a', 'span'));
+    assert.isFalse(schema.isValidChild('a', 'b'));
+  });
+
   it('addCustomElements/getCustomElements', () => {
     const schema = Schema();
     schema.addCustomElements('~inline,block');
@@ -343,50 +382,6 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
     assert.isUndefined(schema.getBlockElements().inline);
     assert.isString(schema.getCustomElements().inline);
     assert.isString(schema.getCustomElements().block);
-  });
-
-  it('whitespaceElements', () => {
-    let schema = Schema({ whitespace_elements: 'pre,p' });
-    assert.isObject(schema.getWhiteSpaceElements().pre);
-    assert.isUndefined(schema.getWhiteSpaceElements().span);
-
-    schema = Schema({ whitespace_elements: 'code' });
-    assert.isObject(schema.getWhiteSpaceElements().code);
-  });
-
-  it('selfClosingElements', () => {
-    const schema = Schema({ self_closing_elements: 'pre,p' });
-    assert.isObject(schema.getSelfClosingElements().pre);
-    assert.isObject(schema.getSelfClosingElements().p);
-    assert.isUndefined(schema.getSelfClosingElements().li);
-  });
-
-  it('shortEndedElements', () => {
-    const schema = Schema({ short_ended_elements: 'pre,p' });
-    assert.isObject(schema.getShortEndedElements().pre);
-    assert.isObject(schema.getShortEndedElements().p);
-    assert.isUndefined(schema.getShortEndedElements().img);
-  });
-
-  it('booleanAttributes', () => {
-    const schema = Schema({ boolean_attributes: 'href,alt' });
-    assert.isObject(schema.getBoolAttrs().href);
-    assert.isObject(schema.getBoolAttrs().alt);
-    assert.isUndefined(schema.getBoolAttrs().checked);
-  });
-
-  it('nonEmptyElements', () => {
-    const schema = Schema({ non_empty_elements: 'pre,p' });
-    assert.isObject(schema.getNonEmptyElements().pre);
-    assert.isObject(schema.getNonEmptyElements().p);
-    assert.isUndefined(schema.getNonEmptyElements().img);
-  });
-
-  it('blockElements', () => {
-    const schema = Schema({ block_elements: 'pre,p' });
-    assert.isObject(schema.getBlockElements().pre);
-    assert.isObject(schema.getBlockElements().p);
-    assert.isUndefined(schema.getBlockElements().h1);
   });
 
   it('isValid', () => {
@@ -524,22 +519,71 @@ describe('browser.tinymce.core.html.SchemaTest', () => {
     });
   });
 
+  it('TINY-9768: html4 schema should not allow non-inline children for caption, address and dt elements ', () => {
+    const schemaHtml4 = Schema({ schema: 'html4' });
+    const schemaHtml5 = Schema({ schema: 'html5' });
+    Arr.each([ 'caption', 'address', 'dt' ], (parent) => {
+      Obj.each(schemaHtml4.getTextBlockElements(), (_v, child) => {
+        assert.isFalse(schemaHtml4.isValidChild(parent, child));
+      });
+      Obj.each(schemaHtml5.getTextBlockElements(), (_v, child) => {
+        assert.isTrue(schemaHtml5.isValidChild(parent, child));
+      });
+
+    });
+  });
+
+  it('TINY-9805: html4 schema should not allow block children elements for the link element ', () => {
+    const schemaHtml4 = Schema({ schema: 'html4' });
+    Obj.each(schemaHtml4.getTextBlockElements(), (_v, child) => {
+      assert.isFalse(schemaHtml4.isValidChild('a', child));
+    });
+  });
+
+  context('custom elements', () => {
+    it('TBA: custom elements are added as element rules and copy the span/div rules', () => {
+      const schema = Schema({
+        custom_elements: '~foo-bar,bar-foo'
+      });
+
+      const inlineRule = getElementRule(schema, 'foo-bar');
+      const spanRule = getElementRule(schema, 'span');
+      assert.deepEqual(inlineRule.attributes, spanRule.attributes, 'inline custom element rules should be copied from the span rules');
+      assert.deepEqual(inlineRule.attributesOrder, spanRule.attributesOrder, 'inline custom element rules should be copied from the span rules');
+      assert.deepEqual(schema.children['foo-bar'], schema.children.span);
+
+      const blockRule = getElementRule(schema, 'bar-foo');
+      const divRule = getElementRule(schema, 'div');
+      assert.deepEqual(blockRule.attributes, divRule.attributes, 'block custom element rules should be copied from the div rules');
+      assert.deepEqual(blockRule.attributesOrder, divRule.attributesOrder, 'block custom element rules should be copied from the div rules');
+      assert.deepEqual(schema.children['bar-foo'], schema.children.div);
+    });
+
+    it('TINY-4784: custom elements should be added to the non-empty elements list by default', () => {
+      const schema = Schema({
+        custom_elements: '~foo-bar,bar-foo'
+      });
+
+      assert.hasAnyKeys(schema.getNonEmptyElements(), [ 'foo-bar', 'FOO-BAR', 'bar-foo', 'BAR-FOO' ]);
+    });
+  });
+
   context('paddInEmptyBlock', () => {
     it('TINY-8639: default behaviour', () => {
       const schema = Schema({});
-      const rules = Obj.mapToArray(schema.getTextInlineElements(), (_value, name) => schema.getElementRule(name.toLowerCase()));
+      const rules = Obj.mapToArray(schema.getTextInlineElements(), (_value, name) => getElementRule(schema, name.toLowerCase()));
       assert.isTrue(rules.length > 0 && Arr.forall(rules, (rule) => Type.isUndefined(rule.paddInEmptyBlock)));
     });
 
     it('TINY-8639: padd_empty_block_inline_children: false', () => {
       const schema = Schema({ padd_empty_block_inline_children: false });
-      const rules = Obj.mapToArray(schema.getTextInlineElements(), (_value, name) => schema.getElementRule(name.toLowerCase()));
+      const rules = Obj.mapToArray(schema.getTextInlineElements(), (_value, name) => getElementRule(schema, name.toLowerCase()));
       assert.isTrue(rules.length > 0 && Arr.forall(rules, (rule) => Type.isUndefined(rule.paddInEmptyBlock)));
     });
 
     it('TINY-8639: padd_empty_block_inline_children: true', () => {
       const schema = Schema({ padd_empty_block_inline_children: true });
-      const rules = Obj.mapToArray(schema.getTextInlineElements(), (_value, name) => schema.getElementRule(name.toLowerCase()));
+      const rules = Obj.mapToArray(schema.getTextInlineElements(), (_value, name) => getElementRule(schema, name.toLowerCase()));
       assert.isTrue(rules.length > 0 && Arr.forall(rules, (rule) => rule.paddInEmptyBlock === true));
     });
   });

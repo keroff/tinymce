@@ -1,14 +1,13 @@
 {
   "name": "@ephox/alloy",
-  "version": "9.0.4",
+  "version": "13.1.1",
   "description": "Ui Framework",
   "dependencies": {
-    "@ephox/agar": "^6.0.4",
-    "@ephox/boulder": "^6.0.3",
-    "@ephox/katamari": "^8.1.1",
-    "@ephox/sand": "^5.0.3",
-    "@ephox/sugar": "^8.1.2",
-    "tslib": "^2.0.0"
+    "@ephox/agar": "^7.4.4",
+    "@ephox/boulder": "^7.1.5",
+    "@ephox/katamari": "^9.1.5",
+    "@ephox/sand": "^6.0.9",
+    "@ephox/sugar": "^9.2.1"
   },
   "files": [
     "lib/main",
@@ -25,6 +24,7 @@
     "test": "bedrock-auto -b chrome-headless --testdirs src/test/ts/atomic src/test/ts/browser src/test/ts/webdriver",
     "test-manual": "bedrock --testdirs src/test/ts/atomic src/test/ts/browser src/test/ts/webdriver",
     "lint": "eslint --config ../../.eslintrc.json src/**/*.ts",
+    "start": "grunt dev",
     "prepublishOnly": "tsc -b"
   },
   "repository": {
@@ -35,8 +35,8 @@
   "keywords": [
     "ui"
   ],
-  "author": "Tiny Technologies, Inc",
-  "license": "Apache-2.0",
+  "author": "Ephox Corporation DBA Tiny Technologies, Inc",
+  "license": "MIT",
   "main": "./lib/main/ts/ephox/alloy/api/Main.js",
   "module": "./lib/main/ts/ephox/alloy/api/Main.js",
   "types": "./lib/main/ts/ephox/alloy/api/Main.d.ts"

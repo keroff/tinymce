@@ -71,7 +71,7 @@ const reposition = (origin: OriginAdt, decision: RepositionDecision): PositionCs
   return positionWithDirection('fixed', decision, x, y, width, height);
 });
 
-const toBox = (origin: OriginAdt, element: SugarElement): Boxes.Bounds => {
+const toBox = (origin: OriginAdt, element: SugarElement<HTMLElement>): Boxes.Bounds => {
   const rel = Fun.curry(OuterPosition.find, element);
   const position = origin.fold(rel, rel, () => {
     const scroll = Scroll.get();
@@ -84,16 +84,19 @@ const toBox = (origin: OriginAdt, element: SugarElement): Boxes.Bounds => {
   return Boxes.bounds(position.left, position.top, width, height);
 };
 
-const viewport = (origin: OriginAdt, getBounds: Optional<() => Boxes.Bounds>): Boxes.Bounds => getBounds.fold(() =>
-/* There are no bounds supplied */
-  origin.fold(Boxes.win, Boxes.win, Boxes.bounds)
-, (b) =>
-/* Use any bounds supplied or remove the scroll position of the bounds for fixed. */
-  origin.fold(b, b, () => {
-    const bounds = b();
-    const pos = translate(origin, bounds.x, bounds.y);
-    return Boxes.bounds(pos.left, pos.top, bounds.width, bounds.height);
-  })
+const viewport = (origin: OriginAdt, optBounds: Optional<Boxes.Bounds>): Boxes.Bounds => optBounds.fold(
+  /* There are no bounds supplied */
+  () => origin.fold(Boxes.win, Boxes.win, Boxes.bounds),
+  (bounds) =>
+    /* Use any bounds supplied or remove the scroll position of the bounds for fixed. */
+    origin.fold(
+      Fun.constant(bounds),
+      Fun.constant(bounds),
+      () => {
+        const pos = translate(origin, bounds.x, bounds.y);
+        return Boxes.bounds(pos.left, pos.top, bounds.width, bounds.height);
+      }
+    )
 );
 
 const translate = (origin: OriginAdt, x: number, y: number): SugarPosition => {

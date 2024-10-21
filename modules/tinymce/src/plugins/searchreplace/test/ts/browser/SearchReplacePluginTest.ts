@@ -5,9 +5,6 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/searchreplace/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
-
-import * as HtmlUtils from '../module/test/HtmlUtils';
 
 describe('browser.tinymce.plugins.searchreplace.SearchReplacePluginTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
@@ -15,7 +12,7 @@ describe('browser.tinymce.plugins.searchreplace.SearchReplacePluginTest', () => 
     valid_elements: 'p,b,i,br,span[contenteditable]',
     indent: false,
     base_url: '/project/tinymce/js/tinymce',
-  }, [ Plugin, Theme ], true);
+  }, [ Plugin ], true);
 
   it('TBA: SearchReplace: Find no match', () => {
     const editor = hook.editor();
@@ -58,9 +55,9 @@ describe('browser.tinymce.plugins.searchreplace.SearchReplacePluginTest', () => 
   it('TINY-4522: SearchReplace: Find special characters match, whole words: true', () => {
     const editor = hook.editor();
     editor.setContent('^^ ^^ ^^^^');
-    assert.equal(editor.plugins.searchreplace.find('^^', false, true), 2);
+    assert.equal(editor.plugins.searchreplace.find('^^', false, true), 3);
     editor.setContent('50$ 50$50$');
-    assert.equal(editor.plugins.searchreplace.find('50$', false, true), 1);
+    assert.equal(editor.plugins.searchreplace.find('50$', false, true), 2);
   });
 
   it('TINY-4522: SearchReplace: Find word with punctuation, whole words: true', () => {
@@ -121,7 +118,7 @@ describe('browser.tinymce.plugins.searchreplace.SearchReplacePluginTest', () => 
     editor.setContent('a&nbsp; &nbsp;b<br/><br/>ab&nbsp;c');
     editor.plugins.searchreplace.find(' ');
     assert.isFalse(editor.plugins.searchreplace.replace('x', true, true));
-    TinyAssertions.assertContent(editor, '<p>axxxb<br /><br />abxc</p>');
+    TinyAssertions.assertContent(editor, '<p>axxxb<br><br>abxc</p>');
   });
 
   it('TBA: SearchReplace: Find multiple matches, move to next and replace', () => {
@@ -172,11 +169,11 @@ describe('browser.tinymce.plugins.searchreplace.SearchReplacePluginTest', () => 
     const editor = hook.editor();
     editor.getBody().innerHTML = 'abc<pre>  abc  </pre>abc';
     assert.equal(editor.plugins.searchreplace.find('b'), 3);
-    assert.equal(HtmlUtils.normalizeHtml(editor.getBody().innerHTML), (
-      'a<span class="mce-match-marker mce-match-marker-selected" data-mce-bogus="1" data-mce-index="0">b</span>c' +
-        '<pre>  a<span class="mce-match-marker" data-mce-bogus="1" data-mce-index="1">b</span>c  </pre>' +
-        'a<span class="mce-match-marker" data-mce-bogus="1" data-mce-index="2">b</span>c'
-    ));
+    TinyAssertions.assertRawContent(editor,
+      'a<span data-mce-bogus="1" class="mce-match-marker mce-match-marker-selected" data-mce-index="0">b</span>c' +
+        '<pre>  a<span data-mce-bogus="1" class="mce-match-marker" data-mce-index="1">b</span>c  </pre>' +
+        'a<span data-mce-bogus="1" class="mce-match-marker" data-mce-index="2">b</span>c'
+    );
   });
 
   it('TINY-5967: SearchReplace: Find and replace all in nested contenteditable elements', () => {
@@ -187,13 +184,13 @@ describe('browser.tinymce.plugins.searchreplace.SearchReplacePluginTest', () => 
       'Editable </span>NonEditable </span>' +
       'Editable</p>');
     assert.equal(editor.plugins.searchreplace.find('Editable', true, true), 5);
-    assert.equal(HtmlUtils.normalizeHtml(editor.getBody().innerHTML), (
-      '<p><span class="mce-match-marker mce-match-marker-selected" data-mce-bogus="1" data-mce-index="0">Editable</span> ' +
-      '<span contenteditable="false">NonEditable <span contenteditable="true"><span class="mce-match-marker" data-mce-bogus="1" data-mce-index="1">Editable</span> ' +
-      '<span contenteditable="false">NonEditable <span contenteditable="true"><span class="mce-match-marker" data-mce-bogus="1" data-mce-index="2">Editable</span> </span>NonEditable </span>' +
-      '<span class="mce-match-marker" data-mce-bogus="1" data-mce-index="3">Editable</span> </span>NonEditable </span>' +
-      '<span class="mce-match-marker" data-mce-bogus="1" data-mce-index="4">Editable</span></p>'
-    ));
+    TinyAssertions.assertRawContent(editor,
+      '<p><span data-mce-bogus="1" class="mce-match-marker mce-match-marker-selected" data-mce-index="0">Editable</span> ' +
+      '<span contenteditable="false">NonEditable <span contenteditable="true"><span data-mce-bogus="1" class="mce-match-marker" data-mce-index="1">Editable</span> ' +
+      '<span contenteditable="false">NonEditable <span contenteditable="true"><span data-mce-bogus="1" class="mce-match-marker" data-mce-index="2">Editable</span> </span>NonEditable </span>' +
+      '<span data-mce-bogus="1" class="mce-match-marker" data-mce-index="3">Editable</span> </span>NonEditable </span>' +
+      '<span data-mce-bogus="1" class="mce-match-marker" data-mce-index="4">Editable</span></p>'
+    );
     assert.isFalse(editor.plugins.searchreplace.replace('x', true, true));
     TinyAssertions.assertContent(editor, '<p>x ' +
       '<span contenteditable="false">NonEditable <span contenteditable="true">x ' +
@@ -210,6 +207,6 @@ describe('browser.tinymce.plugins.searchreplace.SearchReplacePluginTest', () => 
     assert.lengthOf(editor.getBody().getElementsByTagName('span'), 2);
     editor.plugins.searchreplace.done();
     assert.lengthOf(editor.getBody().getElementsByTagName('span'), 0);
-    assert.equal(editor.getBody().innerHTML, content);
+    TinyAssertions.assertRawContent(editor, content);
   });
 });

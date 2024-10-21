@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Behaviour, GuiFactory, ItemTypes, MaxHeight, Tooltipping } from '@ephox/alloy';
 import { InlineContent, Toolbar } from '@ephox/bridge';
 import { Fun, Obj, Optional, Regex } from '@ephox/katamari';
@@ -24,7 +17,7 @@ type TooltipWorker = (success: (elem: HTMLElement) => void) => void;
 // (yes this is horrible but it is not yet public API)
 const tooltipBehaviour = (
   meta: Record<string, any>, sharedBackstage: UiFactoryBackstageShared
-): Behaviour.NamedConfiguredBehaviour<Behaviour.BehaviourConfigSpec, Behaviour.BehaviourConfigDetail>[] =>
+): Behaviour.NamedConfiguredBehaviour<any, any, any>[] =>
   Obj.get(meta, 'tooltipWorker')
     .map((tooltipWorker: TooltipWorker) => [
       Tooltipping.config({
@@ -91,7 +84,7 @@ const renderAutocompleteItem = (
 
   return renderCommonItem({
     data: buildData(spec),
-    disabled: spec.disabled,
+    enabled: spec.enabled,
     getApi: Fun.constant({}),
     onAction: (_api) => onItemValueHandler(spec.value, spec.meta),
     onSetup: Fun.constant(Fun.noop),

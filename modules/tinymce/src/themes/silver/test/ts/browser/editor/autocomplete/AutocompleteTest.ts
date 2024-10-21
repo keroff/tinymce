@@ -1,13 +1,10 @@
-import { Keys, UiFinder, Waiter } from '@ephox/agar';
-import { TestHelpers } from '@ephox/alloy';
+import { Keys, UiFinder, TestStore, Waiter } from '@ephox/agar';
 import { beforeEach, context, describe, it } from '@ephox/bedrock-client';
-import { Arr, Type } from '@ephox/katamari';
+import { Arr, Throttler, Type } from '@ephox/katamari';
 import { SugarBody } from '@ephox/sugar';
 import { TinyAssertions, TinyContentActions, TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import PromisePolyfill from 'tinymce/core/api/util/Promise';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import { getGreenImageDataUrl } from '../../../module/Assets';
 import {
@@ -31,15 +28,15 @@ interface Scenario extends TriggerDetails {
 }
 
 describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', () => {
-  const store = TestHelpers.TestStore();
+  const store = TestStore();
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce',
     setup: (ed: Editor) => {
       ed.ui.registry.addAutocompleter('Plus1', {
-        ch: '+',
+        trigger: '+',
         minChars: 0,
         columns: 1,
-        fetch: (_pattern, _maxResults) => new PromisePolyfill((resolve) => {
+        fetch: (_pattern, _maxResults) => new Promise((resolve) => {
           resolve(
             Arr.map([ 'aA', 'bB', 'cC', 'dD' ], (letter) => ({
               value: `plus-${letter}`,
@@ -56,10 +53,10 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
       });
 
       ed.ui.registry.addAutocompleter('Colon1', {
-        ch: ':',
+        trigger: ':',
         minChars: 0,
         columns: 2,
-        fetch: (_pattern, _maxResults) => new PromisePolyfill((resolve) => {
+        fetch: (_pattern, _maxResults) => new Promise((resolve) => {
           resolve(
             Arr.map([ 'a' ], (letter) => ({
               value: `colon1-${letter}`,
@@ -75,10 +72,10 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
       });
 
       ed.ui.registry.addAutocompleter('Colon2', {
-        ch: ':',
+        trigger: ':',
         minChars: 0,
         columns: 2,
-        fetch: (_pattern, _maxResults) => new PromisePolyfill((resolve) => {
+        fetch: (_pattern, _maxResults) => new Promise((resolve) => {
           resolve(
             Arr.map([ 'a', 'b' ], (letter) => ({
               value: `colon2-${letter}`,
@@ -94,10 +91,10 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
       });
 
       ed.ui.registry.addAutocompleter('Tilde', {
-        ch: '~',
+        trigger: '~',
         minChars: 0,
         columns: 'auto',
-        fetch: (_pattern, _maxResults) => new PromisePolyfill((resolve) => {
+        fetch: (_pattern, _maxResults) => new Promise((resolve) => {
           resolve(
             Arr.map([ 'a', 'b', 'c', 'd' ], (letter) => ({
               value: `tilde-${letter}`,
@@ -113,10 +110,10 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
       });
 
       ed.ui.registry.addAutocompleter('Exclamation', {
-        ch: '!',
+        trigger: '!',
         minChars: 0,
         columns: 1,
-        fetch: (_pattern, _maxResults) => new PromisePolyfill((resolve) => {
+        fetch: (_pattern, _maxResults) => new Promise((resolve) => {
           resolve(
             Arr.map([ 'a', 'b', 'c', 'd' ], (letter) => ({
               value: `exclamation-${letter}`,
@@ -131,13 +128,13 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
       });
 
       ed.ui.registry.addAutocompleter('Equals', {
-        ch: '=',
+        trigger: '=',
         minChars: 1,
         columns: 'auto',
         matches: (rng, text, _pattern) =>
           // Check the '=' is in the middle of a word
           rng.startOffset !== 0 && !/\s/.test(text.charAt(rng.startOffset - 1)),
-        fetch: (pattern, _maxResults) => new PromisePolyfill((resolve) => {
+        fetch: (pattern, _maxResults) => new Promise((resolve) => {
           const filteredItems = Arr.filter([ 'two', 'three' ], (number) => number.indexOf(pattern) !== -1);
           resolve(
             Arr.map(filteredItems, (number) => ({
@@ -155,10 +152,10 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
       });
 
       ed.ui.registry.addAutocompleter('Asterisk', {
-        ch: '*',
+        trigger: '*',
         minChars: 2,
         columns: 'auto',
-        fetch: (_pattern, _maxResults) => new PromisePolyfill((resolve) => {
+        fetch: (_pattern, _maxResults) => new Promise((resolve) => {
           resolve(
             Arr.map([ 'a', 'b', 'c', 'd' ], (letter) => ({
               value: `asterisk-${letter}`,
@@ -176,7 +173,7 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
       });
 
       ed.ui.registry.addAutocompleter('Hash with spaces', {
-        ch: '#',
+        trigger: '#',
         minChars: 1,
         columns: 1,
         fetch: (pattern, _maxResults) => {
@@ -185,7 +182,7 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
             { text: 'equals sign', value: '=' },
             { text: 'some name', value: '`' }
           ], (item) => item.text.indexOf(pattern) !== -1);
-          return new PromisePolyfill((resolve) => {
+          return new Promise((resolve) => {
             resolve(
               Arr.map(filteredItems, (item) => ({
                 value: `hash-${item.value}`,
@@ -203,7 +200,7 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
       });
 
       ed.ui.registry.addAutocompleter('Card items', {
-        ch: '€',
+        trigger: '€',
         minChars: 1,
         columns: 1,
         highlightOn: [ 'my_text_to_highlight' ],
@@ -212,7 +209,7 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
             { text: 'equals sign', value: '=' },
             { text: 'plus sign', value: '+' }
           ], (item) => item.text.indexOf(pattern) !== -1);
-          return new PromisePolyfill((resolve) => {
+          return new Promise((resolve) => {
             resolve(
               Arr.map(filteredItems, (item) => ({
                 value: `euro-${item.value}`,
@@ -254,8 +251,50 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
           autocompleteApi.hide();
         }
       });
+
+      const dollarsFetch = Throttler.last((resolve) => {
+        resolve(
+          Arr.map([ 'a', 'b', 'c', 'd' ], (letter) => ({
+            value: `dollars-${letter}`,
+            text: `d-${letter}`,
+            icon: '$'
+          }))
+        );
+      }, 100);
+      ed.ui.registry.addAutocompleter('Dollars1', {
+        trigger: '$',
+        minChars: 0,
+        columns: 1,
+        fetch: (_pattern, _maxResults) => new Promise(dollarsFetch.throttle),
+        onAction: (autocompleteApi, rng, value) => {
+          store.adder('dollars:' + value)();
+          ed.selection.setRng(rng);
+          ed.insertContent(value);
+          autocompleteApi.hide();
+        }
+      });
+
+      ed.ui.registry.addAutocompleter('Multi1', {
+        trigger: '^@@',
+        minChars: 0,
+        columns: 1,
+        fetch: (_pattern, _maxResults) => new Promise((resolve) => {
+          resolve(
+            Arr.map([ 'aA', 'bB', 'cC', 'dD' ], (letter) => ({
+              value: `multi-${letter}`,
+              text: `mu-${letter}`,
+              icon: '^'
+            }))
+          );
+        }),
+        onAction: (autocompleteApi, rng, value) => {
+          ed.selection.setRng(rng);
+          ed.insertContent(value);
+          autocompleteApi.hide();
+        }
+      });
     }
-  }, [ Theme ], true);
+  }, [], true);
 
   beforeEach(() => {
     store.clear();
@@ -535,6 +574,33 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
       TinyContentActions.keydown(editor, Keys.enter());
       await pWaitForAutocompleteToClose();
     });
+
+    it('TINY-8759: In a nested list', async () => {
+      const editor = hook.editor();
+      await pSetContentAndTrigger(editor, {
+        initialContent: '<ul><li>Text<ul><li>*</li></ul></li></ul>',
+        triggerChar: '*',
+        additionalContent: 'bc',
+        cursorPos: {
+          elementPath: [ 1, 0, 1, 0 ],
+          offset: 1
+        }
+      });
+      await TinyUiActions.pWaitForPopup(editor, '.tox-autocompleter div[role="menu"]');
+      await pAssertAutocompleterStructure({
+        type: 'grid',
+        groups: [
+          [
+            { title: 'asterisk-a', icon: '*' },
+            { title: 'asterisk-b', icon: '*' },
+            { title: 'asterisk-c', icon: '*' },
+            { title: 'asterisk-d', icon: '*' }
+          ]
+        ]
+      });
+      TinyContentActions.keydown(editor, Keys.enter());
+      await pWaitForAutocompleteToClose();
+    });
   });
 
   it('Checking autocomplete activation based on content', async () => {
@@ -606,6 +672,7 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
     additionalContent: 'als s',
     structure: {
       type: 'list',
+      hasIcons: false,
       groups: [
         [
           (s, str, arr) => s.element('div', {
@@ -645,5 +712,51 @@ describe('browser.tinymce.themes.silver.editor.autocomplete.AutocompleteTest', (
     },
     choice: (editor) => TinyContentActions.keydown(editor, Keys.enter()),
     assertion: () => store.assertEq('Euro-= should fire', [ 'euro:AutocompleterContents->onAction', 'euro:euro-=' ])
+  }));
+
+  it('TINY-8552: Checking menu can be closed with a throttled fetch (trigger: $)', () => pTestAutocompleter({
+    triggerChar: '$',
+    additionalContent: 'a',
+    structure: {
+      type: 'list',
+      hasIcons: true,
+      groups: [
+        [
+          { title: 'd-a', text: 'd-<span class="tox-autocompleter-highlight">a</span>', icon: '$' },
+          { title: 'd-b', text: 'd-b', icon: '$' },
+          { title: 'd-c', text: 'd-c', icon: '$' },
+          { title: 'd-d', text: 'd-d', icon: '$' }
+        ]
+      ]
+    },
+    choice: (editor) => TinyContentActions.keydown(editor, Keys.enter()),
+    assertion: (editor) => TinyAssertions.assertContent(editor, '<p>dollars-a</p>')
+  }));
+
+  it('TINY-8887: Checking multi-char trigger: "^@@" splitted over several text nodes', () => pTestAutocompleter({
+    triggerChar: '^@@',
+    initialContent: '<strong>^</strong>@',
+    additionalContent: '@',
+    cursorPos: {
+      elementPath: [ 0, 1 ],
+      offset: 1
+    },
+    structure: {
+      type: 'list',
+      hasIcons: true,
+      groups: [
+        [
+          { title: 'mu-aA', text: 'mu-aA', icon: '^' },
+          { title: 'mu-bB', text: 'mu-bB', icon: '^' },
+          { title: 'mu-cC', text: 'mu-cC', icon: '^' },
+          { title: 'mu-dD', text: 'mu-dD', icon: '^' }
+        ]
+      ]
+    },
+    choice: (editor) => {
+      TinyContentActions.keydown(editor, Keys.down());
+      TinyContentActions.keydown(editor, Keys.enter());
+    },
+    assertion: (editor) => TinyAssertions.assertContent(editor, '<p>multi-bB</p>')
   }));
 });

@@ -1,8 +1,8 @@
 import { describe, it } from '@ephox/bedrock-client';
+import { Html, SugarElement } from '@ephox/sugar';
 import { LegacyUnit } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
-import $ from 'tinymce/core/api/dom/DomQuery';
 import CaretPosition from 'tinymce/core/caret/CaretPosition';
 import * as LineWalker from 'tinymce/core/caret/LineWalker';
 
@@ -23,21 +23,21 @@ describe('browser.tinymce.core.LineWalkerTest', () => {
       return false;
     };
 
-    $(getRoot()).html('<span contentEditable="false">a</span><span>b</span>');
-    result = LineWalker.positionsUntil(1, getRoot(), predicate, getRoot().firstChild);
+    Html.set(SugarElement.fromDom(getRoot()), '<span contentEditable="false">a</span><span>b</span>');
+    result = LineWalker.positionsUntil(1, getRoot(), predicate, getRoot().firstChild as HTMLSpanElement);
     assert.lengthOf(result, 3);
-    LegacyUnit.equalDom(result[0].position.getNode(), getRoot().lastChild);
-    LegacyUnit.equalDom(result[1].position.getNode(), getRoot().lastChild.firstChild);
-    LegacyUnit.equalDom(result[2].position.getNode(), getRoot().lastChild.firstChild);
+    LegacyUnit.equalDom(result[0].position.getNode() as Node, getRoot().lastChild as HTMLSpanElement);
+    LegacyUnit.equalDom(result[1].position.getNode() as Node, getRoot().lastChild?.firstChild as Text);
+    LegacyUnit.equalDom(result[2].position.getNode() as Node, getRoot().lastChild?.firstChild as Text);
     assert.equal(predicateCallCount, 3);
 
     predicateCallCount = 0;
-    $(getRoot()).html('<span>a</span><span contentEditable="false">b</span>');
-    result = LineWalker.positionsUntil(-1, getRoot(), predicate, getRoot().lastChild);
+    Html.set(SugarElement.fromDom(getRoot()), '<span>a</span><span contentEditable="false">b</span>');
+    result = LineWalker.positionsUntil(-1, getRoot(), predicate, getRoot().lastChild as HTMLSpanElement);
     assert.lengthOf(result, 3);
-    LegacyUnit.equalDom(result[0].position.getNode(), getRoot().lastChild);
-    LegacyUnit.equalDom(result[1].position.getNode(), getRoot().firstChild.firstChild);
-    LegacyUnit.equalDom(result[2].position.getNode(), getRoot().firstChild.firstChild);
+    LegacyUnit.equalDom(result[0].position.getNode() as Node, getRoot().lastChild as HTMLSpanElement);
+    LegacyUnit.equalDom(result[1].position.getNode() as Node, getRoot().firstChild?.firstChild as Text);
+    LegacyUnit.equalDom(result[2].position.getNode() as Node, getRoot().firstChild?.firstChild as Text);
     assert.equal(predicateCallCount, 3);
   });
 
@@ -49,9 +49,9 @@ describe('browser.tinymce.core.LineWalkerTest', () => {
       return false;
     };
 
-    $(getRoot()).html('<p>a</p><p>b</p><p>c</p>');
+    Html.set(SugarElement.fromDom(getRoot()), '<p>a</p><p>b</p><p>c</p>');
 
-    const caretPosition = CaretPosition(getRoot().lastChild.lastChild, 1);
+    const caretPosition = CaretPosition(getRoot().lastChild?.lastChild as Text, 1);
     const result = LineWalker.upUntil(getRoot(), predicate, caretPosition);
 
     assert.lengthOf(result, 3);
@@ -69,9 +69,9 @@ describe('browser.tinymce.core.LineWalkerTest', () => {
       return false;
     };
 
-    $(getRoot()).html('<p>a</p><p>b</p><p>c</p>');
+    Html.set(SugarElement.fromDom(getRoot()), '<p>a</p><p>b</p><p>c</p>');
 
-    const caretPosition = CaretPosition(getRoot().firstChild.firstChild, 0);
+    const caretPosition = CaretPosition(getRoot().firstChild?.firstChild as Text, 0);
     const result = LineWalker.downUntil(getRoot(), predicate, caretPosition);
 
     assert.lengthOf(result, 3);

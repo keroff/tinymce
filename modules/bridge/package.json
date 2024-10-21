@@ -1,6 +1,6 @@
 {
   "name": "@ephox/bridge",
-  "version": "3.0.4",
+  "version": "4.6.0",
   "description": "Ui API for TinyMCE 5",
   "repository": {
     "type": "git",
@@ -13,12 +13,11 @@
     "lint": "eslint --config ../../.eslintrc.json src/**/*.ts"
   },
   "dependencies": {
-    "@ephox/boulder": "^6.0.3",
-    "@ephox/katamari": "^8.1.1",
-    "tslib": "^2.0.0"
+    "@ephox/boulder": "^7.1.5",
+    "@ephox/katamari": "^9.1.5"
   },
-  "author": "Tiny Technologies, Inc",
-  "license": "Apache-2.0",
+  "author": "Ephox Corporation DBA Tiny Technologies, Inc",
+  "license": "MIT",
   "files": [
     "lib/main",
     "lib/demo",

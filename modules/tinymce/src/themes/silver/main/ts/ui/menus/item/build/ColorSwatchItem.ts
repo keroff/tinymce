@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { ItemTypes, ItemWidget, Menu as AlloyMenu, MenuTypes } from '@ephox/alloy';
 import { Menu } from '@ephox/bridge';
 import { Fun, Id } from '@ephox/katamari';
@@ -19,7 +12,7 @@ import ItemResponse from '../ItemResponse';
 
 export const renderColorSwatchItem = (spec: Menu.ColorSwatchMenuItem, backstage: UiFactoryBackstage): ItemTypes.WidgetItemSpec => {
   const items = getColorItems(spec, backstage);
-  const columns = backstage.colorinput.getColorCols();
+  const columns = backstage.colorinput.getColorCols(spec.initData.storageKey);
   const presets = 'color';
 
   const menuSpec = createPartialChoiceMenu(
@@ -31,7 +24,7 @@ export const renderColorSwatchItem = (spec: Menu.ColorSwatchMenuItem, backstage:
     columns,
     presets,
     ItemResponse.CLOSE_ON_EXECUTE,
-    Fun.never,
+    spec.select.getOr(Fun.never),
     backstage.shared.providers
   );
 
@@ -58,7 +51,7 @@ export const renderColorSwatchItem = (spec: Menu.ColorSwatchMenuItem, backstage:
 const getColorItems = (spec: Menu.ColorSwatchMenuItem, backstage: UiFactoryBackstage): Menu.ChoiceMenuItemSpec[] => {
   const useCustomColors = spec.initData.allowCustomColors && backstage.colorinput.hasCustomColors();
   return spec.initData.colors.fold(
-    () => ColorSwatch.getColors(backstage.colorinput.getColors(), useCustomColors),
+    () => ColorSwatch.getColors(backstage.colorinput.getColors(spec.initData.storageKey), spec.initData.storageKey, useCustomColors),
     (colors) => colors.concat(ColorSwatch.getAdditionalColors(useCustomColors))
   );
 };

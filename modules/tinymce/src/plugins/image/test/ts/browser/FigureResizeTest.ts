@@ -6,7 +6,6 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/image/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import { fillActiveDialog } from '../module/Helpers';
 
@@ -18,7 +17,7 @@ describe('browser.tinymce.plugins.image.FigureResizeTest', () => {
     image_caption: true,
     height: 400,
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ]);
+  }, [ Plugin ]);
 
   const getElementSize = (elm: SugarElement<HTMLImageElement>) => {
     const width = Css.get(elm, 'width');
@@ -31,9 +30,9 @@ describe('browser.tinymce.plugins.image.FigureResizeTest', () => {
     const target = resizeHandle.dom;
     const pos = dom.getPos(target);
 
-    dom.fire(target, 'mousedown', { screenX: pos.x, screenY: pos.y });
-    dom.fire(target, 'mousemove', { screenX: pos.x + px, screenY: pos.y });
-    dom.fire(target, 'mouseup');
+    dom.dispatch(target, 'mousedown', { screenX: pos.x, screenY: pos.y });
+    dom.dispatch(target, 'mousemove', { screenX: pos.x + px, screenY: pos.y });
+    dom.dispatch(target, 'mouseup');
   };
 
   it('TBA: resizing image in figure', async () => {
@@ -54,7 +53,7 @@ describe('browser.tinymce.plugins.image.FigureResizeTest', () => {
     TinyUiActions.submitDialog(editor);
 
     const body = TinyDom.body(editor);
-    const img = UiFinder.findIn(body, 'figure > img').getOrDie();
+    const img = UiFinder.findIn<HTMLImageElement>(body, 'figure > img').getOrDie();
     Mouse.trueClick(img);
     TinyAssertions.assertSelection(editor, [], 0, [], 1);
 

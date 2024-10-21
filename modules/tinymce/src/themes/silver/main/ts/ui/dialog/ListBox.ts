@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import {
   AlloyComponent, AlloySpec, AlloyTriggers, Behaviour, Disabling, Focusing, FormField as AlloyFormField, Representing, SimpleSpec, SketchSpec,
   Tabstopping
@@ -15,6 +8,7 @@ import { Attribute } from '@ephox/sugar';
 
 import { UiFactoryBackstage } from '../../backstage/Backstage';
 import { renderLabel } from '../alien/FieldLabeller';
+import * as RepresentingConfigs from '../alien/RepresentingConfigs';
 import { renderCommonDropdown, updateMenuText } from '../dropdown/CommonDropdown';
 import { formChangeEvent } from '../general/FormEvents';
 import ItemResponse from '../menus/item/ItemResponse';
@@ -49,7 +43,7 @@ const fetchItems = (dropdownComp: AlloyComponent, name: string, items: Dialog.Li
     }
   });
 
-const findItemByValue = (items: Dialog.ListBoxItemSpec[], value: string) =>
+const findItemByValue = (items: Dialog.ListBoxItemSpec[], value: string): Optional<Dialog.ListBoxSingleItemSpec> =>
   Arr.findMap(items, (item) => {
     if (!isSingleListItem(item)) {
       return findItemByValue(item.items, value);
@@ -58,16 +52,18 @@ const findItemByValue = (items: Dialog.ListBoxItemSpec[], value: string) =>
     }
   });
 
-export const renderListBox = (spec: ListBoxSpec, backstage: UiFactoryBackstage): SketchSpec => {
+export const renderListBox = (spec: ListBoxSpec, backstage: UiFactoryBackstage, initialData: Optional<string>): SketchSpec => {
   const providersBackstage = backstage.shared.providers;
-  const initialItem = Arr.head(spec.items).filter(isSingleListItem);
+  const initialItem = initialData
+    .bind((value) => findItemByValue(spec.items, value))
+    .orThunk(() => Arr.head(spec.items).filter(isSingleListItem));
 
   const pLabel = spec.label.map((label) => renderLabel(label, providersBackstage));
 
   const pField = AlloyFormField.parts.field({
     dom: { },
     factory: {
-      sketch: (sketchSpec) => renderCommonDropdown({
+      sketch: (sketchSpec: SketchSpec) => renderCommonDropdown({
         uid: sketchSpec.uid,
         text: initialItem.map((item) => item.text),
         icon: Optional.none(),
@@ -76,7 +72,15 @@ export const renderListBox = (spec: ListBoxSpec, backstage: UiFactoryBackstage):
         fetch: (comp, callback) => {
           const items = fetchItems(comp, spec.name, spec.items, Representing.getValue(comp));
           callback(
-            NestedMenus.build(items, ItemResponse.CLOSE_ON_EXECUTE, backstage, false)
+            NestedMenus.build(
+              items,
+              ItemResponse.CLOSE_ON_EXECUTE,
+              backstage,
+              {
+                isHorizontalMenu: false,
+                search: Optional.none()
+              }
+            )
           );
         },
         onSetup: Fun.constant(Fun.noop),
@@ -86,22 +90,18 @@ export const renderListBox = (spec: ListBoxSpec, backstage: UiFactoryBackstage):
         classes: [],
         dropdownBehaviours: [
           Tabstopping.config({}),
-          Representing.config({
-            store: {
-              // Need to use "manual" here as we only want to update the saved
-              // value if the value set is a valid property
-              mode: 'manual',
-              initialValue: initialItem.map((item) => item.value).getOr(''),
-              getValue: (comp) => Attribute.get(comp.element, dataAttribute),
-              setValue: (comp, data) => {
-                findItemByValue(spec.items, data)
-                  .each((item) => {
-                    Attribute.set(comp.element, dataAttribute, item.value);
-                    AlloyTriggers.emitWith(comp, updateMenuText, { text: item.text });
-                  });
-              }
+          RepresentingConfigs.withComp(
+            initialItem.map((item) => item.value),
+            (comp) => Attribute.get(comp.element, dataAttribute),
+            (comp, data) => {
+              // We only want to update the saved value if the value set is a valid property
+              findItemByValue(spec.items, data)
+                .each((item) => {
+                  Attribute.set(comp.element, dataAttribute, item.value);
+                  AlloyTriggers.emitWith(comp, updateMenuText, { text: item.text });
+                });
             }
-          })
+          )
         ]
       },
       'tox-listbox',
@@ -125,7 +125,7 @@ export const renderListBox = (spec: ListBoxSpec, backstage: UiFactoryBackstage):
     components: Arr.flatten<AlloySpec>([ pLabel.toArray(), [ listBoxWrap ]]),
     fieldBehaviours: Behaviour.derive([
       Disabling.config({
-        disabled: Fun.constant(spec.disabled),
+        disabled: Fun.constant(!spec.enabled),
         onDisabled: (comp) => {
           AlloyFormField.getField(comp).each(Disabling.disable);
         },

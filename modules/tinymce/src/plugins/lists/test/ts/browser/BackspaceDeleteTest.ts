@@ -4,7 +4,6 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/lists/Plugin';
-import Theme from 'tinymce/themes/silver//Theme';
 
 describe('browser.tinymce.plugins.lists.BackspaceDeleteTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
@@ -22,7 +21,7 @@ describe('browser.tinymce.plugins.lists.BackspaceDeleteTest', () => {
         'margin-bottom,margin-left,display,position,top,left,list-style-type'
     },
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ]);
+  }, [ Plugin ]);
 
   it('TBA: Backspace at beginning of single LI in UL', () => {
     const editor = hook.editor();
@@ -605,7 +604,7 @@ describe('browser.tinymce.plugins.lists.BackspaceDeleteTest', () => {
     );
 
     editor.focus();
-    editor.selection.setCursorLocation(editor.$('ul ul li')[0], 0);
+    editor.selection.setCursorLocation(editor.dom.select('ul ul li')[0], 0);
     editor.plugins.lists.backspaceDelete(true);
 
     TinyAssertions.assertContent(editor, '<ul><li>1<ul><li>2</li></ul></li><li>3</li></ul>');
@@ -623,7 +622,7 @@ describe('browser.tinymce.plugins.lists.BackspaceDeleteTest', () => {
     );
 
     editor.focus();
-    editor.selection.setCursorLocation(editor.$('li')[1], 1);
+    editor.selection.setCursorLocation(editor.dom.select('li')[1], 1);
     editor.plugins.lists.backspaceDelete(false);
 
     TinyAssertions.assertContent(editor, '<ul><li>1</li><li>2</li><li>3</li></ul>');
@@ -669,8 +668,8 @@ describe('browser.tinymce.plugins.lists.BackspaceDeleteTest', () => {
     LegacyUnit.setSelection(editor, 'p', 0);
     editor.plugins.lists.backspaceDelete();
 
-    assert.equal(
-      editor.getContent(),
+    TinyAssertions.assertContent(
+      editor,
       '<ul>' +
         '<li>12</li>' +
         '<li>3</li>' +

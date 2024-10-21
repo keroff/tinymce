@@ -1,11 +1,4 @@
 //
-// Copyright (c) Tiny Technologies, Inc. All rights reserved.
-// Licensed under the LGPL or a commercial license.
-// For LGPL see License.txt in the project root for license information.
-// For commercial licenses see https://www.tiny.cloud/
-//
-
-//
 // Selection
 //
 
@@ -28,7 +21,8 @@
   audio[data-mce-selected],
   object[data-mce-selected],
   embed[data-mce-selected],
-  table[data-mce-selected] {
+  table[data-mce-selected],
+  details[data-mce-selected] {
     outline: @object-block-selected-outline-width solid @object-block-selected-color;
   }
 
@@ -105,7 +99,7 @@
     }
   }
 
-  img::selection {
+  img[data-mce-selected]::selection {
     background: none;
   }
 }

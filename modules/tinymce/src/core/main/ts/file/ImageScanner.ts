@@ -1,16 +1,8 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Arr, Fun } from '@ephox/katamari';
+import { Arr, Fun, Obj, Strings, Type } from '@ephox/katamari';
 
 import Env from '../api/Env';
 import { BlobCache, BlobInfo } from '../api/file/BlobCache';
-import Promise from '../api/util/Promise';
-import * as Conversions from './Conversions';
+import { imageToBlobInfo } from './BlobCacheUtils';
 import { UploadStatus } from './UploadStatus';
 
 export interface BlobInfoImagePair {
@@ -18,8 +10,13 @@ export interface BlobInfoImagePair {
   blobInfo: BlobInfo;
 }
 
+export interface BlobUriError {
+  uriType: 'blob';
+  message: string;
+}
+
 export interface ImageScanner {
-  findAll: (elm: HTMLElement, predicate?: (img: HTMLImageElement) => boolean) => Promise<BlobInfoImagePair[]>;
+  findAll: (elm: HTMLElement, predicate?: (img: HTMLImageElement) => boolean) => Promise<Array<BlobInfoImagePair | string | BlobUriError>>;
 }
 
 /**
@@ -29,67 +26,6 @@ export interface ImageScanner {
  * @class tinymce.file.ImageScanner
  */
 
-let count = 0;
-
-export const uniqueId = (prefix?: string): string => {
-  return (prefix || 'blobid') + (count++);
-};
-
-const imageToBlobInfo = (blobCache: BlobCache, img: HTMLImageElement, resolve, reject) => {
-  let base64, blobInfo;
-
-  if (img.src.indexOf('blob:') === 0) {
-    blobInfo = blobCache.getByUri(img.src);
-
-    if (blobInfo) {
-      resolve({
-        image: img,
-        blobInfo
-      });
-    } else {
-      Conversions.uriToBlob(img.src).then((blob) => {
-        Conversions.blobToDataUri(blob).then((dataUri) => {
-          base64 = Conversions.parseDataUri(dataUri).data;
-          blobInfo = blobCache.create(uniqueId(), blob, base64);
-          blobCache.add(blobInfo);
-
-          resolve({
-            image: img,
-            blobInfo
-          });
-        });
-      }, (err) => {
-        reject(err);
-      });
-    }
-
-    return;
-  }
-
-  const { data, type } = Conversions.parseDataUri(img.src);
-  base64 = data;
-  blobInfo = blobCache.getByData(base64, type);
-
-  if (blobInfo) {
-    resolve({
-      image: img,
-      blobInfo
-    });
-  } else {
-    Conversions.uriToBlob(img.src).then((blob) => {
-      blobInfo = blobCache.create(uniqueId(), blob, base64);
-      blobCache.add(blobInfo);
-
-      resolve({
-        image: img,
-        blobInfo
-      });
-    }, (err) => {
-      reject(err);
-    });
-  }
-};
-
 const getAllImages = (elm: HTMLElement): HTMLImageElement[] => {
   return elm ? Arr.from(elm.getElementsByTagName('img')) : [];
 };
@@ -97,17 +33,9 @@ const getAllImages = (elm: HTMLElement): HTMLImageElement[] => {
 export const ImageScanner = (uploadStatus: UploadStatus, blobCache: BlobCache): ImageScanner => {
   const cachedPromises: Record<string, Promise<BlobInfoImagePair>> = {};
 
-  const findAll = (elm: HTMLElement, predicate?: (img: HTMLImageElement) => boolean) => {
-    if (!predicate) {
-      predicate = Fun.always;
-    }
-
+  const findAll = (elm: HTMLElement, predicate: (img: HTMLImageElement) => boolean = Fun.always) => {
     const images = Arr.filter(getAllImages(elm), (img) => {
       const src = img.src;
-
-      if (!Env.fileApi) {
-        return false;
-      }
 
       if (img.hasAttribute('data-mce-bogus')) {
         return false;
@@ -121,11 +49,11 @@ export const ImageScanner = (uploadStatus: UploadStatus, blobCache: BlobCache): 
         return false;
       }
 
-      if (src.indexOf('blob:') === 0) {
+      if (Strings.startsWith(src, 'blob:')) {
         return !uploadStatus.isUploaded(src) && predicate(img);
       }
 
-      if (src.indexOf('data:') === 0) {
+      if (Strings.startsWith(src, 'data:')) {
         return predicate(img);
       }
 
@@ -133,35 +61,35 @@ export const ImageScanner = (uploadStatus: UploadStatus, blobCache: BlobCache): 
     });
 
     const promises = Arr.map(images, (img): Promise<BlobInfoImagePair> => {
-      if (cachedPromises[img.src] !== undefined) {
+      const imageSrc = img.src;
+
+      if (Obj.has(cachedPromises, imageSrc)) {
         // Since the cached promise will return the cached image
         // We need to wrap it and resolve with the actual image
-        return new Promise((resolve) => {
-          cachedPromises[img.src].then((imageInfo) => {
-            if (typeof imageInfo === 'string') { // error apparently
-              return imageInfo;
-            }
-            resolve({
+        return cachedPromises[imageSrc].then((imageInfo) => {
+          if (Type.isString(imageInfo)) { // error apparently
+            return imageInfo;
+          } else {
+            return {
               image: img,
               blobInfo: imageInfo.blobInfo
-            });
-          });
+            };
+          }
         });
+      } else {
+        const newPromise = imageToBlobInfo(blobCache, imageSrc)
+          .then((blobInfo) => {
+            delete cachedPromises[imageSrc];
+            return { image: img, blobInfo };
+          }).catch((error) => {
+            delete cachedPromises[imageSrc];
+            return error;
+          });
+
+        cachedPromises[imageSrc] = newPromise;
+
+        return newPromise;
       }
-
-      const newPromise = new Promise<BlobInfoImagePair>((resolve, reject) => {
-        imageToBlobInfo(blobCache, img, resolve, reject);
-      }).then((result) => {
-        delete cachedPromises[result.image.src];
-        return result;
-      }).catch((error) => {
-        delete cachedPromises[img.src];
-        return error;
-      });
-
-      cachedPromises[img.src] = newPromise;
-
-      return newPromise;
     });
 
     return Promise.all(promises);

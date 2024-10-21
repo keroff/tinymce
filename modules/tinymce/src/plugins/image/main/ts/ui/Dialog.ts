@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Merger, Optional, Strings, Type } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -12,7 +5,6 @@ import { BlobInfo } from 'tinymce/core/api/file/BlobCache';
 import { StyleMap } from 'tinymce/core/api/html/Styles';
 import { Dialog as DialogType } from 'tinymce/core/api/ui/Ui';
 import ImageUploader, { UploadResult } from 'tinymce/core/api/util/ImageUploader';
-import Promise from 'tinymce/core/api/util/Promise';
 
 import { getStyleValue, ImageData } from '../core/ImageData';
 import { normalizeCss as doNormalizeCss } from '../core/ImageSelection';
@@ -20,7 +12,7 @@ import { ListUtils } from '../core/ListUtils';
 import * as Utils from '../core/Utils';
 import { AdvTab } from './AdvTab';
 import { collect } from './DialogInfo';
-import { API, ImageDialogData, ImageDialogInfo, ListValue } from './DialogTypes';
+import { API, ImageDialogData, ImageDialogInfo, ImageMeta, ListValue } from './DialogTypes';
 import { MainTab } from './MainTab';
 import { UploadTab } from './UploadTab';
 
@@ -34,12 +26,11 @@ interface Size {
 }
 
 interface Helpers {
-  readonly onSubmit: (info: ImageDialogInfo) => (api: API) => void;
   readonly imageSize: (url: string) => Promise<Size>;
   readonly addToBlobCache: (blobInfo: BlobInfo) => void;
   readonly createBlobCache: (file: File, blobUri: string, dataUrl: string) => BlobInfo;
   readonly alertErr: (message: string) => void;
-  readonly normalizeCss: (cssText: string) => string;
+  readonly normalizeCss: (cssText: string | undefined) => string;
   readonly parseStyle: (cssText: string) => StyleMap;
   readonly serializeStyle: (stylesArg: StyleMap, name?: string) => string;
   readonly uploadImage: (blobInfo: BlobInfo) => Promise<UploadResult>;
@@ -47,7 +38,7 @@ interface Helpers {
 
 interface ImageDialogState {
   prevImage: Optional<ListValue>;
-  prevAlt: string;
+  prevAlt: string | null;
   open: boolean;
 }
 
@@ -82,7 +73,7 @@ const fromImageData = (image: ImageData): ImageDialogData => ({
 
 const toImageData = (data: ImageDialogData, removeEmptyAlt: boolean): ImageData => ({
   src: data.src.value,
-  alt: data.alt.length === 0 && removeEmptyAlt ? null : data.alt,
+  alt: (data.alt === null || data.alt.length === 0) && removeEmptyAlt ? null : data.alt,
   title: data.title,
   width: data.dimensions.width,
   height: data.dimensions.height,
@@ -116,7 +107,7 @@ const addPrependUrl = (info: ImageDialogInfo, api: API) => {
   });
 };
 
-const formFillFromMeta2 = (info: ImageDialogInfo, data: ImageDialogData, meta: ImageDialogData['src']['meta']): void => {
+const formFillFromMeta2 = (info: ImageDialogInfo, data: ImageDialogData, meta: ImageMeta): void => {
   if (info.hasDescription && Type.isString(meta.alt)) {
     data.alt = meta.alt;
   }
@@ -227,52 +218,6 @@ const changeImages = (helpers: Helpers, info: ImageDialogInfo, state: ImageDialo
   changeSrc(helpers, info, state, api);
 };
 
-const calcVSpace = (css: StyleMap): string => {
-  const matchingTopBottom = css['margin-top'] && css['margin-bottom'] && css['margin-top'] === css['margin-bottom'];
-  return matchingTopBottom ? Utils.removePixelSuffix(String(css['margin-top'])) : '';
-};
-
-const calcHSpace = (css: StyleMap): string => {
-  const matchingLeftRight = css['margin-right'] && css['margin-left'] && css['margin-right'] === css['margin-left'];
-  return matchingLeftRight ? Utils.removePixelSuffix(String(css['margin-right'])) : '';
-};
-
-const calcBorderWidth = (css: StyleMap): string =>
-  css['border-width'] ? Utils.removePixelSuffix(String(css['border-width'])) : '';
-
-const calcBorderStyle = (css: StyleMap): string =>
-  css['border-style'] ? String(css['border-style']) : '';
-
-const calcStyle = (parseStyle: Helpers['parseStyle'], serializeStyle: Helpers['serializeStyle'], css: StyleMap): string =>
-  serializeStyle(parseStyle(serializeStyle(css)));
-
-const changeStyle2 = (parseStyle: Helpers['parseStyle'], serializeStyle: Helpers['serializeStyle'], data: ImageDialogData): ImageDialogData => {
-  const css = Utils.mergeMargins(parseStyle(data.style));
-  const dataCopy: ImageDialogData = Merger.deepMerge({}, data);
-  // Move opposite equal margins to vspace/hspace field
-  dataCopy.vspace = calcVSpace(css);
-  dataCopy.hspace = calcHSpace(css);
-  // Move border-width
-  dataCopy.border = calcBorderWidth(css);
-  // Move border-style
-  dataCopy.borderstyle = calcBorderStyle(css);
-  // Reserialize style
-  dataCopy.style = calcStyle(parseStyle, serializeStyle, css);
-  return dataCopy;
-};
-
-const changeStyle = (helpers: Helpers, api: API): void => {
-  const data = api.getData();
-  const newData = changeStyle2(helpers.parseStyle, helpers.serializeStyle, data);
-  api.setData(newData);
-};
-
-const changeAStyle = (helpers: Helpers, info: ImageDialogInfo, api: API): void => {
-  const data: ImageDialogData = Merger.deepMerge(fromImageData(info.image), api.getData());
-  const style = getStyleValue(helpers.normalizeCss, toImageData(data, false));
-  api.setData({ style });
-};
-
 const changeFileInput = (helpers: Helpers, info: ImageDialogInfo, state: ImageDialogState, api: API): void => {
   const data = api.getData();
   api.block('Uploading image'); // What msg do we pass to the lock?
@@ -318,19 +263,10 @@ const changeHandler = (helpers: Helpers, info: ImageDialogInfo, state: ImageDial
     changeImages(helpers, info, state, api);
   } else if (evt.name === 'alt') {
     state.prevAlt = api.getData().alt;
-  } else if (evt.name === 'style') {
-    changeStyle(helpers, api);
-  } else if (evt.name === 'vspace' || evt.name === 'hspace' ||
-    evt.name === 'border' || evt.name === 'borderstyle') {
-    changeAStyle(helpers, info, api);
   } else if (evt.name === 'fileinput') {
     changeFileInput(helpers, info, state, api);
   } else if (evt.name === 'isDecorative') {
-    if (api.getData().isDecorative) {
-      api.disable('alt');
-    } else {
-      api.enable('alt');
-    }
+    api.setEnabled('alt', !api.getData().isDecorative);
   }
 };
 
@@ -358,36 +294,17 @@ const makeDialogBody = (info: ImageDialogInfo): DialogType.TabPanelSpec | Dialog
   }
 };
 
-const makeDialog = (helpers: Helpers) => (info: ImageDialogInfo): DialogType.DialogSpec<ImageDialogData> => {
-  const state = createState(info);
-  return {
-    title: 'Insert/Edit Image',
-    size: 'normal',
-    body: makeDialogBody(info),
-    buttons: [
-      {
-        type: 'cancel',
-        name: 'cancel',
-        text: 'Cancel'
-      },
-      {
-        type: 'submit',
-        name: 'save',
-        text: 'Save',
-        primary: true
-      }
-    ],
-    initialData: fromImageData(info.image),
-    onSubmit: helpers.onSubmit(info),
-    onChange: changeHandler(helpers, info, state),
-    onClose: closeHandler(state)
-  };
-};
-
-const submitHandler = (editor: Editor) => (info: ImageDialogInfo) => (api: API): void => {
+const submitHandler = (editor: Editor, info: ImageDialogInfo, helpers: Helpers) => (api: API): void => {
   const data: ImageDialogData = Merger.deepMerge(fromImageData(info.image), api.getData());
 
-  editor.execCommand('mceUpdateImage', false, toImageData(data, info.hasAccessibilityOptions));
+  // The data architecture relies on passing everything through the style field for validation.
+  // Since the style field was removed that process must be simulated on submit.
+  const finalData = {
+    ...data,
+    style: getStyleValue(helpers.normalizeCss, toImageData(data, false))
+  };
+
+  editor.execCommand('mceUpdateImage', false, toImageData(finalData, info.hasAccessibilityOptions));
   editor.editorUpload.uploadImagesAuto();
 
   api.close();
@@ -409,9 +326,9 @@ const createBlobCache = (editor: Editor) => (file: File, blobUri: string, dataUr
   editor.editorUpload.blobCache.create({
     blob: file,
     blobUri,
-    name: file.name ? file.name.replace(/\.[^\.]+$/, '') : null,
+    name: file.name?.replace(/\.[^\.]+$/, ''),
     filename: file.name,
-    base64: dataUrl.split(',')[ 1 ]
+    base64: dataUrl.split(',')[1]
   });
 
 const addToBlobCache = (editor: Editor) => (blobInfo: BlobInfo): void => {
@@ -422,7 +339,7 @@ const alertErr = (editor: Editor) => (message: string): void => {
   editor.windowManager.alert(message);
 };
 
-const normalizeCss = (editor: Editor) => (cssText: string): string =>
+const normalizeCss = (editor: Editor) => (cssText: string | undefined): string =>
   doNormalizeCss(editor, cssText);
 
 const parseStyle = (editor: Editor) => (cssText: string): StyleMap =>
@@ -436,7 +353,7 @@ const uploadImage = (editor: Editor) => (blobInfo: BlobInfo): Promise<UploadResu
     if (results.length === 0) {
       return Promise.reject('Failed to upload image');
     } else if (results[0].status === false) {
-      return Promise.reject(results[0].error.message);
+      return Promise.reject(results[0].error?.message);
     } else {
       return results[0];
     }
@@ -444,7 +361,6 @@ const uploadImage = (editor: Editor) => (blobInfo: BlobInfo): Promise<UploadResu
 
 export const Dialog = (editor: Editor): { open: () => void } => {
   const helpers: Helpers = {
-    onSubmit: submitHandler(editor),
     imageSize: imageSize(editor),
     addToBlobCache: addToBlobCache(editor),
     createBlobCache: createBlobCache(editor),
@@ -456,7 +372,31 @@ export const Dialog = (editor: Editor): { open: () => void } => {
   };
   const open = () => {
     collect(editor)
-      .then(makeDialog(helpers))
+      .then((info: ImageDialogInfo): DialogType.DialogSpec<ImageDialogData> => {
+        const state = createState(info);
+        return {
+          title: 'Insert/Edit Image',
+          size: 'normal',
+          body: makeDialogBody(info),
+          buttons: [
+            {
+              type: 'cancel',
+              name: 'cancel',
+              text: 'Cancel'
+            },
+            {
+              type: 'submit',
+              name: 'save',
+              text: 'Save',
+              primary: true
+            }
+          ],
+          initialData: fromImageData(info.image),
+          onSubmit: submitHandler(editor, info, helpers),
+          onChange: changeHandler(helpers, info, state),
+          onClose: closeHandler(state)
+        };
+      })
       .then(editor.windowManager.open);
   };
   return {

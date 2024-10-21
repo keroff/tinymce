@@ -1,6 +1,7 @@
-import { FieldPresence, FieldSchema, StructureSchema, ValueType } from '@ephox/boulder';
-import { Id, Optional, Result } from '@ephox/katamari';
+import { FieldSchema, StructureSchema } from '@ephox/boulder';
+import { Optional, Result } from '@ephox/katamari';
 
+import * as ComponentSchema from '../../core/ComponentSchema';
 import { DialogToggleMenuItem, dialogToggleMenuItemSchema, DialogToggleMenuItemSpec } from './ToggleMenuItem';
 
 export type DialogFooterMenuButtonItemSpec = DialogToggleMenuItemSpec;
@@ -10,9 +11,11 @@ export type DialogFooterToggleMenuItem = DialogToggleMenuItem;
 interface BaseDialogFooterButtonSpec {
   name?: string;
   align?: 'start' | 'end';
+  /** @deprecated use `buttonType: "primary"` instead */
   primary?: boolean;
-  disabled?: boolean;
+  enabled?: boolean;
   icon?: string;
+  buttonType?: 'primary' | 'secondary';
 }
 
 export interface DialogFooterNormalButtonSpec extends BaseDialogFooterButtonSpec {
@@ -28,14 +31,24 @@ export interface DialogFooterMenuButtonSpec extends BaseDialogFooterButtonSpec {
   items: DialogFooterMenuButtonItemSpec[];
 }
 
-export type DialogFooterButtonSpec = DialogFooterNormalButtonSpec | DialogFooterMenuButtonSpec;
+export interface DialogFooterToggleButtonSpec extends BaseDialogFooterButtonSpec {
+  type: 'togglebutton';
+  tooltip?: string;
+  icon?: string;
+  text?: string;
+  active?: boolean;
+}
+
+export type DialogFooterButtonSpec = DialogFooterNormalButtonSpec | DialogFooterMenuButtonSpec | DialogFooterToggleButtonSpec;
 
 interface BaseDialogFooterButton {
   name: string;
   align: 'start' | 'end';
+  /** @deprecated use `buttonType: "primary"` instead */
   primary: boolean;
-  disabled: boolean;
+  enabled: boolean;
   icon: Optional<string>;
+  buttonType: Optional<'primary' | 'secondary'>;
 }
 
 export interface DialogFooterNormalButton extends BaseDialogFooterButton {
@@ -51,24 +64,29 @@ export interface DialogFooterMenuButton extends BaseDialogFooterButton {
   items: DialogFooterToggleMenuItem[];
 }
 
-export type DialogFooterButton = DialogFooterNormalButton | DialogFooterMenuButton;
+export interface DialogFooterToggleButton extends BaseDialogFooterButton {
+  type: 'togglebutton';
+  tooltip: string;
+  text: Optional<string>;
+  active: boolean;
+}
+
+export type DialogFooterButton = DialogFooterNormalButton | DialogFooterMenuButton | DialogFooterToggleButton;
 
 const baseFooterButtonFields = [
-  FieldSchema.field(
-    'name',
-    'name',
-    FieldPresence.defaultedThunk(() => Id.generate('button-name')),
-    ValueType.string
-  ),
-  FieldSchema.optionString('icon'),
+  ComponentSchema.generatedName('button'),
+  ComponentSchema.optionalIcon,
   FieldSchema.defaultedStringEnum('align', 'end', [ 'start', 'end' ]),
-  FieldSchema.defaultedBoolean('primary', false),
-  FieldSchema.defaultedBoolean('disabled', false)
+  // this should be removed, but must live here because FieldSchema doesn't have a way to manage deprecated fields
+  ComponentSchema.primary,
+  ComponentSchema.enabled,
+  // this should be defaulted to `secondary` but the implementation needs to manage the deprecation
+  FieldSchema.optionStringEnum('buttonType', [ 'primary', 'secondary' ])
 ];
 
 export const dialogFooterButtonFields = [
   ...baseFooterButtonFields,
-  FieldSchema.requiredString('text')
+  ComponentSchema.text
 ];
 
 const normalFooterButtonFields = [
@@ -78,11 +96,20 @@ const normalFooterButtonFields = [
 
 const menuFooterButtonFields = [
   FieldSchema.requiredStringEnum('type', [ 'menu' ]),
-  FieldSchema.optionString('text'),
-  FieldSchema.optionString('tooltip'),
-  FieldSchema.optionString('icon'),
+  ComponentSchema.optionalText,
+  ComponentSchema.optionalTooltip,
+  ComponentSchema.optionalIcon,
   FieldSchema.requiredArrayOf('items', dialogToggleMenuItemSchema),
   ...baseFooterButtonFields
+];
+
+const toggleButtonSpecFields = [
+  ...baseFooterButtonFields,
+  FieldSchema.requiredStringEnum('type', [ 'togglebutton' ]),
+  FieldSchema.requiredString('tooltip'),
+  ComponentSchema.optionalIcon,
+  ComponentSchema.optionalText,
+  FieldSchema.defaultedBoolean('active', false)
 ];
 
 export const dialogFooterButtonSchema = StructureSchema.choose(
@@ -91,7 +118,8 @@ export const dialogFooterButtonSchema = StructureSchema.choose(
     submit: normalFooterButtonFields,
     cancel: normalFooterButtonFields,
     custom: normalFooterButtonFields,
-    menu: menuFooterButtonFields
+    menu: menuFooterButtonFields,
+    togglebutton: toggleButtonSpecFields
   }
 );
 

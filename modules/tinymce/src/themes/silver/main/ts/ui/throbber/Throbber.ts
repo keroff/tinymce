@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AlloyComponent, AlloySpec, Behaviour, Blocking, Composing, DomFactory, Replacing } from '@ephox/alloy';
+import { AlloyComponent, AlloySpec, Behaviour, Blocking, Composing, DomFactory, Replacing, SketchSpec } from '@ephox/alloy';
 import { Arr, Cell, Optional, Singleton, Type } from '@ephox/katamari';
 import { Attribute, Class, Css, Focus, SugarElement, SugarNode } from '@ephox/sugar';
 
@@ -15,6 +8,7 @@ import { ExecCommandEvent } from 'tinymce/core/api/EventTypes';
 import Delay from 'tinymce/core/api/util/Delay';
 import { EditorEvent } from 'tinymce/core/api/util/EventDispatcher';
 
+import * as Events from '../../api/Events';
 import { UiFactoryBackstageProviders, UiFactoryBackstageShared } from '../../backstage/Backstage';
 
 const getBusySpec = (providerBackstage: UiFactoryBackstageProviders) => (_root: AlloyComponent, _behaviours: Behaviour.AlloyBehaviourRecord): AlloySpec => ({
@@ -84,7 +78,7 @@ const toggleThrobber = (editor: Editor, comp: AlloyComponent, state: boolean, pr
   }
 };
 
-const renderThrobber = (spec): AlloySpec => ({
+const renderThrobber = (spec: SketchSpec): AlloySpec => ({
   uid: spec.uid,
   dom: {
     tag: 'div',
@@ -123,7 +117,7 @@ const isPasteBinTarget = (event: EditorEvent<ExecCommandEvent> | EventUtilsEvent
   }
 };
 
-const setup = (editor: Editor, lazyThrobber: () => AlloyComponent, sharedBackstage: UiFactoryBackstageShared) => {
+const setup = (editor: Editor, lazyThrobber: () => AlloyComponent, sharedBackstage: UiFactoryBackstageShared): void => {
   const throbberState = Cell<boolean>(false);
   const timer = Singleton.value<number>();
 
@@ -154,12 +148,12 @@ const setup = (editor: Editor, lazyThrobber: () => AlloyComponent, sharedBacksta
     if (state !== throbberState.get()) {
       throbberState.set(state);
       toggleThrobber(editor, lazyThrobber(), state, sharedBackstage.providers);
-      editor.fire('AfterProgressState', { state });
+      Events.fireAfterProgressState(editor, state);
     }
   };
 
   editor.on('ProgressState', (e) => {
-    timer.on(Delay.clearTimeout);
+    timer.on(clearTimeout);
     if (Type.isNumber(e.time)) {
       const timerId = Delay.setEditorTimeout(editor, () => toggle(e.state), e.time);
       timer.set(timerId);

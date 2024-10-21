@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Fun, Obj } from '@ephox/katamari';
 import { SugarElement, SugarNode } from '@ephox/sugar';
 
@@ -36,6 +29,8 @@ const listItems = [ 'li', 'dd', 'dt' ];
 const lists = [ 'ul', 'ol', 'dl' ];
 const wsElements = [ 'pre', 'script', 'textarea', 'style' ];
 
+const wrapBlockElements = [ 'pre' ].concat(headings);
+
 const lazyLookup = <T extends Node = HTMLElement>(items: string[]) => {
   let lookup: Record<string, boolean> | undefined;
   return (node: SugarElement<Node>): node is SugarElement<T> => {
@@ -56,6 +51,8 @@ const isVoid = lazyLookup(voids);
 const isTableSection = lazyLookup(tableSections);
 const isTableCell = lazyLookup<HTMLTableCellElement>(tableCells);
 const isWsPreserveElement = lazyLookup(wsElements);
+const isWrapBlockElement = lazyLookup(wrapBlockElements);
+const isWrapElement = (node: SugarElement<Node>): boolean => isWrapBlockElement(node) || isInline(node);
 
 export {
   isBlock,
@@ -69,5 +66,6 @@ export {
   isTableSection,
   isTableCell,
   isBr,
-  isWsPreserveElement
+  isWsPreserveElement,
+  isWrapElement
 };

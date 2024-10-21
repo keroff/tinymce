@@ -14,6 +14,10 @@ export interface ItemDataTuple {
   };
 }
 
+export interface ItemTogglingConfigSpec extends TogglingConfigSpec {
+  readonly exclusive?: boolean;
+}
+
 export type ItemSpec = WidgetItemSpec | SeparatorItemSpec | NormalItemSpec;
 
 export interface WidgetItemSpec {
@@ -56,8 +60,7 @@ export interface NormalItemSpec {
   data: ItemDataTuple;
   components?: AlloySpec[];
   dom: RawDomSchema;
-  // INVESTIGATE: this might not be right
-  toggling?: Partial<TogglingConfigSpec>;
+  toggling?: Partial<ItemTogglingConfigSpec>;
   itemBehaviours?: AlloyBehaviourRecord;
   ignoreFocus?: boolean;
   domModification?: DomModificationSpec;
@@ -69,8 +72,7 @@ export interface NormalItemDetail extends ItemDetail {
   data: ItemDataTuple;
   components: AlloySpec[];
   dom: RawDomSchema;
-  // INVESTIGATE: this might not be right
-  toggling: Optional<Partial<TogglingConfigSpec>>;
+  toggling: Optional<Partial<ItemTogglingConfigSpec>>;
   itemBehaviours: SketchBehaviours;
   ignoreFocus?: boolean;
   domModification: DomModification;

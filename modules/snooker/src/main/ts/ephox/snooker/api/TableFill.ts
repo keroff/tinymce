@@ -1,6 +1,7 @@
 import { Arr, Obj, Optional } from '@ephox/katamari';
 import { Attribute, Compare, Css, CursorPosition, Insert, Replication, SelectorFilter, SugarElement, SugarNode } from '@ephox/sugar';
 
+import { CellElement } from '../util/TableTypes';
 import { CellData, Generators, SimpleGenerators } from './Generators';
 
 const transferableAttributes: Record<string, string[]> = {
@@ -29,7 +30,7 @@ const createRow = (doc: SugarElement<Document>) => () => {
   return SugarElement.fromTag('tr', doc.dom);
 };
 
-const replace = <K extends keyof HTMLElementTagNameMap>(cell: SugarElement, tag: K, attrs: Record<string, string | number | boolean | null>) => {
+const replace = (cell: SugarElement<HTMLTableCellElement>, tag: 'td' | 'th', attrs: Record<string, string | number | boolean | null>) => {
   const replica = Replication.copy(cell, tag);
   // TODO: Snooker passes null to indicate 'remove attribute'
   Obj.each(attrs, (v, k) => {
@@ -43,12 +44,12 @@ const replace = <K extends keyof HTMLElementTagNameMap>(cell: SugarElement, tag:
 };
 
 // eslint-disable-next-line @tinymce/prefer-fun
-const pasteReplace = (cell: SugarElement) => {
+const pasteReplace = (cell: SugarElement<HTMLTableCellElement>) => {
   // TODO: check for empty content and don't return anything
   return cell;
 };
 
-const cloneFormats = (oldCell: SugarElement, newCell: SugarElement, formats: string[]) => {
+const cloneFormats = (oldCell: SugarElement<Element>, newCell: SugarElement<Element>, formats: string[]) => {
   const first = CursorPosition.first(oldCell);
   return first.map((firstText) => {
     const formatSelector = formats.join(',');
@@ -59,7 +60,6 @@ const cloneFormats = (oldCell: SugarElement, newCell: SugarElement, formats: str
     // Add the matched ancestors to the new cell, then return the new cell.
     return Arr.foldr(parents, (last, parent) => {
       const clonedFormat = Replication.shallow(parent);
-      Attribute.remove(clonedFormat, 'contenteditable');
       Insert.append(last, clonedFormat);
       return clonedFormat;
     }, newCell);
@@ -74,7 +74,7 @@ const cloneAppropriateAttributes = <T extends HTMLElement>(original: SugarElemen
   );
 };
 
-const cellOperations = (mutate: (e1: SugarElement, e2: SugarElement) => void, doc: SugarElement<Document>, formatsToClone: Optional<string[]>): Generators => {
+const cellOperations = (mutate: (e1: SugarElement<CellElement>, e2: SugarElement<CellElement>) => void, doc: SugarElement<Document>, formatsToClone: Optional<string[]>): Generators => {
   const cloneCss = <T extends HTMLElement> (prev: CellData, clone: SugarElement<T>) => {
     // inherit the style and width, dont inherit the row height
     Css.copy(prev.element, clone);

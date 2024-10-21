@@ -1,18 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Singleton } from '@ephox/katamari';
-import { PlatformDetection } from '@ephox/sand';
-import { SelectorFilter, SugarElement } from '@ephox/sugar';
+import { ContentEditable, SelectorFilter, SugarElement, Traverse } from '@ephox/sugar';
 
-import DomQuery from '../api/dom/DomQuery';
 import Editor from '../api/Editor';
-import * as Settings from '../api/Settings';
-import Delay from '../api/util/Delay';
+import Env from '../api/Env';
+import * as Options from '../api/Options';
 import * as NodeType from '../dom/NodeType';
 import * as ClientRect from '../geom/ClientRect';
 import * as CaretContainer from './CaretContainer';
@@ -33,8 +24,6 @@ interface CaretState {
   element: HTMLElement;
   before: boolean;
 }
-
-const browser = PlatformDetection.detect().browser;
 
 const isContentEditableFalse = NodeType.isContentEditableFalse;
 const isMedia = NodeType.isMedia;
@@ -86,7 +75,7 @@ const trimInlineCaretContainers = (root: HTMLElement): void => {
       const data = sibling.data;
 
       if (data.length === 1) {
-        sibling.parentNode.removeChild(sibling);
+        sibling.parentNode?.removeChild(sibling);
       } else {
         sibling.deleteData(data.length - 1, 1);
       }
@@ -97,7 +86,7 @@ const trimInlineCaretContainers = (root: HTMLElement): void => {
       const data = sibling.data;
 
       if (data.length === 1) {
-        sibling.parentNode.removeChild(sibling);
+        sibling.parentNode?.removeChild(sibling);
       } else {
         sibling.deleteData(0, 1);
       }
@@ -109,8 +98,8 @@ export const FakeCaret = (editor: Editor, root: HTMLElement, isBlock: (node: Nod
   const lastVisualCaret = Singleton.value<CaretState>();
   let cursorInterval: number | undefined;
   let caretContainerNode: Node | null;
-  const rootBlock = Settings.getForcedRootBlock(editor);
-  const caretBlock = rootBlock.length > 0 ? rootBlock : 'p';
+  const caretBlock = Options.getForcedRootBlock(editor);
+  const dom = editor.dom;
 
   const show = (before: boolean, element: Element): Range | null => {
     let rng: Range;
@@ -122,21 +111,24 @@ export const FakeCaret = (editor: Editor, root: HTMLElement, isBlock: (node: Nod
     }
 
     if (isBlock(element)) {
-      caretContainerNode = CaretContainer.insertBlock(caretBlock, element, before);
+      const caretContainer = CaretContainer.insertBlock(caretBlock, element, before);
       const clientRect = getAbsoluteClientRect(root, element, before);
-      DomQuery(caretContainerNode).css('top', clientRect.top);
+      dom.setStyle(caretContainer, 'top', clientRect.top);
+      caretContainerNode = caretContainer;
 
-      const caret = DomQuery<HTMLElement>('<div class="mce-visual-caret" data-mce-bogus="all"></div>').css({ ...clientRect }).appendTo(root)[0];
+      const caret = dom.create('div', { 'class': 'mce-visual-caret', 'data-mce-bogus': 'all' });
+      dom.setStyles(caret, { ...clientRect });
+      dom.add(root, caret);
       lastVisualCaret.set({ caret, element, before });
 
       if (before) {
-        DomQuery(caret).addClass('mce-visual-caret-before');
+        dom.addClass(caret, 'mce-visual-caret-before');
       }
       startBlink();
 
       rng = element.ownerDocument.createRange();
-      rng.setStart(caretContainerNode, 0);
-      rng.setEnd(caretContainerNode, 0);
+      rng.setStart(caretContainer, 0);
+      rng.setEnd(caretContainer, 0);
     } else {
       caretContainerNode = CaretContainer.insertInline(element, before);
       rng = element.ownerDocument.createRange();
@@ -166,34 +158,36 @@ export const FakeCaret = (editor: Editor, root: HTMLElement, isBlock: (node: Nod
     }
 
     lastVisualCaret.on((caretState) => {
-      DomQuery(caretState.caret).remove();
+      dom.remove(caretState.caret);
       lastVisualCaret.clear();
     });
 
     if (cursorInterval) {
-      Delay.clearInterval(cursorInterval);
+      clearInterval(cursorInterval);
       cursorInterval = undefined;
     }
   };
 
   const startBlink = () => {
-    cursorInterval = Delay.setInterval(() => {
-      if (hasFocus()) {
-        DomQuery('div.mce-visual-caret', root).toggleClass('mce-visual-caret-hidden');
-      } else {
-        DomQuery('div.mce-visual-caret', root).addClass('mce-visual-caret-hidden');
-      }
+    cursorInterval = setInterval(() => {
+      lastVisualCaret.on((caretState) => {
+        if (hasFocus()) {
+          dom.toggleClass(caretState.caret, 'mce-visual-caret-hidden');
+        } else {
+          dom.addClass(caretState.caret, 'mce-visual-caret-hidden');
+        }
+      });
     }, 500);
   };
 
   const reposition = () => {
     lastVisualCaret.on((caretState) => {
       const clientRect = getAbsoluteClientRect(root, caretState.element, caretState.before);
-      DomQuery(caretState.caret).css({ ...clientRect });
+      dom.setStyles(caretState.caret, { ...clientRect });
     });
   };
 
-  const destroy = () => Delay.clearInterval(cursorInterval);
+  const destroy = () => clearInterval(cursorInterval);
 
   const getCss = () => (
     '.mce-visual-caret {' +
@@ -224,10 +218,12 @@ export const FakeCaret = (editor: Editor, root: HTMLElement, isBlock: (node: Nod
   };
 };
 
-export const isFakeCaretTableBrowser = (): boolean => browser.isIE() || browser.isEdge() || browser.isFirefox();
+export const isFakeCaretTableBrowser = (): boolean => Env.browser.isFirefox();
 
-export const isInlineFakeCaretTarget = (node: Node): node is HTMLElement =>
+export const isInlineFakeCaretTarget = (node: Node | undefined | null): node is HTMLElement =>
   isContentEditableFalse(node) || isMedia(node);
 
-export const isFakeCaretTarget = (node: Node): node is HTMLElement =>
-  isInlineFakeCaretTarget(node) || (NodeType.isTable(node) && isFakeCaretTableBrowser());
+export const isFakeCaretTarget = (node: Node | undefined | null): node is HTMLElement => {
+  const isTarget = isInlineFakeCaretTarget(node) || (NodeType.isTable(node) && isFakeCaretTableBrowser());
+  return isTarget && Traverse.parentElement(SugarElement.fromDom(node)).exists(ContentEditable.isEditable);
+};

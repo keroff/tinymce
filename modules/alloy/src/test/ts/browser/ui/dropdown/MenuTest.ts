@@ -5,6 +5,7 @@ import { SugarElement } from '@ephox/sugar';
 
 import * as AddEventsBehaviour from 'ephox/alloy/api/behaviour/AddEventsBehaviour';
 import * as Behaviour from 'ephox/alloy/api/behaviour/Behaviour';
+import { Representing } from 'ephox/alloy/api/behaviour/Representing';
 import * as GuiFactory from 'ephox/alloy/api/component/GuiFactory';
 import * as AlloyEvents from 'ephox/alloy/api/events/AlloyEvents';
 import * as AlloyTriggers from 'ephox/alloy/api/events/AlloyTriggers';
@@ -36,6 +37,18 @@ UnitTest.asynctest('MenuTest', (success, failure) => {
         selectedItem: TestDropdownMenu.markers().selectedItem
       },
 
+      onHighlight: (_menuComp, itemComp) => {
+        store.adder(
+          `onHighlight: ${Representing.getValue(itemComp).value}`
+        )();
+      },
+
+      onDehighlight: (_menuComp, itemComp) => {
+        store.adder(
+          `onDehighlight: ${Representing.getValue(itemComp).value}`
+        )();
+      },
+
       menuBehaviours: Behaviour.derive([
         AddEventsBehaviour.config('menu-test-behaviour', [
           AlloyEvents.run(MenuEvents.focus(), store.adder('menu.events.focus'))
@@ -44,11 +57,11 @@ UnitTest.asynctest('MenuTest', (success, failure) => {
     })
   ), (_doc, _body, _gui, component, store) => {
     // TODO: Flesh out test.
-    const cAssertStructure = (label: string, expected: StructAssert) => Chain.op((element: SugarElement) => {
+    const cAssertStructure = (label: string, expected: StructAssert) => Chain.op((element: SugarElement<HTMLOListElement>) => {
       Assertions.assertStructure(label, expected, element);
     });
 
-    const cTriggerFocusItem = Chain.op((target: SugarElement) => {
+    const cTriggerFocusItem = Chain.op((target: SugarElement<HTMLLIElement>) => {
       AlloyTriggers.dispatch(component, target, SystemEvents.focusItem());
     });
 
@@ -81,7 +94,10 @@ UnitTest.asynctest('MenuTest', (success, failure) => {
             ]
           }))), '_'),
 
-          NamedChain.read('menu', cAssertStore('After focusItem event (alpha)', [ 'menu.events.focus' ])),
+          NamedChain.read('menu', cAssertStore('After focusItem event (alpha)', [
+            'onHighlight: alpha',
+            'menu.events.focus'
+          ])),
 
           NamedChain.read('menu', cClearStore),
           NamedChain.direct('beta', cTriggerFocusItem, '_'),
@@ -94,7 +110,13 @@ UnitTest.asynctest('MenuTest', (success, failure) => {
               s.element('li', { classes: [ arr.has('selected-item') ] })
             ]
           }))), '_'),
-          NamedChain.read('menu', cAssertStore('After focusItem event (beta)', [ 'menu.events.focus' ])),
+
+          // Beta is now highlighted, and Alpha is dehighlighted.
+          NamedChain.read('menu', cAssertStore('After focusItem event (beta)', [
+            'onDehighlight: alpha',
+            'onHighlight: beta',
+            'menu.events.focus',
+          ])),
           NamedChain.read('menu', cClearStore)
 
         ])

@@ -1,46 +1,47 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AlloyComponent, Boxes, Channels, Docking, VerticalDir } from '@ephox/alloy';
-import { Cell, Fun, Optional } from '@ephox/katamari';
-import { Attribute, Css, Height, SugarBody, SugarElement, SugarLocation, Traverse, Width } from '@ephox/sugar';
+import { AlloyComponent, Boxes, Channels, Docking, OffsetOrigin, VerticalDir } from '@ephox/alloy';
+import { Arr, Cell, Fun, Optional, Singleton } from '@ephox/katamari';
+import { Attribute, Compare, Css, Height, Scroll, SugarBody, SugarElement, SugarLocation, Traverse, Width } from '@ephox/sugar';
 
 import DOMUtils from 'tinymce/core/api/dom/DOMUtils';
 import Editor from 'tinymce/core/api/Editor';
 
-import {
-  getMaxWidthSetting, getToolbarLocation, getToolbarMode, isStickyToolbar, ToolbarLocation, ToolbarMode, useFixedContainer
-} from '../../api/Settings';
+import * as Options from '../../api/Options';
 import { UiFactoryBackstage } from '../../backstage/Backstage';
-import { RenderUiComponents } from '../../Render';
+import { ReadyUiReferences } from '../../modes/UiReferences';
 import OuterContainer from '../general/OuterContainer';
 import * as EditorSize from '../sizing/EditorSize';
 import * as Utils from '../sizing/Utils';
 
 export interface InlineHeader {
-  isVisible: () => boolean;
-  isPositionedAtTop: () => boolean;
-  show: () => void;
-  hide: () => void;
-  update: (resetDocking?: boolean) => void;
-  updateMode: () => void;
-  repositionPopups: () => void;
+  readonly isVisible: () => boolean;
+  readonly isPositionedAtTop: () => boolean;
+  readonly show: () => void;
+  readonly hide: () => void;
+  readonly update: (stickyAction: (c: AlloyComponent) => void) => void;
+  readonly updateMode: () => void;
+  readonly repositionPopups: () => void;
 }
 
-export const InlineHeader = (editor: Editor, targetElm: SugarElement, uiComponents: RenderUiComponents, backstage: UiFactoryBackstage, floatContainer: Cell<AlloyComponent>): InlineHeader => {
-  const { uiMothership, outerContainer } = uiComponents;
+const { ToolbarLocation, ToolbarMode } = Options;
+
+const maximumDistanceToEdge = 40;
+
+export const InlineHeader = (
+  editor: Editor,
+  targetElm: SugarElement<HTMLElement>,
+  uiRefs: ReadyUiReferences,
+  backstage: UiFactoryBackstage,
+  floatContainer: Singleton.Value<AlloyComponent>
+): InlineHeader => {
+  const { mainUi, uiMotherships } = uiRefs;
   const DOM = DOMUtils.DOM;
-  const useFixedToolbarContainer = useFixedContainer(editor);
-  const isSticky = isStickyToolbar(editor);
-  const editorMaxWidthOpt = getMaxWidthSetting(editor).or(EditorSize.getWidth(editor));
+  const useFixedToolbarContainer = Options.useFixedContainer(editor);
+  const isSticky = Options.isStickyToolbar(editor);
+  const editorMaxWidthOpt = Options.getMaxWidthOption(editor).or(EditorSize.getWidth(editor));
   const headerBackstage = backstage.shared.header;
   const isPositionedAtTop = headerBackstage.isPositionedAtTop;
 
-  const toolbarMode = getToolbarMode(editor);
+  const toolbarMode = Options.getToolbarMode(editor);
   const isSplitToolbar = toolbarMode === ToolbarMode.sliding || toolbarMode === ToolbarMode.floating;
 
   const visible = Cell(false);
@@ -55,9 +56,9 @@ export const InlineHeader = (editor: Editor, targetElm: SugarElement, uiComponen
     ) : 0;
 
   const calcMode = (container: AlloyComponent): 'top' | 'bottom' => {
-    switch (getToolbarLocation(editor)) {
+    switch (Options.getToolbarLocation(editor)) {
       case ToolbarLocation.auto:
-        const toolbar = OuterContainer.getToolbar(outerContainer);
+        const toolbar = OuterContainer.getToolbar(mainUi.outerContainer);
         const offset = calcToolbarOffset(toolbar);
         const toolbarHeight = Height.get(container.element) - offset;
         const targetBounds = Boxes.box(targetElm);
@@ -93,48 +94,152 @@ export const InlineHeader = (editor: Editor, targetElm: SugarElement, uiComponen
 
   const setupMode = (mode: 'top' | 'bottom') => {
     // Update the docking mode
-    const container = floatContainer.get();
-    Docking.setModes(container, [ mode ]);
-    headerBackstage.setDockingMode(mode);
+    floatContainer.on((container) => {
+      Docking.setModes(container, [ mode ]);
+      headerBackstage.setDockingMode(mode);
 
-    // Update the vertical menu direction
-    const verticalDir = isPositionedAtTop() ? VerticalDir.AttributeValue.TopToBottom : VerticalDir.AttributeValue.BottomToTop;
-    Attribute.set(container.element, VerticalDir.Attribute, verticalDir);
+      // Update the vertical menu direction
+      const verticalDir = isPositionedAtTop() ? VerticalDir.AttributeValue.TopToBottom : VerticalDir.AttributeValue.BottomToTop;
+      Attribute.set(container.element, VerticalDir.Attribute, verticalDir);
+    });
   };
 
   const updateChromeWidth = () => {
-    // Update the max width of the inline toolbar
-    const maxWidth = editorMaxWidthOpt.getOrThunk(() => {
-      // No max width, so use the body width, minus the left pos as the maximum
-      const bodyMargin = Utils.parseToInt(Css.get(SugarBody.body(), 'margin-left')).getOr(0);
-      return Width.get(SugarBody.body()) - SugarLocation.absolute(targetElm).left + bodyMargin;
-    });
-    Css.set(floatContainer.get().element, 'max-width', maxWidth + 'px');
-  };
-
-  const updateChromePosition = () => {
-    const toolbar = OuterContainer.getToolbar(outerContainer);
-    const offset = calcToolbarOffset(toolbar);
-
-    // The float container/editor may not have been rendered yet, which will cause it to have a non integer based positions
-    // so we need to round this to account for that.
-    const targetBounds = Boxes.box(targetElm);
-    const top = isPositionedAtTop() ?
-      Math.max(targetBounds.y - Height.get(floatContainer.get().element) + offset, 0) :
-      targetBounds.bottom;
-
-    Css.setAll(outerContainer.element, {
-      position: 'absolute',
-      top: Math.round(top) + 'px',
-      left: Math.round(targetBounds.x) + 'px'
+    floatContainer.on((container) => {
+      // Update the max width of the inline toolbar
+      const maxWidth = editorMaxWidthOpt.getOrThunk(() => {
+        // No max width, so use the body width, minus the left pos as the maximum
+        const bodyMargin = Utils.parseToInt(Css.get(SugarBody.body(), 'margin-left')).getOr(0);
+        return Width.get(SugarBody.body()) - SugarLocation.absolute(targetElm).left + bodyMargin;
+      });
+      Css.set(container.element, 'max-width', maxWidth + 'px');
     });
   };
+
+  const updateChromePosition = (optToolbarWidth: Optional<number>) => {
+    floatContainer.on((container) => {
+      const toolbar = OuterContainer.getToolbar(mainUi.outerContainer);
+      const offset = calcToolbarOffset(toolbar);
+
+      // The float container/editor may not have been rendered yet, which will cause it to have a non integer based positions
+      // so we need to round this to account for that.
+
+      const targetBounds = Boxes.box(targetElm);
+      const { top, left } = getOffsetParent(editor, mainUi.outerContainer.element).fold(
+        () => {
+          return {
+            top: isPositionedAtTop()
+              ? Math.max(targetBounds.y - Height.get(container.element) + offset, 0)
+              : targetBounds.bottom,
+            left: targetBounds.x,
+          };
+        },
+        (offsetParent) => {
+          // Because for ui_mode: split, the main mothership (which includes the toolbar) is moved and added as a sibling
+          // If there's any relative position div set as the parent and the offsetParent is no longer the body,
+          // the absolute top/left positions would no longer be correct
+          // When there's a relative div and the position is the same as the toolbar container
+          // then it would produce a negative top as it needs to be positioned on top of the offsetParent
+          const offsetBox = Boxes.box(offsetParent);
+          const scrollDelta = offsetParent.dom.scrollTop ?? 0;
+
+          const isOffsetParentBody = Compare.eq(offsetParent, SugarBody.body());
+          const topValue = isOffsetParentBody
+            ? Math.max(targetBounds.y - Height.get(container.element) + offset, 0)
+            : targetBounds.y - offsetBox.y + scrollDelta - Height.get(container.element) + offset;
+
+          return {
+            top: isPositionedAtTop()
+              ? topValue
+              : targetBounds.bottom,
+            left: isOffsetParentBody
+              ? targetBounds.x
+              : targetBounds.x - offsetBox.x
+          };
+        }
+      );
+
+      const baseProperties = {
+        position: 'absolute',
+        left: Math.round(left) + 'px',
+        top: Math.round(top) + 'px'
+      };
+
+      const widthProperties = optToolbarWidth.map(
+        (toolbarWidth: number) => {
+          const scroll = Scroll.get();
+
+          /*
+          As the editor container can wrap its elements (due to flex-wrap), the width of the container impacts also its height. Adding a minimum width works around two problems:
+
+          a) The docking behaviour (e.g. lazyContext) does not handle the situation of a very thin component near the edge of the screen very well, and actually has no concept of horizontal scroll - it only checks y values.
+
+          b) A very small toolbar is essentially unusable. On scrolling of X, we keep updating the width of the toolbar so that it can grow to fit the available space.
+
+          Note: this is entirely determined on the number of items in the menu and the toolbar, because when they wrap, that's what causes the height. Also, having multiple toolbars can also make it higher.
+          */
+          const minimumToolbarWidth = 150; // Value is arbitrary.
+
+          const availableWidth = window.innerWidth - (left - scroll.left);
+
+          const width = Math.max(
+            Math.min(
+              toolbarWidth,
+              availableWidth
+            ),
+            minimumToolbarWidth
+          );
+
+          return {
+            width: width + 'px'
+          };
+        }
+      ).getOr({ });
+
+      Css.setAll(mainUi.outerContainer.element, {
+        ...baseProperties,
+        ...widthProperties
+      });
+    });
+  };
+
+  // This would return Optional.none, for ui_mode: combined, which will fallback to the default code block
+  // For ui_mode: split, the offsetParent would be the body if there were no relative div set as parent
+  const getOffsetParent = (editor: Editor, element: SugarElement<HTMLElement>) => Options.isSplitUiMode(editor) ? OffsetOrigin.getOffsetParent(element) : Optional.none();
 
   const repositionPopups = () => {
-    uiMothership.broadcastOn([ Channels.repositionPopups() ], { });
+    Arr.each(uiMotherships, (m) => {
+      m.broadcastOn([ Channels.repositionPopups() ], { });
+    });
   };
 
-  const updateChromeUi = (resetDocking: boolean = false) => {
+  const restoreAndGetCompleteOuterContainerWidth = (): Optional<number> => {
+    /*
+    Editors can be placed so far to the right that their left position is beyond the window width. This causes problems with flex-wrap. To solve this, set a width style on the container.
+    Natural width of the container needs to be calculated first.
+    */
+    if (!useFixedToolbarContainer) {
+      const toolbarCurrentRightsidePosition = SugarLocation.absolute(mainUi.outerContainer.element).left + Width.getOuter(mainUi.outerContainer.element);
+
+      /*
+      Check the width if we are within X number of pixels to the edge ( or above ). Also check if we have the width-value set.
+      This helps handling the issue where it goes from having a width set ( because it's too wide ) to going so far from the edge it no longer triggers the problem. Common when the width is changed by test.
+      */
+      if (toolbarCurrentRightsidePosition >= window.innerWidth - maximumDistanceToEdge || Css.getRaw(mainUi.outerContainer.element, 'width').isSome()) {
+        Css.set(mainUi.outerContainer.element, 'position', 'absolute');
+        Css.set(mainUi.outerContainer.element, 'left', '0px');
+        Css.remove(mainUi.outerContainer.element, 'width');
+        const w = Width.getOuter(mainUi.outerContainer.element);
+        return Optional.some(w);
+      } else {
+        return Optional.none();
+      }
+    } else {
+      return Optional.none();
+    }
+  };
+
+  const update = (stickyAction: (c: AlloyComponent) => void) => {
     // Skip updating the ui if it's hidden
     if (!isVisible()) {
       return;
@@ -151,59 +256,98 @@ export const InlineHeader = (editor: Editor, targetElm: SugarElement, uiComponen
       updateChromeWidth();
     }
 
-    // Refresh split toolbar
+    // This width can be used for calculating the "width" when resolving issues with flex-wrapping being triggered at the window width, despite scroll space being available to the right.
+    const optToolbarWidth: Optional<number> = useFixedToolbarContainer ? Optional.none() : restoreAndGetCompleteOuterContainerWidth();
+
+    /*
+      Refresh split toolbar. Before calling refresh, we need to make sure that we have the full width (through restoreAndGet.. above), otherwise too much will be put in the overflow drawer.
+      A split toolbar requires a calculation to see what ends up in the "more drawer". When we don't have a split toolbar, then there is no reason to refresh the toolbar when the size changes.
+    */
     if (isSplitToolbar) {
-      OuterContainer.refreshToolbar(outerContainer);
+      OuterContainer.refreshToolbar(mainUi.outerContainer);
     }
 
     // Positioning
     if (!useFixedToolbarContainer) {
-      updateChromePosition();
+      // This will position the container in the right spot.
+      updateChromePosition(optToolbarWidth);
     }
 
     // Docking
     if (isSticky) {
-      const floatContainerComp = floatContainer.get();
-      resetDocking ? Docking.reset(floatContainerComp) : Docking.refresh(floatContainerComp);
+      floatContainer.on(stickyAction);
     }
 
     // Floating toolbar
     repositionPopups();
   };
 
-  const updateMode = (updateUi: boolean = true) => {
+  const doUpdateMode = (): boolean => {
     // Skip updating the mode if the toolbar is hidden, is
     // using a fixed container or has sticky toolbars disabled
     if (useFixedToolbarContainer || !isSticky || !isVisible()) {
-      return;
+      return false;
     }
 
-    const currentMode = headerBackstage.getDockingMode();
-    const newMode = calcMode(floatContainer.get());
-    if (newMode !== currentMode) {
-      setupMode(newMode);
-      if (updateUi) {
-        updateChromeUi(true);
+    return floatContainer.get().exists(
+      (fc) => {
+        const currentMode = headerBackstage.getDockingMode();
+        const newMode = calcMode(fc);
+        // Note: the docking mode will only be able to change when the `toolbar_location`
+        // is set to "auto".
+        if (newMode !== currentMode) {
+          setupMode(newMode);
+          return true;
+        } else {
+          return false;
+        }
       }
-    }
+    );
   };
 
   const show = () => {
     visible.set(true);
-    Css.set(outerContainer.element, 'display', 'flex');
+    Css.set(mainUi.outerContainer.element, 'display', 'flex');
     DOM.addClass(editor.getBody(), 'mce-edit-focus');
-    Css.remove(uiMothership.element, 'display');
-    updateMode(false);
-    updateChromeUi();
+    Arr.each(uiMotherships, (m) => {
+      // We remove the display style when showing, because when hiding, we set it to "none"
+      Css.remove(m.element, 'display');
+    });
+    doUpdateMode();
+
+    if (Options.isSplitUiMode(editor)) {
+      // When the toolbar is shown, then hidden and when the page is then scrolled,
+      // the toolbar is set to docked, which shouldn't be as it should be static position
+      // calling reset here, to reset the state.
+      // Another case would be when the toolbar is shown initially (with location_bottom)
+      // we don't want to dock the toolbar, calling Docking.refresh
+      update((elem) => Docking.isDocked(elem) ? Docking.reset(elem) : Docking.refresh(elem));
+    } else {
+      // Even if we aren't updating the docking mode, we still want to reposition
+      // the Ui. NOTE: We are using Docking.refresh here, rather than Docking.reset. This
+      // means it should keep whatever its "previous" coordinates were, and will just
+      // behave like the window was scrolled again, and Docking needs to work out if it
+      // is going to dock / undock
+      update(Docking.refresh);
+    }
   };
 
   const hide = () => {
     visible.set(false);
-    if (uiComponents.outerContainer) {
-      Css.set(outerContainer.element, 'display', 'none');
-      DOM.removeClass(editor.getBody(), 'mce-edit-focus');
+    Css.set(mainUi.outerContainer.element, 'display', 'none');
+    DOM.removeClass(editor.getBody(), 'mce-edit-focus');
+    Arr.each(uiMotherships, (m) => {
+      Css.set(m.element, 'display', 'none');
+    });
+  };
+
+  const updateMode = () => {
+    const changedMode = doUpdateMode();
+    // If the docking mode has changed due to the update, we want to reset
+    // docking. This will clear any prior stored positions
+    if (changedMode) {
+      update(Docking.reset);
     }
-    Css.set(uiMothership.element, 'display', 'none');
   };
 
   return {
@@ -211,7 +355,7 @@ export const InlineHeader = (editor: Editor, targetElm: SugarElement, uiComponen
     isPositionedAtTop,
     show,
     hide,
-    update: updateChromeUi,
+    update,
     updateMode,
     repositionPopups
   };

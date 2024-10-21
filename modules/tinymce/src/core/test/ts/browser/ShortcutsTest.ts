@@ -1,24 +1,24 @@
 import { describe, it } from '@ephox/bedrock-client';
+import { PlatformDetection } from '@ephox/sand';
 import { TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Env from 'tinymce/core/api/Env';
 import Tools from 'tinymce/core/api/util/Tools';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.ShortcutsTest', () => {
+  const os = PlatformDetection.detect().os;
   const hook = TinyHooks.bddSetupLight<Editor>({
     add_unload_trigger: false,
     disable_nodechange: true,
     indent: false,
     entities: 'raw',
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ]);
+  }, []);
 
   it('Shortcuts formats', () => {
     const editor = hook.editor();
-    const assertShortcut = (shortcut: string, args, assertState: boolean) => {
+    const assertShortcut = (shortcut: string, args: Partial<KeyboardEvent>, assertState: boolean) => {
       let called = false;
 
       editor.shortcuts.add(shortcut, '', () => {
@@ -32,7 +32,7 @@ describe('browser.tinymce.core.ShortcutsTest', () => {
         metaKey: false
       }, args);
 
-      editor.fire('keydown', args);
+      editor.dispatch('keydown', args as KeyboardEvent);
 
       if (assertState) {
         assert.isTrue(called, `Shortcut wasn't called: ` + shortcut);
@@ -44,7 +44,7 @@ describe('browser.tinymce.core.ShortcutsTest', () => {
     assertShortcut('ctrl+d', { ctrlKey: true, keyCode: 68 }, true);
     assertShortcut('ctrl+d', { altKey: true, keyCode: 68 }, false);
 
-    if (Env.mac) {
+    if (os.isMacOS() || os.isiOS()) {
       assertShortcut('meta+d', { metaKey: true, keyCode: 68 }, true);
       assertShortcut('access+d', { ctrlKey: true, altKey: true, keyCode: 68 }, true);
       assertShortcut('meta+d', { ctrlKey: true, keyCode: 68 }, false);
@@ -91,12 +91,12 @@ describe('browser.tinymce.core.ShortcutsTest', () => {
         called = true;
       });
 
-      editor.fire('keydown', eventArgs() as KeyboardEvent);
+      editor.dispatch('keydown', eventArgs() as KeyboardEvent);
       assert.isTrue(called, `Shortcut wasn't called when it should have been.`);
 
       called = false;
       editor.shortcuts.remove(pattern);
-      editor.fire('keydown', eventArgs() as KeyboardEvent);
+      editor.dispatch('keydown', eventArgs() as KeyboardEvent);
       assert.isFalse(called, `Shortcut was called when it shouldn't.`);
     };
 

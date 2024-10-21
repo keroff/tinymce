@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Disabling, Toggling } from '@ephox/alloy';
+import { AlloyComponent, Disabling, ItemTypes, Toggling } from '@ephox/alloy';
 import { Menu, Toolbar } from '@ephox/bridge';
 import { Fun, Merger, Optional } from '@ephox/katamari';
 
@@ -22,17 +15,18 @@ const renderChoiceItem = (
   useText: boolean,
   presets: Toolbar.PresetItemTypes,
   onItemValueHandler: (itemValue: string) => void,
-  isSelected: boolean, itemResponse: ItemResponse,
+  isSelected: boolean,
+  itemResponse: ItemResponse,
   providersBackstage: UiFactoryBackstageProviders,
   renderIcons: boolean = true
-) => {
-  const getApi = (component): Menu.ToggleMenuItemInstanceApi => ({
+): ItemTypes.ItemSpec => {
+  const getApi = (component: AlloyComponent): Menu.ToggleMenuItemInstanceApi => ({
     setActive: (state) => {
       Toggling.set(component, state);
     },
     isActive: () => Toggling.isOn(component),
-    isDisabled: () => Disabling.isDisabled(component),
-    setDisabled: (state: boolean) => Disabling.set(component, state)
+    isEnabled: () => !Disabling.isDisabled(component),
+    setEnabled: (state) => Disabling.set(component, !state)
   });
 
   const structure = renderItemStructure({
@@ -54,7 +48,7 @@ const renderChoiceItem = (
   return Merger.deepMerge(
     renderCommonItem({
       data: buildData(spec),
-      disabled: spec.disabled,
+      enabled: spec.enabled,
       getApi,
       onAction: (_api) => onItemValueHandler(spec.value),
       onSetup: (api) => {
@@ -68,7 +62,8 @@ const renderChoiceItem = (
       toggling: {
         toggleClass: ItemClasses.tickedClass,
         toggleOnExecute: false,
-        selected: spec.active
+        selected: spec.active,
+        exclusive: true
       }
     }
   );

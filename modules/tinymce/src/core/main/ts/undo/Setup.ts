@@ -1,13 +1,7 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Cell } from '@ephox/katamari';
 
 import Editor from '../api/Editor';
+import Env from '../api/Env';
 import { EditorEvent } from '../api/util/EventDispatcher';
 import * as Levels from './Levels';
 import { endTyping, setTyping } from './TypingState';
@@ -19,7 +13,6 @@ const shouldIgnoreCommand = (cmd: string): boolean => {
   switch (cmd.toLowerCase()) {
     case 'undo':
     case 'redo':
-    case 'mcerepaint':
     case 'mcefocus':
       return true;
     default:
@@ -27,12 +20,12 @@ const shouldIgnoreCommand = (cmd: string): boolean => {
   }
 };
 
-export const registerEvents = (editor: Editor, undoManager: UndoManager, locks: Locks) => {
+export const registerEvents = (editor: Editor, undoManager: UndoManager, locks: Locks): void => {
   const isFirstTypedCharacter = Cell(false);
 
-  const addNonTypingUndoLevel = (e?) => {
+  const addNonTypingUndoLevel = (e?: EditorEvent<any>) => {
     setTyping(undoManager, false, locks);
-    undoManager.add({} as UndoLevel, e);
+    undoManager.add({}, e);
   };
 
   // Add initial undo level when the editor is initialized
@@ -75,7 +68,9 @@ export const registerEvents = (editor: Editor, undoManager: UndoManager, locks: 
       return;
     }
 
-    if ((keyCode >= 33 && keyCode <= 36) || (keyCode >= 37 && keyCode <= 40) || keyCode === 45 || e.ctrlKey) {
+    const isMeta = Env.os.isMacOS() && e.key === 'Meta';
+
+    if ((keyCode >= 33 && keyCode <= 36) || (keyCode >= 37 && keyCode <= 40) || keyCode === 45 || e.ctrlKey || isMeta) {
       addNonTypingUndoLevel();
       editor.nodeChanged();
     }
@@ -84,14 +79,13 @@ export const registerEvents = (editor: Editor, undoManager: UndoManager, locks: 
       editor.nodeChanged();
     }
 
-    // Fire a TypingUndo/Change event on the first character entered
-    if (isFirstTypedCharacter.get() && undoManager.typing && Levels.isEq(Levels.createFromEditor(editor), undoManager.data[0]) === false) {
-      if (editor.isDirty() === false) {
+    // Fire a TypingUndo event on the first character entered
+    if (isFirstTypedCharacter.get() && undoManager.typing && !Levels.isEq(Levels.createFromEditor(editor), undoManager.data[0])) {
+      if (!editor.isDirty()) {
         editor.setDirty(true);
-        editor.fire('change', { level: undoManager.data[0], lastLevel: null });
       }
 
-      editor.fire('TypingUndo');
+      editor.dispatch('TypingUndo');
       isFirstTypedCharacter.set(false);
       editor.nodeChanged();
     }
@@ -122,6 +116,12 @@ export const registerEvents = (editor: Editor, undoManager: UndoManager, locks: 
       setTyping(undoManager, true, locks);
       undoManager.add({} as UndoLevel, e);
       isFirstTypedCharacter.set(true);
+      return;
+    }
+
+    const hasOnlyMetaOrCtrlModifier = Env.os.isMacOS() ? e.metaKey : e.ctrlKey && !e.altKey;
+    if (hasOnlyMetaOrCtrlModifier) {
+      undoManager.beforeChange();
     }
   });
 
@@ -151,7 +151,7 @@ export const registerEvents = (editor: Editor, undoManager: UndoManager, locks: 
   });
 };
 
-export const addKeyboardShortcuts = (editor: Editor) => {
+export const addKeyboardShortcuts = (editor: Editor): void => {
   editor.addShortcut('meta+z', '', 'Undo');
   editor.addShortcut('meta+y,meta+shift+z', '', 'Redo');
 };

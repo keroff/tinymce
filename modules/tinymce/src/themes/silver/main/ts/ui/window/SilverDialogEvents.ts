@@ -1,39 +1,45 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { AlloyComponent, AlloyEvents, AlloyTriggers, CustomEvent, Keying, NativeEvents, Reflecting, Representing } from '@ephox/alloy';
 import { Dialog, DialogManager } from '@ephox/bridge';
-import { Result } from '@ephox/katamari';
+import { Result, Fun } from '@ephox/katamari';
 import { Attribute, Compare, Focus, SugarElement, SugarShadowDom } from '@ephox/sugar';
 
 import {
-  formActionEvent, FormActionEvent, formBlockEvent, FormBlockEvent, formCancelEvent, FormChangeEvent, formChangeEvent, formCloseEvent,
+  formActionEvent, FormActionEvent, formBlockEvent, FormBlockEvent, FormCancelEvent, formCancelEvent, FormChangeEvent, formChangeEvent,
+  FormCloseEvent,
+  formCloseEvent,
   FormSubmitEvent, formSubmitEvent, formTabChangeEvent, FormTabChangeEvent, formUnblockEvent, FormUnblockEvent
 } from '../general/FormEvents';
 import * as NavigableObject from '../general/NavigableObject';
 
 export interface ExtraListeners {
-  onBlock: (blockEvent: FormBlockEvent) => void;
-  onUnblock: () => void;
-  onClose: () => void;
+  readonly onBlock: (blockEvent: FormBlockEvent) => void;
+  readonly onUnblock: () => void;
+  readonly onClose: () => void;
 }
 
-const initCommonEvents = (fireApiEvent: (name: string, f: Function) => any, extras: ExtraListeners) => [
+interface EventSpec<A> {
+  readonly onClose: () => void;
+  readonly onCancel: (api: A) => void;
+}
+
+type FireApiCallback<A, S extends EventSpec<A>, E extends CustomEvent> = (api: A, spec: S, event: E, self: AlloyComponent) => void;
+type FireApiFunc<A, S extends EventSpec<A>> = <E extends CustomEvent>(name: string, f: FireApiCallback<A, S, E>) => AlloyEvents.AlloyEventKeyAndHandler<E>;
+
+const initCommonEvents = <A, S extends EventSpec<A>>(fireApiEvent: FireApiFunc<A, S>, extras: ExtraListeners): AlloyEvents.AlloyEventKeyAndHandler<any>[] => [
   // When focus moves onto a tab-placeholder, skip to the next thing in the tab sequence
   AlloyEvents.runWithTarget(NativeEvents.focusin(), NavigableObject.onFocus),
 
   // TODO: Test if disabled first.
-  fireApiEvent(formCloseEvent, (_api, spec) => {
+  fireApiEvent<FormCloseEvent>(formCloseEvent, (_api: A, spec: S, _event, self) => {
+    // TINY-9148: Safari scrolls down to the sink if the dialog is selected before removing,
+    // so we should blur the currently active element beforehand.
+    Focus.active(SugarShadowDom.getRootNode(self.element)).fold(Fun.noop, Focus.blur);
     extras.onClose();
     spec.onClose();
   }),
 
   // TODO: Test if disabled first.
-  fireApiEvent(formCancelEvent, (api, spec, _event, self) => {
+  fireApiEvent<FormCancelEvent>(formCancelEvent, (api, spec, _event, self) => {
     spec.onCancel(api);
     AlloyTriggers.emit(self, formCloseEvent);
   }),
@@ -43,9 +49,9 @@ const initCommonEvents = (fireApiEvent: (name: string, f: Function) => any, extr
   AlloyEvents.run<FormBlockEvent>(formBlockEvent, (_c, se) => extras.onBlock(se.event))
 ];
 
-const initUrlDialog = (getInstanceApi: () => Dialog.UrlDialogInstanceApi, extras: ExtraListeners) => {
-  const fireApiEvent = <E extends CustomEvent>(eventName: string, f: (api: Dialog.UrlDialogInstanceApi, spec: Dialog.UrlDialog, e: E, c: AlloyComponent) => void) =>
-    AlloyEvents.run<E>(eventName, (c, se) => {
+const initUrlDialog = (getInstanceApi: () => Dialog.UrlDialogInstanceApi, extras: ExtraListeners): AlloyEvents.AlloyEventKeyAndHandler<any>[] => {
+  const fireApiEvent: FireApiFunc<Dialog.UrlDialogInstanceApi, Dialog.UrlDialog> = (eventName, f) =>
+    AlloyEvents.run(eventName, (c, se) => {
       withSpec(c, (spec, _c) => {
         f(getInstanceApi(), spec, se.event, c);
       });
@@ -57,7 +63,7 @@ const initUrlDialog = (getInstanceApi: () => Dialog.UrlDialogInstanceApi, extras
     });
   };
   return [
-    ...initCommonEvents(fireApiEvent, extras),
+    ...initCommonEvents<Dialog.UrlDialogInstanceApi, Dialog.UrlDialog>(fireApiEvent, extras),
 
     fireApiEvent<FormActionEvent>(formActionEvent, (api, spec, event) => {
       spec.onAction(api, { name: event.name });
@@ -65,9 +71,9 @@ const initUrlDialog = (getInstanceApi: () => Dialog.UrlDialogInstanceApi, extras
   ];
 };
 
-const initDialog = <T>(getInstanceApi: () => Dialog.DialogInstanceApi<T>, extras: ExtraListeners, getSink: () => Result<AlloyComponent, any>) => {
-  const fireApiEvent = <E extends CustomEvent>(eventName: string, f: (api: Dialog.DialogInstanceApi<T>, spec: Dialog.Dialog<T>, e: E, c: AlloyComponent) => void) =>
-    AlloyEvents.run<E>(eventName, (c, se) => {
+const initDialog = <T extends Dialog.DialogData>(getInstanceApi: () => Dialog.DialogInstanceApi<T>, extras: ExtraListeners, getSink: () => Result<AlloyComponent, any>): AlloyEvents.AlloyEventKeyAndHandler<any>[] => {
+  const fireApiEvent: FireApiFunc<Dialog.DialogInstanceApi<T>, Dialog.Dialog<T>> = (eventName, f) =>
+    AlloyEvents.run(eventName, (c, se) => {
       withSpec(c, (spec, _c) => {
         f(getInstanceApi(), spec, se.event, c);
       });
@@ -80,7 +86,7 @@ const initDialog = <T>(getInstanceApi: () => Dialog.DialogInstanceApi<T>, extras
   };
 
   return [
-    ...initCommonEvents(fireApiEvent, extras),
+    ...initCommonEvents<Dialog.DialogInstanceApi<T>, Dialog.Dialog<T>>(fireApiEvent, extras),
 
     fireApiEvent<FormSubmitEvent>(formSubmitEvent, (api, spec) => spec.onSubmit(api)),
 
@@ -89,7 +95,8 @@ const initDialog = <T>(getInstanceApi: () => Dialog.DialogInstanceApi<T>, extras
     }),
 
     fireApiEvent<FormActionEvent>(formActionEvent, (api, spec, event, component) => {
-      const focusIn = () => Keying.focusIn(component);
+      // TODO: add a test for focusIn (TINY-10125)
+      const focusIn = () => component.getSystem().isConnected() ? Keying.focusIn(component) : undefined;
       const isDisabled = (focused: SugarElement<HTMLElement>) => Attribute.has(focused, 'disabled') || Attribute.getOpt(focused, 'aria-disabled').exists((val) => val === 'true');
       const rootNode = SugarShadowDom.getRootNode(component.element);
       const current = Focus.active(rootNode);
@@ -124,7 +131,7 @@ const initDialog = <T>(getInstanceApi: () => Dialog.DialogInstanceApi<T>, extras
   ];
 };
 
-export const SilverDialogEvents = {
+export {
   initUrlDialog,
   initDialog
 };

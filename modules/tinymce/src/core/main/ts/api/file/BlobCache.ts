@@ -1,16 +1,12 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Fun, Type } from '@ephox/katamari';
 
 import * as Uuid from '../../util/Uuid';
 
 export interface BlobCache {
-  create: (o: string | BlobInfoData, blob?: Blob, base64?: string, name?: string, filename?: string) => BlobInfo;
+  create: {
+    (o: BlobInfoData): BlobInfo;
+    (id: string, blob: Blob, base64: string, name?: string, filename?: string): BlobInfo;
+  };
   add: (blobInfo: BlobInfo) => void;
   get: (id: string) => BlobInfo | undefined;
   getByUri: (blobUri: string) => BlobInfo | undefined;
@@ -44,7 +40,7 @@ export const BlobCache = (): BlobCache => {
   let cache: BlobInfo[] = [];
 
   const mimeToExt = (mime: string) => {
-    const mimes = {
+    const mimes: Record<string, string> = {
       'image/jpeg': 'jpg',
       'image/jpg': 'jpg',
       'image/gif': 'gif',
@@ -68,8 +64,8 @@ export const BlobCache = (): BlobCache => {
         id,
         name,
         filename,
-        blob,
-        base64
+        blob: blob as Blob,
+        base64: base64 as string
       });
     } else if (Type.isObject(o)) {
       return toBlobInfo(o);

@@ -1,16 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import {
   AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloyTriggers, Behaviour, Disabling, EventFormat, FormField as AlloyFormField, Keying,
   NativeEvents, Replacing, Representing, SimulatedEvent, SketchSpec, SystemEvents, Tabstopping
 } from '@ephox/alloy';
 import { Dialog } from '@ephox/bridge';
-import { Arr, Fun } from '@ephox/katamari';
+import { Arr, Fun, Optional } from '@ephox/katamari';
 import { Attribute, Class, EventArgs, Focus, Html, SelectorFilter, SelectorFind, SugarElement } from '@ephox/sugar';
 
 import Entities from 'tinymce/core/api/html/Entities';
@@ -26,17 +19,23 @@ import { deriveCollectionMovement } from '../menus/menu/MenuMovement';
 
 type CollectionSpec = Omit<Dialog.Collection, 'type'>;
 
-export const renderCollection = (spec: CollectionSpec, providersBackstage: UiFactoryBackstageProviders): SketchSpec => {
+type ItemCallback<T extends EventFormat> = (c: AlloyComponent, se: SimulatedEvent<T>, tgt: SugarElement<HTMLElement>, itemValue: string | undefined) => void;
+
+export const renderCollection = (
+  spec: CollectionSpec,
+  providersBackstage: UiFactoryBackstageProviders,
+  initialData: Optional<Dialog.CollectionItem[]>
+): SketchSpec => {
   // DUPE with TextField.
   const pLabel = spec.label.map((label) => renderLabel(label, providersBackstage));
 
-  const runOnItem = <T extends EventFormat>(f: (c: AlloyComponent, se: SimulatedEvent<T>, tgt: SugarElement, itemValue: string) => void) => (comp: AlloyComponent, se: SimulatedEvent<T>) => {
-    SelectorFind.closest(se.event.target, '[data-collection-item-value]').each((target: SugarElement<HTMLElement>) => {
+  const runOnItem = <T extends EventFormat>(f: ItemCallback<T>) => (comp: AlloyComponent, se: SimulatedEvent<T>) => {
+    SelectorFind.closest<HTMLElement>(se.event.target, '[data-collection-item-value]').each((target) => {
       f(comp, se, target, Attribute.get(target, 'data-collection-item-value'));
     });
   };
 
-  const setContents = (comp, items) => {
+  const setContents = (comp: AlloyComponent, items: Dialog.CollectionItem[]) => {
     const htmlLines = Arr.map(items, (item) => {
       const itemText = I18n.translate(item.text);
       const textContent = spec.columns === 1 ? `<div class="tox-collection__item-label">${itemText}</div>` : '';
@@ -46,7 +45,7 @@ export const renderCollection = (spec: CollectionSpec, providersBackstage: UiFac
       // Replacing the hyphens and underscores in collection items with spaces
       // to ensure the screen readers pronounce the words correctly.
       // This is only for aria purposes. Emoticon and Special Character names will still use _ and - for autocompletion.
-      const mapItemName = {
+      const mapItemName: Record<string, string> = {
         '_': ' ',
         ' - ': ' ',
         '-': ' '
@@ -102,7 +101,8 @@ export const renderCollection = (spec: CollectionSpec, providersBackstage: UiFac
     }))
   ];
 
-  const iterCollectionItems = (comp, applyAttributes) => Arr.map(SelectorFilter.descendants(comp.element, '.tox-collection__item'), applyAttributes);
+  const iterCollectionItems = (comp: AlloyComponent, applyAttributes: (element: SugarElement<Element>) => void) =>
+    Arr.map(SelectorFilter.descendants(comp.element, '.tox-collection__item'), applyAttributes);
 
   const pField = AlloyFormField.parts.field({
     dom: {
@@ -133,7 +133,7 @@ export const renderCollection = (spec: CollectionSpec, providersBackstage: UiFac
       Representing.config({
         store: {
           mode: 'memory',
-          initialValue: [ ]
+          initialValue: initialData.getOr([])
         },
         onSetValue: (comp, items) => {
           setContents(comp, items);

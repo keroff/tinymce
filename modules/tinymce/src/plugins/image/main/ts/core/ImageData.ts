@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Type } from '@ephox/katamari';
 import { Attribute, SugarElement } from '@ephox/sugar';
 
@@ -30,8 +23,8 @@ interface ImageData {
   readonly isDecorative: boolean;
 }
 
-type CssNormalizer = (css: string) => string;
-type UpdateImageProp = (image: HTMLElement, name: string, value: string) => void;
+type CssNormalizer = (css: string | undefined) => string;
+type UpdateImageProp = <T extends string>(image: HTMLElement, name: T, value: string) => void;
 
 const getHspace = (image: HTMLElement): string => {
   if (image.style.marginLeft && image.style.marginRight && image.style.marginLeft === image.style.marginRight) {
@@ -59,20 +52,17 @@ const getBorder = (image: HTMLElement): string => {
 
 const getAttrib = (image: HTMLElement, name: string): string => {
   if (image.hasAttribute(name)) {
-    return image.getAttribute(name);
+    return image.getAttribute(name) ?? '';
   } else {
     return '';
   }
 };
 
-const getStyle = (image: HTMLElement, name: string): string =>
-  image.style[name] ? image.style[name] : '';
-
 const hasCaption = (image: HTMLElement): boolean =>
   image.parentNode !== null && image.parentNode.nodeName === 'FIGURE';
 
-const updateAttrib = (image: HTMLElement, name: string, value: string): void => {
-  if (value === '') {
+const updateAttrib = (image: HTMLElement, name: string, value: string | null): void => {
+  if (value === '' || value === null) {
     image.removeAttribute(name);
   } else {
     image.setAttribute(name, value);
@@ -90,8 +80,10 @@ const wrapInFigure = (image: HTMLElement): void => {
 
 const removeFigure = (image: HTMLElement): void => {
   const figureElm = image.parentNode;
-  DOM.insertAfter(image, figureElm);
-  DOM.remove(figureElm);
+  if (Type.isNonNullable(figureElm)) {
+    DOM.insertAfter(image, figureElm);
+    DOM.remove(figureElm);
+  }
 };
 
 const toggleCaption = (image: HTMLElement): void => {
@@ -115,15 +107,16 @@ const normalizeStyle = (image: HTMLElement, normalizeCss: CssNormalizer): void =
 };
 
 const setSize = (name: string, normalizeCss: CssNormalizer) => (image: HTMLElement, name: string, value: string): void => {
-  if (image.style[name]) {
-    image.style[name] = Utils.addPixelSuffix(value);
+  const styles = image.style as any;
+  if (styles[name]) {
+    styles[name] = Utils.addPixelSuffix(value);
     normalizeStyle(image, normalizeCss);
   } else {
     updateAttrib(image, name, value);
   }
 };
 
-const getSize = (image: HTMLElement, name: string): string => {
+const getSize = (image: HTMLElement, name: 'height' | 'width'): string => {
   if (image.style[name]) {
     return Utils.removePixelSuffix(image.style[name]);
   } else {
@@ -153,10 +146,10 @@ const setBorderStyle = (image: HTMLElement, value: string): void => {
 };
 
 const getBorderStyle = (image: HTMLElement): string =>
-  getStyle(image, 'borderStyle');
+  image.style.borderStyle ?? '';
 
-const isFigure = (elm: Node): elm is HTMLElement =>
-  elm.nodeName === 'FIGURE';
+const isFigure = (elm: Node | null): elm is HTMLElement =>
+  Type.isNonNullable(elm) && elm.nodeName === 'FIGURE';
 
 const isImage = (elm: Node): elm is HTMLImageElement =>
   elm.nodeName === 'IMG';
@@ -209,7 +202,7 @@ const getStyleValue = (normalizeCss: CssNormalizer, data: ImageData): string => 
     setBorderStyle(image, data.borderStyle);
   }
 
-  return normalizeCss(image.getAttribute('style'));
+  return normalizeCss(image.getAttribute('style') ?? '');
 };
 
 const create = (normalizeCss: CssNormalizer, data: ImageData): HTMLElement => {
@@ -243,17 +236,17 @@ const read = (normalizeCss: CssNormalizer, image: HTMLElement): ImageData => ({
   hspace: getHspace(image),
   vspace: getVspace(image),
   border: getBorder(image),
-  borderStyle: getStyle(image, 'borderStyle'),
+  borderStyle: getBorderStyle(image),
   isDecorative: getIsDecorative(image)
 });
 
-const updateProp = (image: HTMLElement, oldData: ImageData, newData: ImageData, name: string, set: UpdateImageProp): void => {
+const updateProp = (image: HTMLElement, oldData: ImageData, newData: ImageData, name: keyof Omit<ImageData, 'alt'>, set: UpdateImageProp): void => {
   if (newData[name] !== oldData[name]) {
-    set(image, name, newData[name]);
+    set(image, name, String(newData[name]));
   }
 };
 
-const setAlt = (image: HTMLElement, alt: string, isDecorative: boolean): void => {
+const setAlt = (image: HTMLElement, alt: string | null, isDecorative: boolean): void => {
   if (isDecorative) {
     DOM.setAttrib(image, 'role', 'presentation');
     // unfortunately can't set "" attr value with domutils

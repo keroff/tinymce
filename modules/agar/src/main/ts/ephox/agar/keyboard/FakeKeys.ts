@@ -1,3 +1,4 @@
+import { Fun } from '@ephox/katamari';
 import { PlatformDetection } from '@ephox/sand';
 import { SugarElement } from '@ephox/sugar';
 
@@ -36,11 +37,11 @@ const keyevent = (type: string, doc: SugarElement<Document>, value: number, modi
   const dispatcher = focus !== undefined ? focus : doc;
 
   const platform = PlatformDetection.detect();
-  if (platform.browser.isSafari() || platform.browser.isIE()) {
+  if (platform.browser.isSafari()) {
     safari(type, doc, value, mod, dispatcher);
   } else {
 
-    if (platform.browser.isChrome() || platform.browser.isEdge() || platform.browser.isFirefox()) {
+    if (platform.browser.isChromium() || platform.browser.isFirefox()) {
       if (type === 'keypress') {
         defineGetter(oEvent, 'charCode', getter);
       }
@@ -84,6 +85,7 @@ const safari = (type: string, doc: SugarElement<Document>, value: number, modifi
   (oEvent as any).ctrlKey = modifiers.ctrlKey === true;
   (oEvent as any).metaKey = modifiers.metaKey === true;
   (oEvent as any).altKey = modifiers.altKey === true;
+  (oEvent as any).getModifierState = Fun.never;
 
   dispatcher.dom.dispatchEvent(oEvent);
 };

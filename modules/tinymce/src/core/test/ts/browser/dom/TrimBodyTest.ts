@@ -154,7 +154,7 @@ describe('browser.tinymce.core.dom.TrimBodyTest', () => {
       });
     });
 
-    // TINY-10337: <plaintext> is special because it is used without a closing tag and turns everything after it into its own content.
+    // TINY-10305: <plaintext> is special because it is used without a closing tag and turns everything after it into its own content.
     // Modern browsers will add a closing </plaintext> at the end of the body.
     // https://developer.mozilla.org/en-US/docs/Web/HTML/Element/plaintext
     context('plaintext', () => {
@@ -179,7 +179,7 @@ describe('browser.tinymce.core.dom.TrimBodyTest', () => {
         const unescapedText = document.createElement('div');
         unescapedText.innerHTML = `<p>Test</p><${plaintext}>Test<p>Test</p>`;
         TrimBody.emptyUnescapedZwspTexts(unescapedText);
-        // TINY-10337: Safari escapes text nodes within <plaintext>.
+        // TINY-10305: Safari escapes text nodes within <plaintext>.
         assert.strictEqual(unescapedText.innerHTML,
           isSafari ? `<p>Test</p><${plaintext}>Test&lt;p&gt;Test&lt;/p&gt;</${plaintext}>` : `<p>Test</p><${plaintext}>Test<p>Test</p></${plaintext}>`);
       });

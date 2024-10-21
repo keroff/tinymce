@@ -1,12 +1,5 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Fun, Optional } from '@ephox/katamari';
-import { Compare, Insert, Remove, SugarElement, Traverse } from '@ephox/sugar';
+import { Compare, Insert, Replication, Remove, SugarElement, Traverse } from '@ephox/sugar';
 
 import * as CaretFinder from '../caret/CaretFinder';
 import CaretPosition from '../caret/CaretPosition';
@@ -62,10 +55,30 @@ const nestedBlockMerge = (
 
 const sidelongBlockMerge = (rootNode: SugarElement<Node>, fromBlock: SugarElement<Element>, toBlock: SugarElement<Element>): Optional<CaretPosition> => {
   if (Empty.isEmpty(toBlock)) {
-    Remove.remove(toBlock);
     if (Empty.isEmpty(fromBlock)) {
-      PaddingBr.fillWithPaddingBr(fromBlock);
+      const getInlineToBlockDescendants = (el: SugarElement<Element>) => {
+        const helper = (node: SugarElement<Element>, elements: SugarElement<Element>[]): SugarElement<Element>[] =>
+          Traverse.firstChild(node).fold(
+            () => elements,
+            (child) => ElementType.isInline(child) ? helper(child, elements.concat(Replication.shallow(child))) : elements
+          );
+        return helper(el, []);
+      };
+
+      const newFromBlockDescendants = Arr.foldr(
+        getInlineToBlockDescendants(toBlock),
+        (element: SugarElement<Element>, descendant) => {
+          Insert.wrap(element, descendant);
+          return descendant;
+        },
+        PaddingBr.createPaddingBr()
+      );
+
+      Remove.empty(fromBlock);
+      Insert.append(fromBlock, newFromBlockDescendants);
     }
+
+    Remove.remove(toBlock);
     return CaretFinder.firstPositionIn(fromBlock.dom);
   }
 
@@ -85,9 +98,9 @@ const findInsertionPoint = (toBlock: SugarElement<Element>, block: SugarElement<
 const getInsertionPoint = (fromBlock: SugarElement<Element>, toBlock: SugarElement<Element>): Optional<SugarElement> =>
   Compare.contains(toBlock, fromBlock) ? findInsertionPoint(toBlock, fromBlock) : Optional.none();
 
-const trimBr = (first: boolean, block: SugarElement) => {
+const trimBr = (first: boolean, block: SugarElement<Element>) => {
   CaretFinder.positionIn(first, block.dom)
-    .map((position) => position.getNode())
+    .bind((position) => Optional.from(position.getNode()))
     .map(SugarElement.fromDom)
     .filter(ElementType.isBr)
     .each(Remove.remove);

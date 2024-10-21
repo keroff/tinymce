@@ -1,26 +1,30 @@
 import { Keys } from '@ephox/agar';
 import { beforeEach, context, describe, it } from '@ephox/bedrock-client';
 import { Arr, Fun, Type } from '@ephox/katamari';
-import { LegacyUnit, TinyAssertions, TinyContentActions, TinyHooks, TinySelections, TinyApis } from '@ephox/wrap-mcagar';
+import { PlatformDetection } from '@ephox/sand';
+import { Scroll } from '@ephox/sugar';
+import { TinyDom, LegacyUnit, TinyAssertions, TinyContentActions, TinyHooks, TinySelections, TinyApis } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Env from 'tinymce/core/api/Env';
 import { AddUndoEvent } from 'tinymce/core/api/EventTypes';
+import { EditorEvent } from 'tinymce/core/api/util/EventDispatcher';
 import { UndoLevel } from 'tinymce/core/undo/UndoManagerTypes';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as HtmlUtils from '../module/test/HtmlUtils';
 import * as KeyUtils from '../module/test/KeyUtils';
 
 describe('browser.tinymce.core.UndoManagerTest', () => {
+  const os = PlatformDetection.detect().os;
+  const isMac = os.isMacOS() || os.isiOS();
+
   const hook = TinyHooks.bddSetupLight<Editor>({
     add_unload_trigger: false,
     disable_nodechange: true,
     indent: false,
     entities: 'raw',
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ]);
+  }, [], true);
 
   it('Initial states', () => {
     const editor = hook.editor();
@@ -95,21 +99,21 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
 
     assert.isFalse(editor.undoManager.typing);
 
-    editor.dom.fire(editor.getBody(), 'keydown', { keyCode: 65 });
+    editor.dom.dispatch(editor.getBody(), 'keydown', { keyCode: 65 });
     assert.isTrue(editor.undoManager.typing);
 
-    editor.dom.fire(editor.getBody(), 'keydown', { keyCode: 13 });
+    editor.dom.dispatch(editor.getBody(), 'keydown', { keyCode: 13 });
     assert.isFalse(editor.undoManager.typing);
 
     const selectAllFlags: Record<string, any> = { keyCode: 65, ctrlKey: false, altKey: false, shiftKey: false };
 
-    if (Env.mac) {
+    if (isMac) {
       selectAllFlags.metaKey = true;
     } else {
       selectAllFlags.ctrlKey = true;
     }
 
-    editor.dom.fire(editor.getBody(), 'keydown', selectAllFlags);
+    editor.dom.dispatch(editor.getBody(), 'keydown', selectAllFlags);
     assert.isFalse(editor.undoManager.typing);
   });
 
@@ -131,7 +135,9 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
 
   it('Events', () => {
     const editor = hook.editor();
-    let add, undo, redo;
+    let add: UndoLevel | undefined;
+    let undo: UndoLevel | undefined;
+    let redo: UndoLevel | undefined;
 
     editor.undoManager.clear();
     editor.setContent('test');
@@ -150,21 +156,21 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
 
     editor.execCommand('SelectAll');
     editor.execCommand('Bold');
-    assert.ok(!!add.content);
-    assert.ok(!!add.bookmark);
+    assert.ok(!!add?.content);
+    assert.ok(!!add?.bookmark);
 
     editor.undoManager.undo();
-    assert.ok(!!undo.content);
-    assert.ok(!!undo.bookmark);
+    assert.ok(!!undo?.content);
+    assert.ok(!!undo?.bookmark);
 
     editor.undoManager.redo();
-    assert.ok(!!redo.content);
-    assert.ok(!!redo.bookmark);
+    assert.ok(!!redo?.content);
+    assert.ok(!!redo?.bookmark);
   });
 
   it('No undo/redo cmds on Undo/Redo shortcut', () => {
     const editor = hook.editor();
-    const commands = [];
+    const commands: string[] = [];
     let added = false;
 
     editor.undoManager.clear();
@@ -180,15 +186,15 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
 
     const evt = {
       keyCode: 90,
-      metaKey: Env.mac,
-      ctrlKey: !Env.mac,
+      metaKey: isMac,
+      ctrlKey: !isMac,
       shiftKey: false,
       altKey: false
     };
 
-    editor.dom.fire(editor.getBody(), 'keydown', evt);
-    editor.dom.fire(editor.getBody(), 'keypress', evt);
-    editor.dom.fire(editor.getBody(), 'keyup', evt);
+    editor.dom.dispatch(editor.getBody(), 'keydown', evt);
+    editor.dom.dispatch(editor.getBody(), 'keypress', evt);
+    editor.dom.dispatch(editor.getBody(), 'keyup', evt);
 
     assert.isFalse(added);
     assert.deepEqual(commands, [ 'mceFocus', 'Undo' ]);
@@ -270,7 +276,7 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
       });
 
       assert.fail('Should never get here!');
-    } catch (ex) {
+    } catch (ex: any) {
       assert.equal(ex.message, 'Test');
     }
 
@@ -297,19 +303,19 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
     const data = editor.undoManager.data;
     assert.lengthOf(data, 3);
     assert.equal(data[0].content, '<p>abc</p>');
-    assert.deepEqual(data[0].bookmark, { start: [ 0, 0, 0 ] });
-    assert.deepEqual(data[0].beforeBookmark, { start: [ 0, 0, 0 ] });
+    assert.deepEqual(data[0].bookmark, { start: [ 0, 0, 0 ], forward: true });
+    assert.deepEqual(data[0].beforeBookmark, { start: [ 0, 0, 0 ], forward: true });
     assert.equal(data[1].content, '<p>a1c</p>');
-    assert.deepEqual(data[1].bookmark, { start: [ 2, 0, 0 ] });
-    assert.deepEqual(data[1].beforeBookmark, { start: [ 2, 0, 0 ] });
+    assert.deepEqual(data[1].bookmark, { start: [ 2, 0, 0 ], forward: true });
+    assert.deepEqual(data[1].beforeBookmark, { start: [ 2, 0, 0 ], forward: true });
     assert.equal(data[2].content, '<p>a2c</p>');
-    assert.deepEqual(data[2].bookmark, { start: [ 2, 0, 0 ] });
+    assert.deepEqual(data[2].bookmark, { start: [ 2, 0, 0 ], forward: true });
     assert.deepEqual(data[1].beforeBookmark, data[2].bookmark);
   });
 
   it('Undo added when typing and losing focus', () => {
     const editor = hook.editor();
-    let lastLevel: UndoLevel;
+    let lastLevel: UndoLevel | undefined;
 
     editor.on('BeforeAddUndo', (e) => {
       lastLevel = e.level;
@@ -320,20 +326,21 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
     LegacyUnit.setSelection(editor, 'p', 4, 'p', 9);
     KeyUtils.type(editor, '\b');
 
-    assert.equal(HtmlUtils.cleanHtml(lastLevel.content), '<p>some text</p>');
-    editor.fire('blur');
-    assert.equal(HtmlUtils.cleanHtml(lastLevel.content), '<p>some</p>');
+    assert.equal(HtmlUtils.cleanHtml(lastLevel?.content ?? ''), '<p>some text</p>');
+    editor.dispatch('blur');
+    assert.equal(HtmlUtils.cleanHtml(lastLevel?.content ?? ''), '<p>some</p>');
 
     editor.execCommand('FormatBlock', false, 'h1');
     editor.undoManager.undo();
-    assert.equal(editor.getContent(), '<p>some</p>');
+    TinyAssertions.assertContent(editor, '<p>some</p>');
   });
 
   it('BeforeAddUndo event', () => {
     const editor = hook.editor();
-    let lastEvt, addUndoEvt: AddUndoEvent;
+    let lastEvt: EditorEvent<AddUndoEvent> | undefined;
+    let addUndoEvt: EditorEvent<AddUndoEvent> | undefined;
 
-    const blockEvent = (e) => {
+    const blockEvent = (e: EditorEvent<{}>) => {
       e.preventDefault();
     };
 
@@ -345,14 +352,14 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
     editor.setContent('<p>a</p>');
     editor.undoManager.add();
 
-    assert.equal(lastEvt.lastLevel, undefined);
-    assert.equal(HtmlUtils.cleanHtml(lastEvt.level.content), '<p>a</p>');
+    assert.equal(lastEvt?.lastLevel, undefined);
+    assert.equal(HtmlUtils.cleanHtml(lastEvt?.level.content ?? ''), '<p>a</p>');
 
     editor.setContent('<p>b</p>');
     editor.undoManager.add();
 
-    assert.equal(HtmlUtils.cleanHtml(lastEvt.lastLevel.content), '<p>a</p>');
-    assert.equal(HtmlUtils.cleanHtml(lastEvt.level.content), '<p>b</p>');
+    assert.equal(HtmlUtils.cleanHtml(lastEvt?.lastLevel?.content ?? ''), '<p>a</p>');
+    assert.equal(HtmlUtils.cleanHtml(lastEvt?.level.content ?? ''), '<p>b</p>');
 
     editor.on('BeforeAddUndo', blockEvent);
 
@@ -361,11 +368,11 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
     });
 
     editor.setContent('<p>c</p>');
-    editor.undoManager.add(null, { data: 1 });
+    editor.undoManager.add(undefined, { data: 1 });
 
-    assert.equal(HtmlUtils.cleanHtml(lastEvt.lastLevel.content), '<p>b</p>');
-    assert.equal(HtmlUtils.cleanHtml(lastEvt.level.content), '<p>c</p>');
-    assert.equal(lastEvt.originalEvent.data, 1);
+    assert.equal(HtmlUtils.cleanHtml(lastEvt?.lastLevel?.content ?? ''), '<p>b</p>');
+    assert.equal(HtmlUtils.cleanHtml(lastEvt?.level?.content ?? ''), '<p>c</p>');
+    assert.equal((lastEvt?.originalEvent as any)?.data, 1);
     assert.isUndefined(addUndoEvt, 'Event level produced when it should be blocked');
 
     editor.off('BeforeAddUndo', blockEvent);
@@ -380,7 +387,7 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
 
     assert.isFalse(editor.isDirty(), 'Dirty state should be false');
     KeyUtils.type(editor, 'b');
-    assert.equal(editor.getContent(), '<p>ab</p>');
+    TinyAssertions.assertContent(editor, '<p>ab</p>');
     assert.isTrue(editor.isDirty(), 'Dirty state should be true');
   });
 
@@ -393,7 +400,7 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
 
     assert.isFalse(editor.isDirty(), 'Dirty state should be false');
     KeyUtils.type(editor, { keyCode: 65, charCode: 66, shiftKey: true });
-    assert.equal(editor.getContent(), '<p>aB</p>');
+    TinyAssertions.assertContent(editor, '<p>aB</p>');
     assert.isTrue(editor.isDirty(), 'Dirty state should be true');
   });
 
@@ -406,7 +413,7 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
 
     assert.isFalse(editor.isDirty(), 'Dirty state should be false');
     KeyUtils.type(editor, { keyCode: 65, charCode: 66, ctrlKey: true, altKey: true });
-    assert.equal(editor.getContent(), '<p>aB</p>');
+    TinyAssertions.assertContent(editor, '<p>aB</p>');
     assert.isTrue(editor.isDirty(), 'Dirty state should be true');
   });
 
@@ -449,7 +456,7 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
     assert.isFalse(editor.undoManager.typing);
     KeyUtils.type(editor, { keyCode: 66, charCode: 66 });
     assert.isTrue(editor.undoManager.typing);
-    assert.equal(editor.getContent(), '<p>aB</p>');
+    TinyAssertions.assertContent(editor, '<p>aB</p>');
     editor.execCommand('mceInsertContent', false, 'C');
     assert.isFalse(editor.undoManager.typing);
     assert.lengthOf(editor.undoManager.data, 3);
@@ -468,9 +475,10 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
     assert.isFalse(editor.undoManager.typing);
     KeyUtils.type(editor, { keyCode: 66, charCode: 66 });
     assert.isTrue(editor.undoManager.typing);
-    assert.equal(editor.getContent(), '<p>aB</p>');
+    TinyAssertions.assertContent(editor, '<p>aB</p>');
     editor.undoManager.transact(() => {
-      (editor.getBody().firstChild.firstChild as Text).data = 'aBC';
+      const p = editor.dom.select('p')[0];
+      (p.firstChild as Text).data = 'aBC';
     });
     assert.isFalse(editor.undoManager.typing);
     assert.lengthOf(editor.undoManager.data, 3);
@@ -494,14 +502,7 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
 
     assert.isTrue(editor.undoManager.typing);
     assert.lengthOf(editor.undoManager.data, 0);
-    assert.equal(editor.getContent(), '<p><em><strong>a</strong></em></p>');
-  });
-
-  it('undo filter for mceRepaint is case insensitive', () => {
-    const editor = hook.editor();
-    editor.undoManager.clear();
-    editor.execCommand('mceRepaint');
-    assert.isFalse(editor.undoManager.hasUndo());
+    TinyAssertions.assertContent(editor, '<p><em><strong>a</strong></em></p>');
   });
 
   it('TINY-7373: undo filter for mceFocus is case insensitive', () => {
@@ -546,6 +547,107 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
     });
   });
 
+  it('TINY-6920: Do not fire change event at first typed character', () => {
+    const editor = hook.editor();
+    let changeEventCounter = 0;
+
+    const onChange = () => {
+      changeEventCounter++;
+    };
+
+    editor.resetContent('');
+
+    editor.on('change', onChange);
+    TinyContentActions.type(editor, 'A');
+    editor.off('change', onChange);
+
+    assert.equal(changeEventCounter, 0, 'No events should be detected');
+  });
+
+  context('dispatchChange', () => {
+    const initialContent = '<p>some inital content</p>';
+    const manualModifiedLevelContent = 'a modified last level';
+    let editor: Editor;
+
+    const assertChangeEvent = (
+      event: { level: UndoLevel; lastLevel: UndoLevel | undefined } | undefined,
+      expectedLevelContent: string | undefined,
+      expectedLastLevelContent: string | undefined
+    ) => {
+      assert.equal(event?.level?.content, expectedLevelContent, 'Level has not the expected content');
+      assert.equal(event?.lastLevel?.content, expectedLastLevelContent, 'Last level has not the expected content');
+      assert.isDefined(event?.level.bookmark, 'Level bookmark should not be undefined');
+    };
+
+    let changeEventCounter: number;
+    let currentChangeEvent: { level: UndoLevel; lastLevel: UndoLevel | undefined } | undefined;
+
+    const onChange = (e: EditorEvent<{
+      level: UndoLevel;
+      lastLevel: UndoLevel | undefined;
+    }>) => {
+      changeEventCounter++;
+      currentChangeEvent = e;
+    };
+
+    beforeEach(() => {
+      changeEventCounter = 0;
+      currentChangeEvent = undefined;
+
+      editor = hook.editor();
+      editor.resetContent(initialContent);
+      editor.on('change', onChange);
+    });
+
+    it('TINY-8641: Dispatch change with current editor status as level and current undoManager layer as lastLevel', () => {
+      assert.equal(changeEventCounter, 0, 'No events should be detected at start');
+
+      Arr.last(editor.undoManager.data).each((lastLevel) => {
+        lastLevel.content = manualModifiedLevelContent;
+      });
+      assert.isFalse(editor.isDirty(), 'Editor should not be dirty before dispatchChange');
+
+      editor.undoManager.dispatchChange();
+
+      assertChangeEvent(currentChangeEvent, initialContent, manualModifiedLevelContent);
+      assert.equal(changeEventCounter, 1, '1 event should be detected');
+      assert.isTrue(editor.isDirty(), 'Editor should be dirty after dispatchChange');
+
+      editor.off('change', onChange);
+    });
+
+    it('TINY-8641: dispatchChange should always fire on empty stack with current content as level and lastLevel', () => {
+      editor.undoManager.clear();
+      assert.lengthOf(editor.undoManager.data, 0, 'undo manager should be empty after clear');
+
+      editor.undoManager.dispatchChange();
+
+      assertChangeEvent(currentChangeEvent, initialContent, undefined);
+
+      editor.off('change', onChange);
+    });
+  });
+
+  it('TINY-9222: Scroll to the cursor after undo and redo', () => {
+    const editor = hook.editor();
+
+    const height = 5000;
+    editor.resetContent(`<p class="first">top paragraph</p><p style="height: ${height}px"></p><p class="last">last paragraph</p>`);
+    TinySelections.select(editor, 'p.last', [ 0 ]);
+    TinyContentActions.type(editor, 'updated ');
+
+    const doc = TinyDom.document(editor);
+    const editorHeight = editor.getWin().innerHeight;
+
+    const checkScroll = (action: 'undo' | 'redo') => {
+      Scroll.to(0, 0, doc);
+      editor.undoManager[action]();
+      assert.isAtLeast(Scroll.get(doc).top + editorHeight, height, `should scroll to the cursor after ${action}`);
+    };
+
+    Arr.each([ 'undo', 'redo' ], checkScroll);
+  });
+
   context('Excluded content', () => {
     const testContentExclusions = (exclusions: { content: string; expected: string }[]) => () => {
       const editor = hook.editor();
@@ -557,7 +659,6 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
       assert.equal(count, 0);
 
       editor.on('AddUndo', () => count++);
-
       editor.on('BeforeAddUndo', (e) => {
         if (e.level.content === '' && !Type.isNull(e.level.fragments) && e.level.fragments.length > 0) {
           lastLevelContent = e.level.fragments.join('');
@@ -607,13 +708,13 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
     }]));
 
     Arr.each([ 'noscript', 'style', 'script', 'xmp', 'iframe', 'noembed', 'noframes' ], (parent) => {
-      it(`TINY-10337: Unescaped text nodes containing ZWNBSP within ${parent} are emptied`, testContentExclusions([{
+      it(`TINY-10305: Unescaped text nodes containing ZWNBSP within ${parent} are emptied`, testContentExclusions([{
         content: `<p>test0</p><${parent}>te\uFEFFst1</${parent}><${parent}>test2</${parent}><${parent}>te\uFEFFst3</${parent}>`,
         expected: `<p>test0</p><${parent}></${parent}><${parent}>test2</${parent}><${parent}></${parent}>`
       }]));
     });
 
-    it('TINY-10337: Unescaped text nodes containing ZWNBSP within plaintext are emptied', testContentExclusions([{
+    it('TINY-10305: Unescaped text nodes containing ZWNBSP within plaintext are emptied', testContentExclusions([{
       content: '<p>test0</p><plaintext>te\uFEFFst1 test2<p>te\uFEFFst3</p>',
       expected: '<p>test0</p><plaintext></plaintext>'
     }]));
@@ -651,7 +752,7 @@ describe('browser.tinymce.core.UndoManagerTest', () => {
       testContentMxssOnRestore(`<!--\uFEFF><iframe onload="window.${xssFnName}();">->`));
 
     Arr.each([ 'noscript', 'style', 'script', 'xmp', 'iframe', 'noembed', 'noframes' ], (parent) => {
-      it(`TINY-10337: Excluding ZWNBSP in ${parent} does not cause mXSS`,
+      it(`TINY-10305: Excluding ZWNBSP in ${parent} does not cause mXSS`,
         testContentMxssOnRestore(`<${parent}><\uFEFF/${parent}><\uFEFFiframe onload="window.${xssFnName}();"></${parent}>`));
     });
   });

@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Fun, Obj } from '@ephox/katamari';
 import { TableLookup } from '@ephox/snooker';
 import { SugarElement } from '@ephox/sugar';
@@ -14,8 +7,8 @@ import { Dialog } from 'tinymce/core/api/ui/Ui';
 
 import * as Styles from '../actions/Styles';
 import * as Events from '../api/Events';
-import { hasAdvancedRowTab } from '../api/Settings';
-import * as Util from '../core/Util';
+import * as Options from '../api/Options';
+import * as Utils from '../core/Utils';
 import { ephemera } from '../selection/Ephemera';
 import * as TableSelection from '../selection/TableSelection';
 import { getAdvancedTab } from './DialogAdvancedTab';
@@ -25,31 +18,41 @@ import * as RowDialogGeneralTab from './RowDialogGeneralTab';
 
 type RowData = Helpers.RowData;
 
-const updateSimpleProps = (modifier: DomModifier, data: RowData): void => {
-  modifier.setAttrib('class', data.class);
-  modifier.setStyle('height', Util.addPxSuffix(data.height));
+const updateSimpleProps = (modifier: DomModifier, data: RowData, shouldUpdate: (key: string) => boolean): void => {
+  if (shouldUpdate('class')) {
+    modifier.setAttrib('class', data.class);
+  }
+  if (shouldUpdate('height')) {
+    modifier.setStyle('height', Utils.addPxSuffix(data.height));
+  }
 };
 
-const updateAdvancedProps = (modifier: DomModifier, data: RowData): void => {
-  modifier.setStyle('background-color', data.backgroundcolor);
-  modifier.setStyle('border-color', data.bordercolor);
-  modifier.setStyle('border-style', data.borderstyle);
+const updateAdvancedProps = (modifier: DomModifier, data: Required<RowData>, shouldUpdate: (key: string) => boolean): void => {
+  if (shouldUpdate('backgroundcolor')) {
+    modifier.setStyle('background-color', data.backgroundcolor);
+  }
+  if (shouldUpdate('bordercolor')) {
+    modifier.setStyle('border-color', data.bordercolor);
+  }
+  if (shouldUpdate('borderstyle')) {
+    modifier.setStyle('border-style', data.borderstyle);
+  }
 };
 
-const applyStyleData = (editor: Editor, rows: HTMLTableRowElement[], data: RowData, oldData: RowData): void => {
+const applyStyleData = (editor: Editor, rows: HTMLTableRowElement[], data: RowData, wasChanged: (key: string) => boolean): void => {
   const isSingleRow = rows.length === 1;
+  const shouldOverrideCurrentValue = isSingleRow ? Fun.always : wasChanged;
   Arr.each(rows, (rowElm) => {
-    const modifier = isSingleRow ? DomModifier.normal(editor, rowElm) : DomModifier.ifTruthy(editor, rowElm);
+    const modifier = DomModifier.normal(editor, rowElm);
 
-    updateSimpleProps(modifier, data);
+    updateSimpleProps(modifier, data, shouldOverrideCurrentValue);
 
-    if (hasAdvancedRowTab(editor)) {
-      updateAdvancedProps(modifier, data);
+    if (Options.hasAdvancedRowTab(editor)) {
+      updateAdvancedProps(modifier, data as Required<RowData>, shouldOverrideCurrentValue);
     }
 
-    if (data.align !== oldData.align) {
-      Styles.unApplyAlign(editor, rowElm);
-      Styles.applyAlign(editor, rowElm, data.align);
+    if (wasChanged('align')) {
+      Styles.setAlign(editor, rowElm, data.align);
     }
   });
 };
@@ -61,7 +64,7 @@ const applyStructureData = (editor: Editor, data: RowData): void => {
 };
 
 const applyRowData = (editor: Editor, rows: HTMLTableRowElement[], oldData: RowData, data: RowData): void => {
-  const modifiedData = Obj.filter(data, (value, key) => oldData[key] !== value);
+  const modifiedData = Obj.filter(data, (value, key) => oldData[key as keyof RowData] !== value);
 
   if (Obj.size(modifiedData) > 0) {
     const typeModified = Obj.has(modifiedData, 'type');
@@ -70,7 +73,7 @@ const applyRowData = (editor: Editor, rows: HTMLTableRowElement[], oldData: RowD
 
     // Update the rows styling using the dialog data
     if (styleModified) {
-      applyStyleData(editor, rows, data, oldData);
+      applyStyleData(editor, rows, data, Fun.curry(Obj.has, modifiedData));
     }
 
     // Update the rows structure using the dialog data
@@ -98,7 +101,7 @@ const onSubmitRowForm = (editor: Editor, rows: HTMLTableRowElement[], oldData: R
 };
 
 const open = (editor: Editor): void => {
-  const rows = TableSelection.getRowsFromSelection(Util.getSelectionStart(editor), ephemera.selected);
+  const rows = TableSelection.getRowsFromSelection(Utils.getSelectionStart(editor), ephemera.selected);
 
   // Check if there are any rows to operate on
   if (rows.length === 0) {
@@ -106,7 +109,7 @@ const open = (editor: Editor): void => {
   }
 
   // Get current data and find shared values between rows
-  const rowsData = Arr.map(rows, (rowElm) => Helpers.extractDataFromRowElement(editor, rowElm.dom, hasAdvancedRowTab(editor)));
+  const rowsData = Arr.map(rows, (rowElm) => Helpers.extractDataFromRowElement(editor, rowElm.dom, Options.hasAdvancedRowTab(editor)));
   const data = Helpers.getSharedValues<RowData>(rowsData);
 
   const dialogTabPanel: Dialog.TabPanelSpec = {
@@ -134,7 +137,7 @@ const open = (editor: Editor): void => {
   editor.windowManager.open({
     title: 'Row Properties',
     size: 'normal',
-    body: hasAdvancedRowTab(editor) ? dialogTabPanel : dialogPanel,
+    body: Options.hasAdvancedRowTab(editor) ? dialogTabPanel : dialogPanel,
     buttons: [
       {
         type: 'cancel',

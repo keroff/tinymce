@@ -1,9 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
+import { Arr, Optional } from '@ephox/katamari';
 
 export interface ClientRect {
   left: number;
@@ -110,23 +105,37 @@ const containsXY = (rect: ClientRect, clientX: number, clientY: number): boolean
     clientY <= rect.bottom
 );
 
-const overflowX = (outer: ClientRect, inner: ClientRect) => {
-  if (inner.left > outer.left && inner.right < outer.right) {
-    return 0;
-  } else {
-    return inner.left < outer.left ? inner.left - outer.left : inner.right - outer.right;
-  }
+const boundingClientRectFromRects = (rects: ClientRect[]): Optional<ClientRect> => {
+  return Arr.foldl(rects, (acc, rect) => {
+    return acc.fold(
+      () => Optional.some(rect),
+      (prevRect) => {
+        const left = Math.min(rect.left, prevRect.left);
+        const top = Math.min(rect.top, prevRect.top);
+        const right = Math.max(rect.right, prevRect.right);
+        const bottom = Math.max(rect.bottom, prevRect.bottom);
+
+        return Optional.some({
+          top,
+          right,
+          bottom,
+          left,
+          width: right - left,
+          height: bottom - top
+        });
+      }
+    );
+  }, Optional.none());
 };
 
-const overflowY = (outer: ClientRect, inner: ClientRect) => {
-  if (inner.top > outer.top && inner.bottom < outer.bottom) {
-    return 0;
-  } else {
-    return inner.top < outer.top ? inner.top - outer.top : inner.bottom - outer.bottom;
-  }
+const distanceToRectEdgeFromXY = <T extends ClientRect>(rect: T, x: number, y: number): number => {
+  const cx = Math.max(Math.min(x, rect.left + rect.width), rect.left);
+  const cy = Math.max(Math.min(y, rect.top + rect.height), rect.top);
+  return Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
 };
 
-const getOverflow = (outer: ClientRect, inner: ClientRect) => ({ x: overflowX(outer, inner), y: overflowY(outer, inner) });
+const overlapX = <T extends ClientRect>(r1: T, r2: T): number => Math.max(0, Math.min(r1.right, r2.right) - Math.max(r1.left, r2.left));
+const overlapY = <T extends ClientRect>(r1: T, r2: T): number => Math.max(0, Math.min(r1.bottom, r2.bottom) - Math.max(r1.top, r2.top));
 
 export {
   clone,
@@ -138,5 +147,8 @@ export {
   isRight,
   compare,
   containsXY,
-  getOverflow
+  boundingClientRectFromRects,
+  distanceToRectEdgeFromXY,
+  overlapX,
+  overlapY
 };

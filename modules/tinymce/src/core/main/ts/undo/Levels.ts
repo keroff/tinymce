@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Thunk, Type } from '@ephox/katamari';
 import { Html, Remove, SelectorFilter, SugarElement } from '@ephox/sugar';
 
@@ -13,7 +6,7 @@ import { isPathBookmark } from '../bookmark/BookmarkTypes';
 import * as TrimBody from '../dom/TrimBody';
 import * as Zwsp from '../text/Zwsp';
 import * as Fragments from './Fragments';
-import { UndoLevel, UndoLevelType } from './UndoManagerTypes';
+import { CompleteUndoLevel, FragmentedUndoLevel, NewUndoLevel, UndoLevel } from './UndoManagerTypes';
 
 // We need to create a temporary document instead of using the global document since
 // innerHTML on a detached element will still make http requests to the images
@@ -21,9 +14,9 @@ const lazyTempDocument = Thunk.cached(() => document.implementation.createHTMLDo
 
 const hasIframes = (body: HTMLElement) => body.querySelector('iframe') !== null;
 
-const createFragmentedLevel = (fragments: string[]): UndoLevel => {
+const createFragmentedLevel = (fragments: string[]): FragmentedUndoLevel => {
   return {
-    type: UndoLevelType.Fragmented,
+    type: 'fragmented',
     fragments,
     content: '',
     bookmark: null,
@@ -31,9 +24,9 @@ const createFragmentedLevel = (fragments: string[]): UndoLevel => {
   };
 };
 
-const createCompleteLevel = (content: string): UndoLevel => {
+const createCompleteLevel = (content: string): CompleteUndoLevel => {
   return {
-    type: UndoLevelType.Complete,
+    type: 'complete',
     fragments: null,
     content,
     bookmark: null,
@@ -41,16 +34,16 @@ const createCompleteLevel = (content: string): UndoLevel => {
   };
 };
 
-const createFromEditor = (editor: Editor): UndoLevel => {
+const createFromEditor = (editor: Editor): NewUndoLevel => {
   const tempAttrs = editor.serializer.getTempAttrs();
   const body = TrimBody.trim(editor.getBody(), tempAttrs);
   return hasIframes(body) ? createFragmentedLevel(Fragments.read(body, true)) : createCompleteLevel(Zwsp.trim(body.innerHTML));
 };
 
-const applyToEditor = (editor: Editor, level: UndoLevel, before: boolean) => {
+const applyToEditor = (editor: Editor, level: UndoLevel, before: boolean): void => {
   const bookmark = before ? level.beforeBookmark : level.bookmark;
 
-  if (level.type === UndoLevelType.Fragmented) {
+  if (level.type === 'fragmented') {
     Fragments.write(level.fragments, editor.getBody());
   } else {
     editor.setContent(level.content, {
@@ -63,26 +56,31 @@ const applyToEditor = (editor: Editor, level: UndoLevel, before: boolean) => {
     });
   }
 
-  editor.selection.moveToBookmark(bookmark);
+  if (bookmark) {
+    editor.selection.moveToBookmark(bookmark);
+    editor.selection.scrollIntoView();
+  }
 };
 
-const getLevelContent = (level: UndoLevel): string => {
-  return level.type === UndoLevelType.Fragmented ? level.fragments.join('') : level.content;
+const getLevelContent = (level: NewUndoLevel): string => {
+  return level.type === 'fragmented' ? level.fragments.join('') : level.content;
 };
 
-const getCleanLevelContent = (level: UndoLevel): string => {
+const getCleanLevelContent = (level: NewUndoLevel): string => {
   const elm = SugarElement.fromTag('body', lazyTempDocument());
   Html.set(elm, getLevelContent(level));
   Arr.each(SelectorFilter.descendants(elm, '*[data-mce-bogus]'), Remove.unwrap);
   return Html.get(elm);
 };
 
-const hasEqualContent = (level1: UndoLevel, level2: UndoLevel): boolean => getLevelContent(level1) === getLevelContent(level2);
+const hasEqualContent = (level1: NewUndoLevel, level2: NewUndoLevel): boolean =>
+  getLevelContent(level1) === getLevelContent(level2);
 
-const hasEqualCleanedContent = (level1: UndoLevel, level2: UndoLevel): boolean => getCleanLevelContent(level1) === getCleanLevelContent(level2);
+const hasEqualCleanedContent = (level1: NewUndoLevel, level2: NewUndoLevel): boolean =>
+  getCleanLevelContent(level1) === getCleanLevelContent(level2);
 
 // Most of the time the contents is equal so it's faster to first check that using strings then fallback to a cleaned dom comparison
-const isEq = (level1: UndoLevel, level2: UndoLevel): boolean => {
+const isEq = (level1: NewUndoLevel | undefined, level2: NewUndoLevel | undefined): boolean => {
   if (!level1 || !level2) {
     return false;
   } else if (hasEqualContent(level1, level2)) {

@@ -1,9 +1,12 @@
 import { Arr } from '@ephox/katamari';
+import { DomEvent, Html, Insert, SelectorFind, SugarBody, SugarElement } from '@ephox/sugar';
 
-declare let tinymce: any;
+import { TinyMCE } from 'tinymce/core/api/PublicApi';
 
-export default () => {
-  const cmd = (command, value?) => {
+declare let tinymce: TinyMCE;
+
+export default (): void => {
+  const cmd = (command: string, value?: string | number) => {
     return { command, value };
   };
 
@@ -38,6 +41,7 @@ export default () => {
     cmd('Indent'),
     cmd('Outdent'),
     cmd('InsertHorizontalRule'),
+    cmd('InsertParagraph'),
     cmd('mceToggleVisualAid'),
     cmd('mceInsertLink', 'url'),
     cmd('selectAll'),
@@ -50,7 +54,6 @@ export default () => {
     cmd('mceCodeEditor'),
     cmd('mceDirectionLTR'),
     cmd('mceDirectionRTL'),
-    cmd('mceFullPageProperties'),
     cmd('mceFullscreen'),
     cmd('mceImage'),
     cmd('mceInsertDate'),
@@ -88,22 +91,23 @@ export default () => {
     cmd('mceEditImage')
   ];
 
+  const container = SelectorFind.descendant(SugarBody.body(), '#ephox-ui').getOrDie();
   Arr.each(commands, (cmd) => {
-    const btn = document.createElement('button');
-    btn.innerHTML = cmd.command;
-    btn.onclick = () => {
-      tinymce.activeEditor.execCommand(cmd.command, false, cmd.value);
-    };
-    document.querySelector('#ephox-ui').appendChild(btn);
+    const btn = SugarElement.fromTag('button');
+    Html.set(btn, cmd.command);
+    DomEvent.bind(btn, 'click', () => {
+      tinymce.activeEditor?.execCommand(cmd.command, false, cmd.value);
+    });
+    Insert.append(container, btn);
   });
 
   tinymce.init({
     skin_url: '../../../../js/tinymce/skins/ui/oxide',
     selector: 'textarea.tinymce',
     plugins: [
-      'advlist autolink link image lists charmap print preview hr anchor pagebreak spellchecker toc',
-      'searchreplace wordcount visualblocks visualchars code fullscreen insertdatetime media nonbreaking',
-      'save table directionality emoticons template paste textcolor importcss colorpicker textpattern codesample'
+      'advlist', 'autolink', 'link', 'image', 'lists', 'charmap', 'preview', 'anchor', 'pagebreak',
+      'searchreplace', 'wordcount', 'visualblocks', 'visualchars', 'code', 'fullscreen', 'insertdatetime', 'media', 'nonbreaking',
+      'save', 'table', 'directionality', 'emoticons', 'template', 'importcss', 'codesample'
     ],
     toolbar1: 'bold italic',
     menubar: false

@@ -4,15 +4,14 @@ import { TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
-describe('browser.tinymce.core.EditorApiTest', () => {
+describe('browser.tinymce.core.EditorRemovedApiTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce',
     test_callback: Fun.noop
-  }, [ Theme ]);
+  }, []);
 
-  const tryAccess = (name: string, expectedValue: any) => {
+  const tryAccess = (name: keyof Editor, expectedValue: any) => {
     const editor = hook.editor();
     const result = editor[name]();
     assert.equal(result, expectedValue, 'Should be expected value on a removed editor');
@@ -34,11 +33,11 @@ describe('browser.tinymce.core.EditorApiTest', () => {
     editor.queryCommandState('bold');
     editor.queryCommandValue('bold');
     editor.queryCommandSupported('bold');
-    editor.uploadImages(Fun.noop);
+    editor.uploadImages();
     editor.setContent('a');
+    editor.insertContent('a');
     editor.execCommand('bold');
     editor.focus();
     editor.nodeChanged();
-    editor.execCallback('test_callback', 1);
   });
 });

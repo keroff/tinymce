@@ -1,14 +1,7 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import PluginManager from 'tinymce/core/api/PluginManager';
 
 import * as Commands from './api/Commands';
-import * as Settings from './api/Settings';
+import * as Options from './api/Options';
 import { initDatabase } from './core/EmojiDatabase';
 import * as Filters from './core/Filters';
 import * as Autocompletion from './ui/Autocompletion';
@@ -23,8 +16,9 @@ import * as Buttons from './ui/Buttons';
 
 export default (): void => {
   PluginManager.add('emoticons', (editor, pluginUrl) => {
-    const databaseUrl = Settings.getEmoticonDatabaseUrl(editor, pluginUrl);
-    const databaseId = Settings.getEmoticonDatabaseId(editor);
+    Options.register(editor, pluginUrl);
+    const databaseUrl = Options.getEmojiDatabaseUrl(editor);
+    const databaseId = Options.getEmojiDatabaseId(editor);
 
     const database = initDatabase(editor, databaseUrl, databaseId);
 

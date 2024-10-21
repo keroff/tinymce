@@ -2,12 +2,13 @@ import { Assertions } from '@ephox/agar';
 import { describe, it } from '@ephox/bedrock-client';
 import { Insert, SelectorFind, SugarBody, SugarElement } from '@ephox/sugar';
 import { TinyAssertions, TinyDom, TinyHooks } from '@ephox/wrap-mcagar';
+import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 
 describe('browser.tinymce.core.init.InitEditorThemeFunctionInlineTest', () => {
   const hook = TinyHooks.bddSetup<Editor>({
-    theme: (editor, target) => {
+    theme: (editor: Editor, target: HTMLElement) => {
       const elm = SugarElement.fromHtml('<div><button>B</button><div></div></div>');
 
       Insert.after(SugarElement.fromDom(target), elm);
@@ -18,8 +19,8 @@ describe('browser.tinymce.core.init.InitEditorThemeFunctionInlineTest', () => {
     },
     base_url: '/project/tinymce/js/tinymce',
     inline: true,
-    init_instance_callback: (editor) => {
-      editor.fire('SkinLoaded');
+    init_instance_callback: (editor: Editor) => {
+      editor.dispatch('SkinLoaded');
     }
   }, []);
 
@@ -39,5 +40,10 @@ describe('browser.tinymce.core.init.InitEditorThemeFunctionInlineTest', () => {
     Assertions.assertDomEq('Should be expected editor body element', targetElement, TinyDom.body(editor));
     Assertions.assertDomEq('Should be expected editor target element', targetElement, TinyDom.targetElement(editor));
     Assertions.assertDomEq('Should be expected content area container', targetElement, TinyDom.contentAreaContainer(editor));
+  });
+
+  it('TINY-8348: no default content css loaded', () => {
+    const editor = hook.editor();
+    assert.lengthOf(editor.contentCSS, 0, 'Should not have loaded the default content css');
   });
 });

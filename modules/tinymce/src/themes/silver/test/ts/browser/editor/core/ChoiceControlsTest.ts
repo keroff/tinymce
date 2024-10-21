@@ -1,13 +1,12 @@
-import { UiFinder, Waiter } from '@ephox/agar';
-import { before, beforeEach, context, describe, it } from '@ephox/bedrock-client';
+import { Keys, UiFinder, Waiter } from '@ephox/agar';
+import { beforeEach, context, describe, it } from '@ephox/bedrock-client';
 import { Arr, Optional } from '@ephox/katamari';
 import { PlatformDetection } from '@ephox/sand';
-import { Attribute } from '@ephox/sugar';
-import { McEditor, TinyAssertions, TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-mcagar';
+import { Attribute, SugarBody } from '@ephox/sugar';
+import { McEditor, TinyAssertions, TinyHooks, TinySelections, TinyState, TinyUiActions } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 interface ToolbarOrMenuSpec {
   readonly name: string;
@@ -70,7 +69,7 @@ describe('browser.tinymce.themes.silver.editor.core.ChoiceControlsTest', () => {
     context('Default settings', () => {
       const hook = TinyHooks.bddSetup<Editor>({
         ...baseSettings
-      }, [ Theme ]);
+      }, []);
 
       Arr.each([ menuSpec, toolbarSpec ], (spec) => {
         it(`TINY-4843: ${spec.name} lists correct line heights`, async () => {
@@ -145,13 +144,37 @@ describe('browser.tinymce.themes.silver.editor.core.ChoiceControlsTest', () => {
         await pAssertOptions(editor, menuSpec.menuSelector, [ '1', '1.1', '1.2', '1.3', '1.4', '1.5', '2' ], Optional.some('1.4'));
         menuSpec.close(editor, 'Line height');
       });
+
+      it('TINY-9669: Disable lineheight button on noneditable content', () => {
+        TinyState.withNoneditableRootEditor<Editor>(hook.editor(), (editor) => {
+          editor.setContent('<div>Noneditable content</div><div contenteditable="true">Editable content</div>');
+          TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 2);
+          UiFinder.exists(SugarBody.body(), '[aria-label="Line height"]:disabled');
+          TinySelections.setSelection(editor, [ 1, 0 ], 0, [ 1, 0 ], 2);
+          UiFinder.exists(SugarBody.body(), '[aria-label="Line height"]:not(:disabled)');
+        });
+      });
+
+      it('TINY-9669: Disable lineheight menuitem on noneditable content', async () => {
+        await TinyState.withNoneditableRootEditorAsync<Editor>(hook.editor(), async (editor) => {
+          editor.setContent('<div>Noneditable content</div><div contenteditable="true">Editable content</div>');
+          TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 2);
+          TinyUiActions.clickOnMenu(editor, 'button:contains("Format")');
+          await TinyUiActions.pWaitForUi(editor, '[role="menu"] [title="Line height"][aria-disabled="true"]');
+          TinyUiActions.keystroke(editor, Keys.escape());
+          TinySelections.setSelection(editor, [ 1, 0 ], 0, [ 1, 0 ], 2);
+          TinyUiActions.clickOnMenu(editor, 'button:contains("Format")');
+          await TinyUiActions.pWaitForUi(editor, '[role="menu"] [title="Line height"][aria-disabled="false"]');
+          TinyUiActions.keystroke(editor, Keys.escape());
+        });
+      });
     });
 
     context('Float line height detection', () => {
       const hook = TinyHooks.bddSetup<Editor>({
         ...baseSettings,
-        lineheight_formats: '1 1.1 1.11 1.111'
-      }, [ Theme ]);
+        line_height_formats: '1 1.1 1.11 1.111'
+      }, []);
 
       Arr.each([ menuSpec, toolbarSpec ], (spec) => {
         it(`TINY-4843: ${spec.name} lists specified line heights`, async () => {
@@ -166,8 +189,8 @@ describe('browser.tinymce.themes.silver.editor.core.ChoiceControlsTest', () => {
     context('normalisation tests', () => {
       const hook = TinyHooks.bddSetup<Editor>({
         ...baseSettings,
-        lineheight_formats: '1.000 20px 22.0px 1.5e2%'
-      }, [ Theme ]);
+        line_height_formats: '1.000 20px 22.0px 1.5e2%'
+      }, []);
 
       beforeEach(() => {
         hook.editor().setContent('');
@@ -210,7 +233,7 @@ describe('browser.tinymce.themes.silver.editor.core.ChoiceControlsTest', () => {
           { title: 'Portuguese', code: 'pt' },
           { title: 'Chinese', code: 'zh' }
         ]
-      }, [ Theme ]);
+      }, []);
 
       const defaultLanguages = [ 'English', 'Spanish', 'French', 'German', 'Portuguese', 'Chinese' ];
 
@@ -287,13 +310,35 @@ describe('browser.tinymce.themes.silver.editor.core.ChoiceControlsTest', () => {
         editor.formatter.apply('lang', { value: 'zh' });
         await TinyUiActions.pWaitForUi(editor, '.tox-tbtn.tox-tbtn--enabled');
       });
+
+      context('Noneditable', () => {
+        it('TINY-9669: Disable language button on noneditable content', () => {
+          TinyState.withNoneditableRootEditor<Editor>(hook.editor(), (editor) => {
+            editor.setContent('<div>Noneditable content</div><div contenteditable="true">Editable content</div>');
+            TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 2);
+            UiFinder.exists(SugarBody.body(), '[aria-label="Language"]:disabled');
+            TinySelections.setSelection(editor, [ 1, 0 ], 0, [ 1, 0 ], 2);
+            UiFinder.exists(SugarBody.body(), '[aria-label="Language"]:not(:disabled)');
+          });
+        });
+
+        it('TINY-9669: Disable language menuitem on noneditable content', async () => {
+          await TinyState.withNoneditableRootEditorAsync<Editor>(hook.editor(), async (editor) => {
+            editor.setContent('<div>Noneditable content</div><div contenteditable="true">Editable content</div>');
+            TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 2);
+            TinyUiActions.clickOnMenu(editor, 'button:contains("Format")');
+            await TinyUiActions.pWaitForUi(editor, '[role="menu"] [title="Language"][aria-disabled="true"]');
+            TinyUiActions.keystroke(editor, Keys.escape());
+            TinySelections.setSelection(editor, [ 1, 0 ], 0, [ 1, 0 ], 2);
+            TinyUiActions.clickOnMenu(editor, 'button:contains("Format")');
+            await TinyUiActions.pWaitForUi(editor, '[role="menu"] [title="Language"][aria-disabled="false"]');
+            TinyUiActions.keystroke(editor, Keys.escape());
+          });
+        });
+      });
     });
 
     context('Advanced settings', () => {
-      before(() => {
-        Theme();
-      });
-
       Arr.each([ menuSpec, toolbarSpec ], (spec) => {
         it(`TINY-6149: ${spec.name} applies custom language attributes`, async () => {
           const editor = await McEditor.pFromSettings<Editor>({

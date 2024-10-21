@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 // Note: Need to use a type here, as types are iterable whereas interfaces are not
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
 export type MediaData = {
@@ -16,13 +9,15 @@ export type MediaData = {
   poster: string;
   altsource: string;
   altsourcemime?: string;
-  type?: 'ephox-embed-iri' | 'script' | 'object' | 'iframe' | 'embed' | 'video' | 'audio';
+  type?: MediaDataType;
 
   // properties loaded from attributes
   allowfullscreen?: string | boolean;
   src?: string;
   'data-ephox-embed'?: string;
 };
+
+export type MediaDataType = 'ephox-embed-iri' | 'object' | 'iframe' | 'embed' | 'video' | 'audio';
 
 export interface DialogSubData {
   value: string;

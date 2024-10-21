@@ -1,17 +1,17 @@
 {
   "name": "tinymce",
-  "version": "5.10.9",
+  "version": "6.7.3",
   "private": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/tinymce/tinymce"
   },
   "description": "TinyMCE rich text editor",
-  "author": "Tiny Technologies, Inc",
+  "author": "Ephox Corporation DBA Tiny Technologies, Inc",
   "bugs": {
     "url": "https://github.com/tinymce/tinymce/issues"
   },
-  "license": "LGPL-2.1",
+  "license": "MIT",
   "engines": {
     "node": ">=0.10.26"
   },
@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "dompurify": "2.3.8",
+    "prismjs": "^1.27.0",
     "tslib": "^2.0.0"
   }
 }

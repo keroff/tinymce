@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Cell } from '@ephox/katamari';
+import { Arr, Cell, Fun } from '@ephox/katamari';
 
 import Editor from '../api/Editor';
 import * as BlockBoundaryDelete from './BlockBoundaryDelete';
@@ -20,62 +13,45 @@ import * as MediaDelete from './MediaDelete';
 import * as Outdent from './Outdent';
 import * as TableDelete from './TableDelete';
 
-const nativeCommand = (editor: Editor, command: string): void => {
-  editor.getDoc().execCommand(command, false, null);
+const findAction = (editor: Editor, caret: Cell<Text | null>, forward: boolean) =>
+  Arr.findMap([
+    Outdent.backspaceDelete,
+    CefDelete.backspaceDelete,
+    CaretBoundaryDelete.backspaceDelete,
+    (editor: Editor, forward: boolean) => InlineBoundaryDelete.backspaceDelete(editor, caret, forward),
+    BlockBoundaryDelete.backspaceDelete,
+    TableDelete.backspaceDelete,
+    ImageBlockDelete.backspaceDelete,
+    MediaDelete.backspaceDelete,
+    BlockRangeDelete.backspaceDelete,
+    InlineFormatDelete.backspaceDelete,
+  ], (item) => item(editor, forward))
+    .filter((_) => editor.selection.isEditable());
+
+const deleteCommand = (editor: Editor, caret: Cell<Text | null>): void => {
+  const result = findAction(editor, caret, false);
+
+  result.fold(
+    () => {
+      // We can't use an `execEditorDeleteCommand` here, otherwise we'd get
+      // possible infinite recursion (as it would trigger `deleteCommand` again)
+      DeleteUtils.execNativeDeleteCommand(editor);
+      DeleteUtils.paddEmptyBody(editor);
+    },
+    Fun.call
+  );
 };
 
-const deleteCommand = (editor: Editor, caret: Cell<Text>): void => {
-  if (Outdent.backspaceDelete(editor, false)) {
-    return;
-  } else if (CefDelete.backspaceDelete(editor, false)) {
-    return;
-  } else if (CaretBoundaryDelete.backspaceDelete(editor, false)) {
-    return;
-  } else if (InlineBoundaryDelete.backspaceDelete(editor, caret, false)) {
-    return;
-  } else if (BlockBoundaryDelete.backspaceDelete(editor, false)) {
-    return;
-  } else if (TableDelete.backspaceDelete(editor)) {
-    return;
-  } else if (ImageBlockDelete.backspaceDelete(editor, false)) {
-    return;
-  } else if (MediaDelete.backspaceDelete(editor, false)) {
-    return;
-  } else if (BlockRangeDelete.backspaceDelete(editor, false)) {
-    return;
-  } else if (InlineFormatDelete.backspaceDelete(editor, false)) {
-    return;
-  } else {
-    nativeCommand(editor, 'Delete');
-    DeleteUtils.paddEmptyBody(editor);
-  }
+const forwardDeleteCommand = (editor: Editor, caret: Cell<Text | null>): void => {
+  const result = findAction(editor, caret, true);
+
+  result.fold(
+    () => DeleteUtils.execNativeForwardDeleteCommand(editor),
+    Fun.call
+  );
 };
 
-const forwardDeleteCommand = (editor: Editor, caret: Cell<Text>): void => {
-  if (CefDelete.backspaceDelete(editor, true)) {
-    return;
-  } else if (CaretBoundaryDelete.backspaceDelete(editor, true)) {
-    return;
-  } else if (InlineBoundaryDelete.backspaceDelete(editor, caret, true)) {
-    return;
-  } else if (BlockBoundaryDelete.backspaceDelete(editor, true)) {
-    return;
-  } else if (TableDelete.backspaceDelete(editor)) {
-    return;
-  } else if (ImageBlockDelete.backspaceDelete(editor, true)) {
-    return;
-  } else if (MediaDelete.backspaceDelete(editor, true)) {
-    return;
-  } else if (BlockRangeDelete.backspaceDelete(editor, true)) {
-    return;
-  } else if (InlineFormatDelete.backspaceDelete(editor, true)) {
-    return;
-  } else {
-    nativeCommand(editor, 'ForwardDelete');
-  }
-};
-
-const setup = (editor: Editor, caret: Cell<Text>): void => {
+const setup = (editor: Editor, caret: Cell<Text | null>): void => {
   editor.addCommand('delete', () => {
     deleteCommand(editor, caret);
   });

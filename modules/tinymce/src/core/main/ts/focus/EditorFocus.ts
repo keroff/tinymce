@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Optional } from '@ephox/katamari';
+import { Optional, Type } from '@ephox/katamari';
 import { Compare, Focus, SugarElement, SugarShadowDom } from '@ephox/sugar';
 
 import EditorSelection from '../api/dom/Selection';
@@ -18,15 +11,16 @@ import * as RangeNodes from '../selection/RangeNodes';
 import * as SelectionBookmark from '../selection/SelectionBookmark';
 import * as FocusController from './FocusController';
 
-const getContentEditableHost = (editor: Editor, node: Node): Element =>
-  editor.dom.getParent(node, (node) => editor.dom.getContentEditable(node) === 'true');
+const getContentEditableHost = (editor: Editor, node: Node): HTMLElement | null =>
+  editor.dom.getParent(node, (node): node is HTMLElement => editor.dom.getContentEditable(node) === 'true');
 
-const getCollapsedNode = (rng: Range): Optional<SugarElement<Node>> => rng.collapsed ? Optional.from(RangeNodes.getNode(rng.startContainer, rng.startOffset)).map(SugarElement.fromDom) : Optional.none();
+const getCollapsedNode = (rng: Range): Optional<SugarElement<Node>> =>
+  rng.collapsed ? Optional.from(RangeNodes.getNode(rng.startContainer, rng.startOffset)).map(SugarElement.fromDom) : Optional.none();
 
-const getFocusInElement = (root: SugarElement<any>, rng: Range): Optional<SugarElement<any>> => getCollapsedNode(rng).bind((node) => {
+const getFocusInElement = (root: SugarElement<Node>, rng: Range): Optional<SugarElement<Node>> => getCollapsedNode(rng).bind((node) => {
   if (ElementType.isTableSection(node)) {
     return Optional.some(node);
-  } else if (Compare.contains(root, node) === false) {
+  } else if (!Compare.contains(root, node)) {
     return Optional.some(root);
   } else {
     return Optional.none();
@@ -38,13 +32,13 @@ const normalizeSelection = (editor: Editor, rng: Range): void => {
     return CaretFinder.firstPositionIn(elm.dom);
   }).fold(
     () => {
-      editor.selection.normalize(); return;
+      editor.selection.normalize();
     },
     (caretPos: CaretPosition) => editor.selection.setRng(caretPos.toRange())
   );
 };
 
-const focusBody = (body) => {
+const focusBody = (body: HTMLElement & { setActive?: VoidFunction }) => {
   if (body.setActive) {
     // IE 11 sometimes throws "Invalid function" then fallback to focus
     // setActive is better since it doesn't scroll to the element being focused
@@ -58,9 +52,10 @@ const focusBody = (body) => {
   }
 };
 
-const hasElementFocus = (elm: SugarElement): boolean => Focus.hasFocus(elm) || Focus.search(elm).isSome();
+const hasElementFocus = (elm: SugarElement<Element>): boolean => Focus.hasFocus(elm) || Focus.search(elm).isSome();
 
-const hasIframeFocus = (editor: Editor): boolean => editor.iframeElement && Focus.hasFocus(SugarElement.fromDom(editor.iframeElement));
+const hasIframeFocus = (editor: Editor): boolean =>
+  Type.isNonNullable(editor.iframeElement) && Focus.hasFocus(SugarElement.fromDom(editor.iframeElement));
 
 const hasInlineFocus = (editor: Editor): boolean => {
   const rawBody = editor.getBody();
@@ -87,7 +82,7 @@ const focusEditor = (editor: Editor) => {
 
   editor.quirks.refreshContentEditable();
 
-  if (editor.bookmark !== undefined && hasFocus(editor) === false) {
+  if (Type.isNonNullable(editor.bookmark) && !hasFocus(editor)) {
     SelectionBookmark.getRng(editor).each((bookmarkRng) => {
       editor.selection.setRng(bookmarkRng);
       rng = bookmarkRng;
@@ -96,7 +91,7 @@ const focusEditor = (editor: Editor) => {
 
   // Move focus to contentEditable=true child if needed
   const contentEditableHost = getContentEditableHost(editor, selection.getNode());
-  if (editor.$.contains(body, contentEditableHost)) {
+  if (contentEditableHost && editor.dom.isChildOf(contentEditableHost, body)) {
     focusBody(contentEditableHost);
     normalizeSelection(editor, rng);
     activateEditor(editor);
@@ -107,7 +102,7 @@ const focusEditor = (editor: Editor) => {
   if (!editor.inline) {
     // WebKit needs this call to fire focusin event properly see #5948
     // But Opera pre Blink engine will produce an empty selection so skip Opera
-    if (!Env.opera) {
+    if (!Env.browser.isOpera()) {
       focusBody(body);
     }
 
@@ -115,7 +110,7 @@ const focusEditor = (editor: Editor) => {
   }
 
   // Focus the body as well since it's contentEditable
-  if (Env.gecko || editor.inline) {
+  if (Env.browser.isFirefox() || editor.inline) {
     focusBody(body);
     normalizeSelection(editor, rng);
   }
@@ -125,7 +120,7 @@ const focusEditor = (editor: Editor) => {
 
 const activateEditor = (editor: Editor) => editor.editorManager.setActive(editor);
 
-const focus = (editor: Editor, skipFocus: boolean) => {
+const focus = (editor: Editor, skipFocus: boolean): void => {
   if (editor.removed) {
     return;
   }

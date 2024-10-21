@@ -1,15 +1,8 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Fun, Optional } from '@ephox/katamari';
-import { Attribute, Insert, SugarElement } from '@ephox/sugar';
+import { CellLocation, CellNavigation, TableLookup } from '@ephox/snooker';
+import { Compare, ContentEditable, CursorPosition, Insert, SimSelection, SugarElement, SugarNode, WindowSelection } from '@ephox/sugar';
 
 import Editor from '../api/Editor';
-import * as Settings from '../api/Settings';
 import * as CaretFinder from '../caret/CaretFinder';
 import CaretPosition from '../caret/CaretPosition';
 import { isFakeCaretTableBrowser } from '../caret/FakeCaret';
@@ -20,6 +13,7 @@ import {
 } from '../caret/LineReader';
 import { findClosestPositionInAboveCell, findClosestPositionInBelowCell } from '../caret/TableCells';
 import * as NodeType from '../dom/NodeType';
+import * as ForceBlocks from '../ForceBlocks';
 import * as NavigationUtils from './NavigationUtils';
 
 type PositionsUntilFn = (scope: HTMLElement, start: CaretPosition) => LineInfo;
@@ -76,32 +70,15 @@ const getClosestBelowPosition = (root: HTMLElement, table: HTMLElement, start: C
 
 const getTable = (previous: boolean, pos: CaretPosition): Optional<HTMLElement> => {
   const node = pos.getNode(previous);
-  return NodeType.isElement(node) && node.nodeName === 'TABLE' ? Optional.some(node) : Optional.none();
+  return NodeType.isTable(node) ? Optional.some(node) : Optional.none();
 };
 
-const renderBlock = (down: boolean, editor: Editor, table: HTMLElement, pos: CaretPosition) => {
-  const forcedRootBlock = Settings.getForcedRootBlock(editor);
-
-  if (forcedRootBlock) {
-    editor.undoManager.transact(() => {
-      const element = SugarElement.fromTag(forcedRootBlock);
-      Attribute.setAll(element, Settings.getForcedRootBlockAttrs(editor));
-      Insert.append(element, SugarElement.fromTag('br'));
-
-      if (down) {
-        Insert.after(SugarElement.fromDom(table), element);
-      } else {
-        Insert.before(SugarElement.fromDom(table), element);
-      }
-
-      const rng = editor.dom.createRng();
-      rng.setStart(element.dom, 0);
-      rng.setEnd(element.dom, 0);
-      NavigationUtils.moveToRange(editor, rng);
-    });
-  } else {
-    NavigationUtils.moveToRange(editor, pos.toRange());
-  }
+const renderBlock = (down: boolean, editor: Editor, table: HTMLElement) => {
+  editor.undoManager.transact(() => {
+    const insertFn = down ? Insert.after : Insert.before;
+    const rng = ForceBlocks.insertEmptyLine(editor, SugarElement.fromDom(table), insertFn);
+    NavigationUtils.moveToRange(editor, rng);
+  });
 };
 
 const moveCaret = (editor: Editor, down: boolean, pos: CaretPosition) => {
@@ -112,7 +89,7 @@ const moveCaret = (editor: Editor, down: boolean, pos: CaretPosition) => {
     () => NavigationUtils.moveToRange(editor, pos.toRange()),
     (table) => CaretFinder.positionIn(last, editor.getBody()).filter((lastPos) => lastPos.isEqual(pos)).fold(
       () => NavigationUtils.moveToRange(editor, pos.toRange()),
-      (_) => renderBlock(down, editor, table, pos)
+      (_) => renderBlock(down, editor, table)
     )
   );
 };
@@ -141,12 +118,65 @@ const move = (editor: Editor, forward: boolean, mover: (editor: Editor, forward:
       .map((table) => mover(editor, forward, table, td))
     ).getOr(false);
 
-const moveH = (editor: Editor, forward: boolean) => move(editor, forward, navigateHorizontally);
+const moveH = (editor: Editor, forward: boolean): boolean => move(editor, forward, navigateHorizontally);
 
-const moveV = (editor: Editor, forward: boolean) => move(editor, forward, navigateVertically);
+const moveV = (editor: Editor, forward: boolean): boolean => move(editor, forward, navigateVertically);
+
+const getCellFirstCursorPosition = (cell: SugarElement<Node>): Range => {
+  const selection = SimSelection.exact(cell, 0, cell, 0);
+  return WindowSelection.toNative(selection);
+};
+
+const tabGo = (editor: Editor, isRoot: (e: SugarElement<Node>) => boolean, cell: CellLocation): Optional<Range> => {
+  return cell.fold<Optional<Range>>(Optional.none, Optional.none, (_current, next) => {
+    return CursorPosition.first(next).map((cell) => {
+      return getCellFirstCursorPosition(cell);
+    });
+  }, (current) => {
+    editor.execCommand('mceTableInsertRowAfter');
+    // Move forward from the last cell so that we move into the first valid position in the new row
+    return tabForward(editor, isRoot, current);
+  });
+};
+
+const tabForward = (editor: Editor, isRoot: (e: SugarElement<Node>) => boolean, cell: SugarElement<HTMLTableCellElement>) =>
+  tabGo(editor, isRoot, CellNavigation.next(cell, ContentEditable.isEditable));
+
+const tabBackward = (editor: Editor, isRoot: (e: SugarElement<Node>) => boolean, cell: SugarElement<HTMLTableCellElement>) =>
+  tabGo(editor, isRoot, CellNavigation.prev(cell, ContentEditable.isEditable));
+
+const handleTab = (editor: Editor, forward: boolean): boolean => {
+  const rootElements = [ 'table', 'li', 'dl' ];
+
+  const body = SugarElement.fromDom(editor.getBody());
+  const isRoot = (element: SugarElement<Node>) => {
+    const name = SugarNode.name(element);
+    return Compare.eq(element, body) || Arr.contains(rootElements, name);
+  };
+
+  const rng = editor.selection.getRng();
+  // If navigating backwards, use the start of the ranged selection
+  const container = SugarElement.fromDom(!forward ? rng.startContainer : rng.endContainer);
+  return TableLookup.cell(container, isRoot).map((cell) => {
+    // Clear fake ranged selection because our new selection will always be collapsed
+    TableLookup.table(cell, isRoot).each((table) => {
+      editor.model.table.clearSelectedCells(table.dom);
+    });
+    // Collapse selection to start or end based on shift key
+    editor.selection.collapse(!forward);
+    const navigation = !forward ? tabBackward : tabForward;
+    const rng = navigation(editor, isRoot, cell);
+    rng.each((range) => {
+      editor.selection.setRng(range);
+    });
+
+    return true;
+  }).getOr(false);
+};
 
 export {
   isFakeCaretTableBrowser,
   moveH,
-  moveV
+  moveV,
+  handleTab
 };

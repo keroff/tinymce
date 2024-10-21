@@ -1,18 +1,11 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Unicode } from '@ephox/katamari';
-import { Insert, Remove, SelectorFilter, SugarElement, SugarNode, SugarText, Traverse } from '@ephox/sugar';
+import { Attribute, Insert, Remove, SelectorFilter, SugarElement, SugarNode, SugarText, Traverse } from '@ephox/sugar';
 
 import * as ElementType from './ElementType';
 
 const getLastChildren = (elm: SugarElement<Node>): SugarElement<Node>[] => {
   const children: SugarElement<Node>[] = [];
-  let rawNode = elm.dom;
+  let rawNode: Node | null = elm.dom;
 
   while (rawNode) {
     children.push(SugarElement.fromDom(rawNode));
@@ -30,9 +23,15 @@ const removeTrailingBr = (elm: SugarElement<Node>): void => {
   }
 };
 
+const createPaddingBr = (): SugarElement<HTMLBRElement> => {
+  const br = SugarElement.fromTag('br');
+  Attribute.set(br, 'data-mce-bogus', '1');
+  return br;
+};
+
 const fillWithPaddingBr = (elm: SugarElement<Node>): void => {
   Remove.empty(elm);
-  Insert.append(elm, SugarElement.fromHtml('<br data-mce-bogus="1">'));
+  Insert.append(elm, createPaddingBr());
 };
 
 const isPaddingContents = (elm: SugarElement<Node>): boolean => {
@@ -54,6 +53,7 @@ const trimBlockTrailingBr = (elm: SugarElement<Node>): void => {
 };
 
 export {
+  createPaddingBr,
   removeTrailingBr,
   fillWithPaddingBr,
   isPaddedElement,

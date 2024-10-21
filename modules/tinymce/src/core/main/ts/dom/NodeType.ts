@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Arr } from '@ephox/katamari';
+import { Arr, Type } from '@ephox/katamari';
 
 type NullableNode = Node | null | undefined;
 
@@ -21,13 +14,20 @@ const isRestrictedNode = (node: NullableNode): boolean => !!node && !Object.getP
 
 const isElement = isNodeType<HTMLElement>(1);
 
+const matchNodeName = <T extends Node>(name: string): (node: NullableNode) => node is T => {
+  const lowerCasedName = name.toLowerCase();
+
+  return (node: NullableNode): node is T =>
+    Type.isNonNullable(node) && node.nodeName.toLowerCase() === lowerCasedName;
+};
+
 const matchNodeNames = <T extends Node>(names: string[]): (node: NullableNode) => node is T => {
-  const lowercasedNames = names.map((s) => s.toLowerCase());
+  const lowerCasedNames = names.map((s) => s.toLowerCase());
 
   return (node: NullableNode): node is T => {
     if (node && node.nodeName) {
       const nodeName = node.nodeName.toLowerCase();
-      return Arr.contains(lowercasedNames, nodeName);
+      return Arr.contains(lowerCasedNames, nodeName);
     }
 
     return false;
@@ -39,11 +39,14 @@ const matchStyleValues = (name: string, values: string): (node: NullableNode) =>
 
   return (node: NullableNode) => {
     if (isElement(node)) {
-      for (let i = 0; i < items.length; i++) {
-        const computed = node.ownerDocument.defaultView.getComputedStyle(node, null);
-        const cssValue = computed ? computed.getPropertyValue(name) : null;
-        if (cssValue === items[i]) {
-          return true;
+      const win: Window | null = node.ownerDocument.defaultView;
+      if (win) {
+        for (let i = 0; i < items.length; i++) {
+          const computed = win.getComputedStyle(node, null);
+          const cssValue = computed ? computed.getPropertyValue(name) : null;
+          if (cssValue === items[i]) {
+            return true;
+          }
         }
       }
     }
@@ -72,7 +75,7 @@ const hasAttributeValue = (attrName: string, attrValue: string) => {
 
 const isBogus = (node: NullableNode): node is Element => isElement(node) && node.hasAttribute('data-mce-bogus');
 const isBogusAll = (node: NullableNode): node is Element => isElement(node) && node.getAttribute('data-mce-bogus') === 'all';
-const isTable = (node: NullableNode): node is Element => isElement(node) && node.tagName === 'TABLE';
+const isTable = (node: NullableNode): node is HTMLTableElement => isElement(node) && node.tagName === 'TABLE';
 
 const hasContentEditableState = (value: string) => {
   return (node: NullableNode): node is HTMLElement => {
@@ -93,20 +96,28 @@ const hasContentEditableState = (value: string) => {
 const isTextareaOrInput = matchNodeNames<HTMLTextAreaElement | HTMLInputElement>([ 'textarea', 'input' ]);
 
 const isText = isNodeType<Text>(3);
+const isCData = isNodeType<CDATASection>(4);
+const isPi = isNodeType<ProcessingInstruction>(7);
 const isComment = isNodeType<Comment>(8);
 const isDocument = isNodeType<Document>(9);
 const isDocumentFragment = isNodeType<DocumentFragment>(11);
-const isBr = matchNodeNames<HTMLBRElement>([ 'br' ]);
-const isImg = matchNodeNames<HTMLImageElement>([ 'img' ]);
+const isBr = matchNodeName<HTMLBRElement>('br');
+const isImg = matchNodeName<HTMLImageElement>('img');
 const isContentEditableTrue = hasContentEditableState('true');
 const isContentEditableFalse = hasContentEditableState('false');
 
 const isTableCell = matchNodeNames<HTMLTableCellElement>([ 'td', 'th' ]);
+const isTableCellOrCaption = matchNodeNames<HTMLTableCellElement>([ 'td', 'th', 'caption' ]);
 const isMedia = matchNodeNames<HTMLElement>([ 'video', 'audio', 'object', 'embed' ]);
+const isListItem = matchNodeName<HTMLLIElement>('li');
+const isDetails = matchNodeName<HTMLDetailsElement>('details');
+const isSummary = matchNodeName<HTMLElement>('summary');
 
 export {
   isText,
   isElement,
+  isCData,
+  isPi,
   isComment,
   isDocument,
   isDocumentFragment,
@@ -116,6 +127,7 @@ export {
   isContentEditableFalse,
   isMedia,
   isTableCell,
+  isTableCellOrCaption,
   isRestrictedNode,
   matchNodeNames,
   hasPropValue,
@@ -125,5 +137,8 @@ export {
   isBogus,
   isBogusAll,
   isTable,
-  isTextareaOrInput
+  isTextareaOrInput,
+  isListItem,
+  isDetails,
+  isSummary
 };

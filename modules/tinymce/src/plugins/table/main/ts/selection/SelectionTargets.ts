@@ -1,11 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Selections } from '@ephox/darwin';
 import { Arr, Cell, Fun, Optional, Optionals, Thunk } from '@ephox/katamari';
 import { RunOperation, Structs, TableLookup, Warehouse } from '@ephox/snooker';
 import { Compare, SelectorExists, SugarElement, SugarNode } from '@ephox/sugar';
@@ -13,7 +5,7 @@ import { Compare, SelectorExists, SugarElement, SugarNode } from '@ephox/sugar';
 import Editor from 'tinymce/core/api/Editor';
 import { Menu, Toolbar } from 'tinymce/core/api/ui/Ui';
 
-import * as Util from '../core/Util';
+import * as Utils from '../core/Utils';
 import * as TableTargets from '../queries/TableTargets';
 import * as TableSelection from './TableSelection';
 
@@ -21,10 +13,10 @@ type UiApi = Menu.MenuItemInstanceApi | Toolbar.ToolbarButtonInstanceApi;
 type UiToggleApi = Menu.ToggleMenuItemInstanceApi | Toolbar.ToolbarToggleButtonInstanceApi;
 
 /*
-onAny - disable if any column in the selection is locked
-onFirst - disable if the first column in the table is selected and is locked
-onLast - disable if the the last column in the table is selected and is locked
-*/
+ onAny - disable if any column in the selection is locked
+ onFirst - disable if the first column in the table is selected and is locked
+ onLast - disable if the the last column in the table is selected and is locked
+ */
 export const enum LockedDisable {
   onAny = 'onAny',
   onFirst = 'onFirst',
@@ -40,10 +32,10 @@ export interface SelectionTargets {
   readonly onSetupPasteableColumn: (getClipboardData: () => Optional<SugarElement[]>, lockedDisable: LockedDisable) => (api: UiApi) => () => void;
   readonly onSetupMergeable: (api: UiApi) => () => void;
   readonly onSetupUnmergeable: (api: UiApi) => () => void;
-  readonly resetTargets: () => void;
   readonly onSetupTableWithCaption: (api: UiToggleApi) => () => void;
   readonly onSetupTableRowHeaders: (api: UiToggleApi) => () => void;
   readonly onSetupTableColumnHeaders: (api: UiToggleApi) => () => void;
+  readonly resetTargets: () => void;
   readonly targets: () => Optional<RunOperation.CombinedTargets>;
 }
 
@@ -55,15 +47,15 @@ interface ExtractedSelectionDetails {
 
 type TargetSetupCallback = (targets: RunOperation.CombinedTargets) => boolean;
 
-export const getSelectionTargets = (editor: Editor, selections: Selections): SelectionTargets => {
+export const getSelectionTargets = (editor: Editor): SelectionTargets => {
   const targets = Cell<Optional<RunOperation.CombinedTargets>>(Optional.none());
-  const changeHandlers = Cell([]);
+  const changeHandlers = Cell<Array<() => void>>([]);
   let selectionDetails = Optional.none<ExtractedSelectionDetails>();
 
   const isCaption = SugarNode.isTag('caption');
   const isDisabledForSelection = (key: keyof ExtractedSelectionDetails) => selectionDetails.forall((details) => !details[key]);
-  const getStart = () => TableSelection.getSelectionCellOrCaption(Util.getSelectionStart(editor), Util.getIsRoot(editor));
-  const getEnd = () => TableSelection.getSelectionCellOrCaption(Util.getSelectionEnd(editor), Util.getIsRoot(editor));
+  const getStart = () => TableSelection.getSelectionCellOrCaption(Utils.getSelectionStart(editor), Utils.getIsRoot(editor));
+  const getEnd = () => TableSelection.getSelectionCellOrCaption(Utils.getSelectionEnd(editor), Utils.getIsRoot(editor));
 
   const findTargets = (): Optional<RunOperation.CombinedTargets> =>
     getStart().bind((startCellOrCaption) =>
@@ -73,7 +65,7 @@ export const getSelectionTargets = (editor: Editor, selections: Selections): Sel
             if (isCaption(startCellOrCaption)) {
               return Optional.some(TableTargets.noMenu(startCellOrCaption));
             } else {
-              return Optional.some(TableTargets.forMenu(selections, startTable, startCellOrCaption));
+              return Optional.some(TableTargets.forMenu(TableSelection.getCellsFromSelection(editor), startTable, startCellOrCaption));
             }
           }
 
@@ -116,7 +108,7 @@ export const getSelectionTargets = (editor: Editor, selections: Selections): Sel
     selectionDetails = targets.get().bind(getExtractedDetails);
 
     // Trigger change handlers
-    Arr.each(changeHandlers.get(), (handler) => handler());
+    Arr.each(changeHandlers.get(), Fun.call);
   };
 
   const setupHandler = (handler: () => void) => {
@@ -134,19 +126,19 @@ export const getSelectionTargets = (editor: Editor, selections: Selections): Sel
   const onSetup = (api: UiApi, isDisabled: TargetSetupCallback) =>
     setupHandler(() =>
       targets.get().fold(() => {
-        api.setDisabled(true);
+        api.setEnabled(false);
       }, (targets) => {
-        api.setDisabled(isDisabled(targets));
+        api.setEnabled(!isDisabled(targets) && editor.selection.isEditable());
       })
     );
 
   const onSetupWithToggle = (api: UiToggleApi, isDisabled: TargetSetupCallback, isActive: TargetSetupCallback) =>
     setupHandler(() =>
       targets.get().fold(() => {
-        api.setDisabled(true);
+        api.setEnabled(false);
         api.setActive(false);
       }, (targets) => {
-        api.setDisabled(isDisabled(targets));
+        api.setEnabled(!isDisabled(targets) && editor.selection.isEditable());
         api.setActive(isActive(targets));
       })
     );
@@ -166,7 +158,7 @@ export const getSelectionTargets = (editor: Editor, selections: Selections): Sel
 
   const onSetupTableWithCaption = (api: UiToggleApi) => {
     return onSetupWithToggle(api, Fun.never, (targets) => {
-      const tableOpt = TableLookup.table(targets.element, Util.getIsRoot(editor));
+      const tableOpt = TableLookup.table(targets.element, Utils.getIsRoot(editor));
       return tableOpt.exists((table) => SelectorExists.child(table, 'caption'));
     });
   };

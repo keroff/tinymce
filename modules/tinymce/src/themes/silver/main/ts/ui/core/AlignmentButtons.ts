@@ -1,17 +1,10 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
 
-import { onActionExecCommand, onSetupFormatToggle } from './ControlUtils';
+import { onActionExecCommand, onSetupEditableToggle, onSetupStateToggle } from './ControlUtils';
 
-const register = (editor: Editor) => {
+const register = (editor: Editor): void => {
   const alignToolbarButtons = [
     { name: 'alignleft', text: 'Align left', cmd: 'JustifyLeft', icon: 'align-left' },
     { name: 'aligncenter', text: 'Align center', cmd: 'JustifyCenter', icon: 'align-center' },
@@ -24,13 +17,14 @@ const register = (editor: Editor) => {
       tooltip: item.text,
       icon: item.icon,
       onAction: onActionExecCommand(editor, item.cmd),
-      onSetup: onSetupFormatToggle(editor, item.name)
+      onSetup: onSetupStateToggle(editor, item.name)
     });
   });
 
   editor.ui.registry.addButton('alignnone', {
     tooltip: 'No alignment',
     icon: 'align-none',
+    onSetup: onSetupEditableToggle(editor),
     onAction: onActionExecCommand(editor, 'JustifyNone')
   });
 };

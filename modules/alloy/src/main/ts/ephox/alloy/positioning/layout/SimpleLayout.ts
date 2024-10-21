@@ -27,11 +27,11 @@ const defaultOr = <K extends keyof AnchorOverrides>(options: AnchorOverrides, ke
 // This takes care of everything when you are positioning UI that can go anywhere on the screen
 const simple = (
   anchor: Anchor,
-  element: SugarElement,
+  element: SugarElement<HTMLElement>,
   bubble: Bubble,
   layouts: LayoutTypes.AnchorLayout[],
   lastPlacement: Optional<PlacerResult>,
-  getBounds: Optional<() => Bounds>,
+  optBounds: Optional<Bounds>,
   overrideOptions: AnchorOverrides,
   transition: Optional<Transition>
 ): PlacerResult => {
@@ -43,7 +43,7 @@ const simple = (
   const origin = anchor.origin;
 
   const options: ReparteeOptions = {
-    bounds: Origins.viewport(origin, getBounds),
+    bounds: Origins.viewport(origin, optBounds),
     origin,
     preference: layouts,
     maxHeightFunction,
@@ -56,7 +56,7 @@ const simple = (
 };
 
 // This is the old public API. If we ever need full customisability again, this is how to expose it
-const go = (anchorBox: LayoutTypes.AnchorBox, element: SugarElement, bubble: Bubble, options: ReparteeOptions): PlacerResult => {
+const go = (anchorBox: LayoutTypes.AnchorBox, element: SugarElement<HTMLElement>, bubble: Bubble, options: ReparteeOptions): PlacerResult => {
   const decision = Callouts.layout(anchorBox, element, bubble, options);
 
   Callouts.position(element, decision, options);

@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Fun } from '@ephox/katamari';
 
 import * as NodeType from '../dom/NodeType';
@@ -17,8 +10,10 @@ const startsWithCaretContainer = (node: Node): boolean =>
 const endsWithCaretContainer = (node: Node): boolean =>
   isText(node) && node.data[node.data.length - 1] === Zwsp.ZWSP;
 
-const createZwsp = (node: Node): Text =>
-  node.ownerDocument.createTextNode(Zwsp.ZWSP);
+const createZwsp = (node: Node): Text => {
+  const doc = node.ownerDocument ?? document;
+  return doc.createTextNode(Zwsp.ZWSP);
+};
 
 const insertBefore = (node: Node): Text => {
   if (isText(node.previousSibling)) {
@@ -37,7 +32,7 @@ const insertBefore = (node: Node): Text => {
     }
   } else {
     const newNode = createZwsp(node);
-    node.parentNode.insertBefore(newNode, node);
+    node.parentNode?.insertBefore(newNode, node);
     return newNode;
   }
 };
@@ -60,9 +55,9 @@ const insertAfter = (node: Node): Text => {
   } else {
     const newNode = createZwsp(node);
     if (node.nextSibling) {
-      node.parentNode.insertBefore(newNode, node.nextSibling);
+      node.parentNode?.insertBefore(newNode, node.nextSibling);
     } else {
-      node.parentNode.appendChild(newNode);
+      node.parentNode?.appendChild(newNode);
     }
     return newNode;
   }

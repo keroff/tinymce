@@ -1,14 +1,14 @@
+import { UiFinder } from '@ephox/agar';
 import { afterEach, describe, it } from '@ephox/bedrock-client';
 import { Arr } from '@ephox/katamari';
-import { SugarElement, SugarNode } from '@ephox/sugar';
-import { TinyAssertions, TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
+import { SugarBody, SugarElement, SugarNode } from '@ephox/sugar';
+import { TinyAssertions, TinyHooks, TinySelections, TinyState } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
+import { TableModifiedEvent } from 'tinymce/core/api/EventTypes';
 import { EditorEvent } from 'tinymce/core/api/util/EventDispatcher';
-import { TableModifiedEvent } from 'tinymce/plugins/table/api/Events';
 import Plugin from 'tinymce/plugins/table/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as TableTestUtils from '../../module/test/TableTestUtils';
 
@@ -22,9 +22,9 @@ describe('browser.tinymce.plugins.table.TableRowDialogTest', () => {
       '*': 'width,height,vertical-align,text-align,float,border-color,border-style,background-color,border,padding,border-spacing,border-collapse'
     },
     setup: (editor: Editor) => {
-      editor.on('tablemodified', logEvent);
+      editor.on('TableModified', logEvent);
     }
-  }, [ Plugin, Theme ], true);
+  }, [ Plugin ], true);
 
   const generalSelectors = {
     type: 'label.tox-label:contains(Row type) + div.tox-listboxfield > .tox-listbox',
@@ -82,7 +82,7 @@ describe('browser.tinymce.plugins.table.TableRowDialogTest', () => {
   it('TBA: Table row properties dialog (get data from plain cell)', async () => {
     const editor = hook.editor();
     assertEvents([]);
-    editor.settings.table_row_advtab = false;
+    editor.options.set('table_row_advtab', false);
     editor.setContent(baseHtml);
     TinySelections.select(editor, 'td', [ 0 ]);
     await TableTestUtils.pOpenTableDialog(editor);
@@ -124,7 +124,7 @@ describe('browser.tinymce.plugins.table.TableRowDialogTest', () => {
 
   it('TBA: Table row properties dialog (get data from complex row)', async () => {
     const editor = hook.editor();
-    editor.settings.table_row_advtab = true;
+    editor.options.set('table_row_advtab', true);
     editor.setContent(advHtml);
     TinySelections.select(editor, 'td', [ 0 ]);
     await TableTestUtils.pOpenTableDialog(editor);
@@ -158,7 +158,8 @@ describe('browser.tinymce.plugins.table.TableRowDialogTest', () => {
     TinyAssertions.assertContent(editor,
       '<table style="border: 1px solid black; border-collapse: collapse;" border="1">' +
       '<tbody>' +
-      '<tr style="border-color: blue; border-style: dotted; background-color: #ff0000;">' +
+      '<tr style="border-color: blue; border-style: dotted; background-color: rgb(255, 0, 0);">' +
+
       '<td>a</td>' +
       '</tr>' +
       '</tbody>' +
@@ -220,11 +221,8 @@ describe('browser.tinymce.plugins.table.TableRowDialogTest', () => {
 
     const newData = {
       align: 'center',
-      height: '',
       type: 'body',
-      backgroundcolor: '',
       bordercolor: 'red',
-      borderstyle: ''
     };
 
     const newHtml =
@@ -239,6 +237,120 @@ describe('browser.tinymce.plugins.table.TableRowDialogTest', () => {
       '<td>d</td>' +
       '</tr>' +
       '</tbody>' +
+      '</table>';
+
+    const editor = hook.editor();
+    editor.setContent(initialHtml);
+    TinySelections.select(editor, 'tr:nth-child(2) td:nth-child(2)', [ 0 ]);
+    await TableTestUtils.pOpenTableDialog(editor);
+    TableTestUtils.assertDialogValues(initialData, true, generalSelectors);
+    TableTestUtils.setDialogValues(newData, true, generalSelectors);
+    await TableTestUtils.pClickDialogButton(editor, true);
+    TinyAssertions.assertContent(editor, newHtml);
+    assertEvents();
+  });
+
+  it('TINY-8625: Table row properties dialog updates multiple rows, but does not override unchanged values', async () => {
+    const initialHtml =
+      '<table style="border: 1px solid black; border-collapse: collapse;" border="1">' +
+        '<tbody>' +
+          '<tr style="height: 20px; border-color: blue;">' +
+            '<td data-mce-selected="1">a</td>' +
+            '<td data-mce-selected="1">b</td>' +
+          '</tr>' +
+          '<tr style="height: 20px; border-color: red;">' +
+            '<td data-mce-selected="1">c</td>' +
+            '<td data-mce-selected="1">d</td>' +
+          '</tr>' +
+        '</tbody>' +
+      '</table>';
+
+    const initialData = {
+      align: '',
+      height: '20px',
+      type: 'body',
+      backgroundcolor: '',
+      bordercolor: '',
+      borderstyle: ''
+    };
+
+    const newData = {
+      align: 'center',
+      height: '30px',
+      type: 'body',
+      backgroundcolor: 'red'
+    };
+
+    const newHtml =
+      '<table style="border: 1px solid black; border-collapse: collapse;" border="1">' +
+        '<tbody>' +
+          '<tr style="height: 30px; text-align: center; border-color: blue; background-color: red;">' +
+            '<td>a</td>' +
+            '<td>b</td>' +
+          '</tr>' +
+          '<tr style="height: 30px; text-align: center; border-color: red; background-color: red;">' +
+            '<td>c</td>' +
+            '<td>d</td>' +
+          '</tr>' +
+        '</tbody>' +
+      '</table>';
+
+    const editor = hook.editor();
+    editor.setContent(initialHtml);
+    TinySelections.select(editor, 'tr:nth-child(2) td:nth-child(2)', [ 0 ]);
+    await TableTestUtils.pOpenTableDialog(editor);
+    TableTestUtils.assertDialogValues(initialData, true, generalSelectors);
+    TableTestUtils.setDialogValues(newData, true, generalSelectors);
+    await TableTestUtils.pClickDialogButton(editor, true);
+    TinyAssertions.assertContent(editor, newHtml);
+    assertEvents();
+  });
+
+  it('TINY-8625: Table row properties dialog updates multiple rows and allows resetting values', async () => {
+    const initialHtml =
+      '<table style="border: 1px solid black; border-collapse: collapse;" border="1">' +
+        '<tbody>' +
+          '<tr style="height: 20px; text-align: center; border-color: blue; border-style: dotted; background-color: red;">' +
+            '<td data-mce-selected="1">a</td>' +
+            '<td data-mce-selected="1">b</td>' +
+          '</tr>' +
+          '<tr style="height: 20px; text-align: center; border-color: blue; border-style: dotted; background-color: red;">' +
+            '<td data-mce-selected="1">c</td>' +
+            '<td data-mce-selected="1">d</td>' +
+          '</tr>' +
+        '</tbody>' +
+      '</table>';
+
+    const initialData = {
+      align: 'center',
+      height: '20px',
+      type: 'body',
+      backgroundcolor: 'red',
+      bordercolor: 'blue',
+      borderstyle: 'dotted'
+    };
+
+    const newData = {
+      align: '',
+      height: '',
+      type: 'body',
+      backgroundcolor: '',
+      bordercolor: '',
+      borderstyle: ''
+    };
+
+    const newHtml =
+      '<table style="border: 1px solid black; border-collapse: collapse;" border="1">' +
+        '<tbody>' +
+          '<tr>' +
+            '<td>a</td>' +
+            '<td>b</td>' +
+          '</tr>' +
+          '<tr>' +
+            '<td>c</td>' +
+            '<td>d</td>' +
+          '</tr>' +
+        '</tbody>' +
       '</table>';
 
     const editor = hook.editor();
@@ -282,5 +394,22 @@ describe('browser.tinymce.plugins.table.TableRowDialogTest', () => {
     await TableTestUtils.pClickDialogButton(editor, true);
     TinyAssertions.assertContent(editor, expectedHtml);
     assertEvents([{ type: 'tablemodified', structure: true, style: false }]);
+  });
+
+  it('TINY-9459: Should not open table row properties dialog on noneditable table', () => {
+    const editor = hook.editor();
+    editor.setContent('<table contenteditable="false"><tbody><tr><td>x</td></tr></tbody></table>');
+    TinySelections.setCursor(editor, [ 1, 0, 0, 0, 0 ], 0); // Index offset off by one due to cef fake caret
+    editor.execCommand('mceTableRowProps');
+    UiFinder.notExists(SugarBody.body(), '.tox-dialog');
+  });
+
+  it('TINY-9459: Should not open table row properties dialog on noneditable root', () => {
+    TinyState.withNoneditableRootEditor(hook.editor(), (editor) => {
+      editor.setContent('<table><tbody><tr><td>x</td></tr></tbody></table>');
+      TinySelections.setCursor(editor, [ 0, 0, 0, 0, 0 ], 0);
+      editor.execCommand('mceTableRowProps');
+      UiFinder.notExists(SugarBody.body(), '.tox-dialog');
+    });
   });
 });

@@ -1,16 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Arr, Obj, Optional, Optionals } from '@ephox/katamari';
+import { Arr, Id, Obj, Optional, Optionals, Type } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
 import { Dialog } from 'tinymce/core/api/ui/Ui';
 
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import { CustomTabSpecs, TabSpecs } from '../Plugin';
 import * as KeyboardNavTab from './KeyboardNavTab';
 import * as KeyboardShortcutsTab from './KeyboardShortcutsTab';
@@ -22,10 +15,10 @@ interface TabData {
   readonly names: string[];
 }
 
-const parseHelpTabsSetting = (tabsFromSettings: Settings.HelpTabsSetting, tabs: TabSpecs): TabData => {
-  const newTabs = {};
+const parseHelpTabsSetting = (tabsFromSettings: Options.HelpTabsSetting, tabs: TabSpecs): TabData => {
+  const newTabs: Record<string, any> = {};
   const names = Arr.map(tabsFromSettings, (t) => {
-    if (typeof t === 'string') {
+    if (Type.isString(t)) {
       // Code below shouldn't care if a tab name doesn't have a spec.
       // If we find it does, we'll need to make this smarter.
       // CustomTabsTest has a case for this.
@@ -34,8 +27,9 @@ const parseHelpTabsSetting = (tabsFromSettings: Settings.HelpTabsSetting, tabs: 
       }
       return t;
     } else {
-      newTabs[t.name] = t;
-      return t.name;
+      const name = t.name ?? Id.generate('tab-name');
+      newTabs[name] = t;
+      return name;
     }
   });
   return { tabs: newTabs, names };
@@ -54,9 +48,9 @@ const getNamesFromTabs = (tabs: TabSpecs): TabData => {
   return { tabs, names };
 };
 
-const parseCustomTabs = (editor: Editor, customTabs: CustomTabSpecs): TabData => {
+const pParseCustomTabs = async (editor: Editor, customTabs: CustomTabSpecs, pluginUrl: string): Promise<TabData> => {
   const shortcuts = KeyboardShortcutsTab.tab();
-  const nav = KeyboardNavTab.tab();
+  const nav = await KeyboardNavTab.pTab(pluginUrl);
   const plugins = PluginsTab.tab(editor);
   const versions = VersionTab.tab();
   const tabs = {
@@ -67,38 +61,38 @@ const parseCustomTabs = (editor: Editor, customTabs: CustomTabSpecs): TabData =>
     ...customTabs.get()
   };
 
-  return Settings.getHelpTabs(editor).fold(
+  return Optional.from(Options.getHelpTabs(editor)).fold(
     () => getNamesFromTabs(tabs),
-    (tabsFromSettings: Settings.HelpTabsSetting) => parseHelpTabsSetting(tabsFromSettings, tabs)
+    (tabsFromSettings: Options.HelpTabsSetting) => parseHelpTabsSetting(tabsFromSettings, tabs)
   );
 };
 
-const init = (editor: Editor, customTabs: CustomTabSpecs) => (): void => {
-  // const tabSpecs: Record<string, Types.Dialog.TabApi> = customTabs.get();
-  const { tabs, names } = parseCustomTabs(editor, customTabs);
-  const foundTabs: Optional<Dialog.TabSpec>[] = Arr.map(names, (name) => Obj.get(tabs, name));
-  const dialogTabs: Dialog.TabSpec[] = Optionals.cat(foundTabs);
+const init = (editor: Editor, customTabs: CustomTabSpecs, pluginUrl: string) => (): void => {
+  pParseCustomTabs(editor, customTabs, pluginUrl).then(({ tabs, names }) => {
+    const foundTabs: Optional<Dialog.TabSpec>[] = Arr.map(names, (name) => Obj.get(tabs, name));
+    const dialogTabs: Dialog.TabSpec[] = Optionals.cat(foundTabs);
 
-  const body: Dialog.TabPanelSpec = {
-    type: 'tabpanel',
-    tabs: dialogTabs
-  };
-  editor.windowManager.open(
-    {
-      title: 'Help',
-      size: 'medium',
-      body,
-      buttons: [
-        {
-          type: 'cancel',
-          name: 'close',
-          text: 'Close',
-          primary: true
-        }
-      ],
-      initialData: {}
-    }
-  );
+    const body: Dialog.TabPanelSpec = {
+      type: 'tabpanel',
+      tabs: dialogTabs
+    };
+    editor.windowManager.open(
+      {
+        title: 'Help',
+        size: 'medium',
+        body,
+        buttons: [
+          {
+            type: 'cancel',
+            name: 'close',
+            text: 'Close',
+            primary: true
+          }
+        ],
+        initialData: {}
+      }
+    );
+  });
 };
 
 export { init };

@@ -1,13 +1,19 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import Editor from 'tinymce/core/api/Editor';
+import { NodeChangeEvent } from 'tinymce/core/api/EventTypes';
+import { Toolbar } from 'tinymce/core/api/ui/Ui';
 
 import * as Util from '../core/Util';
+
+const setupToggleButtonHandler = (editor: Editor, listName: string) => (api: Toolbar.ToolbarToggleButtonInstanceApi): () => void => {
+  const toggleButtonHandler = (e: NodeChangeEvent) => {
+    api.setActive(Util.inList(e.parents, listName));
+    api.setEnabled(!Util.isWithinNonEditableList(editor, e.element) && editor.selection.isEditable());
+  };
+
+  api.setEnabled(editor.selection.isEditable());
+
+  return Util.setNodeChangeHandler(editor, toggleButtonHandler);
+};
 
 const register = (editor: Editor): void => {
   const exec = (command: string) => () => editor.execCommand(command);
@@ -18,7 +24,7 @@ const register = (editor: Editor): void => {
       active: false,
       tooltip: 'Numbered list',
       onAction: exec('InsertOrderedList'),
-      onSetup: (api) => Util.listState(editor, 'OL', api.setActive)
+      onSetup: setupToggleButtonHandler(editor, 'OL')
     });
 
     editor.ui.registry.addToggleButton('bullist', {
@@ -26,7 +32,7 @@ const register = (editor: Editor): void => {
       active: false,
       tooltip: 'Bullet list',
       onAction: exec('InsertUnorderedList'),
-      onSetup: (api) => Util.listState(editor, 'UL', api.setActive)
+      onSetup: setupToggleButtonHandler(editor, 'UL')
     });
   }
 };

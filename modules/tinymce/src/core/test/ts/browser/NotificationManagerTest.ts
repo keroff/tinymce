@@ -5,9 +5,8 @@ import { LegacyUnit, TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
+import { BeforeOpenNotificationEvent, OpenNotificationEvent } from 'tinymce/core/api/EventTypes';
 import { NotificationSpec } from 'tinymce/core/api/NotificationManager';
-import Delay from 'tinymce/core/api/util/Delay';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.NotificationManagerTest', () => {
   Arr.each([
@@ -15,8 +14,8 @@ describe('browser.tinymce.core.NotificationManagerTest', () => {
     { label: 'Shadow Dom Editor', setup: TinyHooks.bddSetupInShadowRoot }
   ], (tester) => {
     context(tester.label, () => {
-      let beforeOpenEvents = [];
-      let openEvents = [];
+      let beforeOpenEvents: BeforeOpenNotificationEvent[] = [];
+      let openEvents: OpenNotificationEvent[] = [];
       const hook = tester.setup<Editor>({
         service_message: 'service notification text',
         add_unload_trigger: false,
@@ -24,19 +23,22 @@ describe('browser.tinymce.core.NotificationManagerTest', () => {
         indent: false,
         entities: 'raw',
         base_url: '/project/tinymce/js/tinymce',
-        setup: (editor) => {
+        setup: (editor: Editor) => {
           editor.on('BeforeOpenNotification', (event) => beforeOpenEvents.push(event));
           editor.on('OpenNotification', (event) => openEvents.push(event));
         }
-      }, [ Theme ]);
+      }, []);
 
-      afterEach(() => {
+      const resetNotifications = () => {
         const editor = hook.editor();
-        const notifications = [].concat(editor.notificationManager.getNotifications());
+        const notifications = [ ...editor.notificationManager.getNotifications() ];
         Arr.each(notifications, (notification) => notification.close());
-
         beforeOpenEvents = [];
         openEvents = [];
+      };
+
+      afterEach(() => {
+        resetNotifications();
       });
 
       // IMPORTANT: This test must be first, as it asserts the service message on load
@@ -59,6 +61,8 @@ describe('browser.tinymce.core.NotificationManagerTest', () => {
 
       it('TBA: Should not add duplicate text message', () => {
         const editor = hook.editor();
+        resetNotifications();
+
         const testMsg1: NotificationSpec = { type: 'success', text: 'test success message' };
         const testMsg2: NotificationSpec = { type: 'warning', text: 'test warning message' };
         const testMsg3: NotificationSpec = { type: 'error', text: 'test error message' };
@@ -91,6 +95,8 @@ describe('browser.tinymce.core.NotificationManagerTest', () => {
 
       it('TBA: Should add duplicate progressBar messages', () => {
         const editor = hook.editor();
+        resetNotifications();
+
         const testMsg1: NotificationSpec = { text: 'test progressBar message', progressBar: true };
         const notifications = editor.notificationManager.getNotifications();
 
@@ -107,6 +113,8 @@ describe('browser.tinymce.core.NotificationManagerTest', () => {
 
       it('TBA: Should add duplicate timeout messages', (done) => {
         const editor = hook.editor();
+        resetNotifications();
+
         const checkClosed = () => {
           if (notifications.length === 0) {
             done();
@@ -123,13 +131,15 @@ describe('browser.tinymce.core.NotificationManagerTest', () => {
 
         assert.lengthOf(notifications, 2, 'Duplicate should be added for timeout message.');
 
-        Delay.setTimeout(() => {
+        setTimeout(() => {
           checkClosed();
         }, 100);
       });
 
       it('TINY-6058: Should move focus back to the editor when all notifications closed', () => {
         const editor = hook.editor();
+        resetNotifications();
+
         const testMsg1: NotificationSpec = { type: 'warning', text: 'test message 1' };
         const testMsg2: NotificationSpec = { type: 'error', text: 'test message 2' };
         const notifications = editor.notificationManager.getNotifications();
@@ -152,6 +162,8 @@ describe('browser.tinymce.core.NotificationManagerTest', () => {
 
       it('TINY-6528: Notification manager should throw events for notification modification', () => {
         const editor = hook.editor();
+        resetNotifications();
+
         const testMsg: NotificationSpec = {
           type: 'warning',
           text: 'unmodified notification text',
@@ -192,6 +204,8 @@ describe('browser.tinymce.core.NotificationManagerTest', () => {
 
       it('TBA: Should not open notification if editor is removed', () => {
         const editor = hook.editor();
+        resetNotifications();
+
         const testMsg1: NotificationSpec = { type: 'warning', text: 'test progressBar message' };
 
         editor.remove();

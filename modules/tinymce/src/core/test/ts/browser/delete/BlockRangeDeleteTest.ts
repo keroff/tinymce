@@ -5,32 +5,33 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import * as BlockRangeDelete from 'tinymce/core/delete/BlockRangeDelete';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.delete.BlockRangeDeleteTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce',
     indent: false
-  }, [ Theme ], true);
+  }, [], true);
 
   const doDelete = (editor: Editor) => {
     const returnVal = BlockRangeDelete.backspaceDelete(editor, true);
-    assert.isTrue(returnVal, 'Should return true since the operation should have done something');
+    returnVal.each((apply) => apply());
+    assert.isTrue(returnVal.isSome(), 'Should return true since the operation should have done something');
   };
 
   const noopDelete = (editor: Editor) => {
     const returnVal = BlockRangeDelete.backspaceDelete(editor, true);
-    assert.isFalse(returnVal, 'Should return false since the operation is a noop');
+    assert.isFalse(returnVal.isSome(), 'Should return false since the operation is a noop');
   };
 
   const doBackspace = (editor: Editor) => {
     const returnVal = BlockRangeDelete.backspaceDelete(editor, false);
-    assert.isTrue(returnVal, 'Should return true since the operation should have done something');
+    returnVal.each((apply) => apply());
+    assert.isTrue(returnVal.isSome(), 'Should return true since the operation should have done something');
   };
 
   const noopBackspace = (editor: Editor) => {
     const returnVal = BlockRangeDelete.backspaceDelete(editor, false);
-    assert.isFalse(returnVal, 'Should return false since the operation is a noop');
+    assert.isFalse(returnVal.isSome(), 'Should return false since the operation is a noop');
   };
 
   it('Backspace on collapsed range should be a noop', () => {

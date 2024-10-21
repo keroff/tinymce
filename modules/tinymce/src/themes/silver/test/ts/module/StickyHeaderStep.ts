@@ -6,32 +6,31 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import FullscreenPlugin from 'tinymce/plugins/fullscreen/Plugin';
-import { ToolbarLocation, ToolbarMode } from 'tinymce/themes/silver/api/Settings';
-import Theme from 'tinymce/themes/silver/Theme';
+import { ToolbarLocation, ToolbarMode } from 'tinymce/themes/silver/api/Options';
 
 import * as MenuUtils from './MenuUtils';
 import * as PageScroll from './PageScroll';
 import * as StickyUtils from './StickyHeaderUtils';
 
-const testStickyHeader = (toolbarMode: ToolbarMode, toolbarLocation: ToolbarLocation) => {
+const testStickyHeader = (toolbarMode: ToolbarMode, toolbarLocation: ToolbarLocation): void => {
   const isToolbarTop = toolbarLocation === ToolbarLocation.top;
 
   context('Test editor with toolbar_mode: ' + toolbarMode, () => {
     const hook = TinyHooks.bddSetup<Editor>({
       plugins: 'fullscreen',
       base_url: '/project/tinymce/js/tinymce',
-      toolbar: 'align | fontsizeselect | fontselect | formatselect | styleselect | insertfile | forecolor | backcolor ',
+      toolbar: 'align | fontsize | fontfamily | blocks | styles | insertfile | forecolor | backcolor ',
       resize: 'both',
       min_height: 300,
-      min_width: 300,
+      min_width: 350,
       height: 400,
-      width: 400,
+      width: 500,
       max_height: 500,
-      max_width: 500,
+      max_width: 550,
       toolbar_mode: toolbarMode,
       toolbar_location: toolbarLocation,
       toolbar_sticky: true,
-    }, [ FullscreenPlugin, Theme ], true);
+    }, [ FullscreenPlugin ], true);
 
     PageScroll.bddSetup(hook.editor, 5000);
 
@@ -154,10 +153,10 @@ const testStickyHeader = (toolbarMode: ToolbarMode, toolbarLocation: ToolbarLoca
 
     it('TINY-7337: Checking toolbar_sticky_offset updated sticky header position', async () => {
       const editor = hook.editor();
-      editor.settings.toolbar_sticky_offset = 54;
+      editor.options.set('toolbar_sticky_offset', 54);
 
       await StickyUtils.pAssertHeaderPosition(toolbarLocation, 54);
-      delete editor.settings.toolbar_sticky_offset;
+      editor.options.unset('toolbar_sticky_offset');
     });
   });
 };

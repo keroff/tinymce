@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr } from '@ephox/katamari';
 
 import * as NodeType from '../dom/NodeType';
@@ -79,7 +72,7 @@ const removeElementCaretContainer = (caretContainer: Node, pos: CaretPosition): 
 const removeAndReposition = (container: Node, pos: CaretPosition): CaretPosition =>
   CaretPosition.isTextPosition(pos) ? removeTextCaretContainer(container, pos) : removeElementCaretContainer(container, pos);
 
-const remove = (caretContainerNode: Node): void => {
+const remove = (caretContainerNode: Node | null): void => {
   if (isElement(caretContainerNode) && CaretContainer.isCaretContainer(caretContainerNode)) {
     if (CaretContainer.hasContent(caretContainerNode)) {
       caretContainerNode.removeAttribute('data-mce-caret');

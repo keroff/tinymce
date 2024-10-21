@@ -1,17 +1,24 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
+import { Fun } from '@ephox/katamari';
 
 import Editor from '../api/Editor';
 import * as Rtc from '../Rtc';
-import { Content, GetContentArgs } from './ContentTypes';
+import { Content, GetContentArgs, ContentFormat } from './ContentTypes';
+import { postProcessGetContent, preProcessGetContent } from './PrePostProcess';
 
 const defaultFormat = 'html';
-export const getContent = (editor: Editor, args: GetContentArgs = {}): Content => {
-  const format = args.format ? args.format : defaultFormat;
 
-  return Rtc.getContent(editor, args, format);
+const setupArgs = (args: Partial<GetContentArgs>, format: ContentFormat): GetContentArgs => ({
+  ...args,
+  format,
+  get: true,
+  getInner: true
+});
+
+export const getContent = (editor: Editor, args: Partial<GetContentArgs> = {}): Content => {
+  const format = args.format ? args.format : defaultFormat;
+  const defaultedArgs = setupArgs(args, format);
+  return preProcessGetContent(editor, defaultedArgs).fold(Fun.identity, (updatedArgs) => {
+    const content = Rtc.getContent(editor, updatedArgs);
+    return postProcessGetContent(editor, content, updatedArgs);
+  });
 };

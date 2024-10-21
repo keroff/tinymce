@@ -1,12 +1,5 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Fun, Optional } from '@ephox/katamari';
-import { SugarElement } from '@ephox/sugar';
+import { PredicateFind, SugarElement } from '@ephox/sugar';
 
 import DomTreeWalker from '../api/dom/TreeWalker';
 import * as NodeType from '../dom/NodeType';
@@ -23,12 +16,13 @@ const isBlockLike = NodeType.matchStyleValues('display', 'block table table-cell
 const isCaretContainer = CaretContainer.isCaretContainer;
 const isCaretContainerBlock = CaretContainer.isCaretContainerBlock;
 const isElement = NodeType.isElement;
+const isText = NodeType.isText;
 const isCaretCandidate = CaretCandidate.isCaretCandidate;
 const isForwards = (direction: HDirection): boolean => direction > 0;
 const isBackwards = (direction: HDirection): boolean => direction < 0;
 
-const skipCaretContainers = (walk: (shallow?: boolean) => Node | null, shallow?: boolean): Node | null => {
-  let node: Node | null;
+const skipCaretContainers = (walk: (shallow?: boolean) => Node | null | undefined, shallow?: boolean): Node | null => {
+  let node: Node | null | undefined;
 
   while ((node = walk(shallow))) {
     if (!isCaretContainerBlock(node)) {
@@ -39,36 +33,37 @@ const skipCaretContainers = (walk: (shallow?: boolean) => Node | null, shallow?:
   return null;
 };
 
-const findNode = (node: Node, direction: number, predicateFn: (node: Node) => boolean, rootNode: Node, shallow?: boolean): Node | null => {
+const findNode = (node: Node, direction: number, predicateFn: (node: Node | null) => boolean, rootNode: Node, shallow?: boolean): Node | null => {
   const walker = new DomTreeWalker(node, rootNode);
   const isCefOrCaretContainer = isContentEditableFalse(node) || isCaretContainerBlock(node);
 
+  let tempNode: Node | null;
   if (isBackwards(direction)) {
     if (isCefOrCaretContainer) {
-      node = skipCaretContainers(walker.prev.bind(walker), true);
-      if (predicateFn(node)) {
-        return node;
+      tempNode = skipCaretContainers(walker.prev.bind(walker), true);
+      if (predicateFn(tempNode)) {
+        return tempNode;
       }
     }
 
-    while ((node = skipCaretContainers(walker.prev.bind(walker), shallow))) {
-      if (predicateFn(node)) {
-        return node;
+    while ((tempNode = skipCaretContainers(walker.prev.bind(walker), shallow))) {
+      if (predicateFn(tempNode)) {
+        return tempNode;
       }
     }
   }
 
   if (isForwards(direction)) {
     if (isCefOrCaretContainer) {
-      node = skipCaretContainers(walker.next.bind(walker), true);
-      if (predicateFn(node)) {
-        return node;
+      tempNode = skipCaretContainers(walker.next.bind(walker), true);
+      if (predicateFn(tempNode)) {
+        return tempNode;
       }
     }
 
-    while ((node = skipCaretContainers(walker.next.bind(walker), shallow))) {
-      if (predicateFn(node)) {
-        return node;
+    while ((tempNode = skipCaretContainers(walker.next.bind(walker), shallow))) {
+      if (predicateFn(tempNode)) {
+        return tempNode;
       }
     }
   }
@@ -76,17 +71,15 @@ const findNode = (node: Node, direction: number, predicateFn: (node: Node) => bo
   return null;
 };
 
-const getEditingHost = (node: Node, rootNode?: Node): Node | undefined => {
-  for (node = node.parentNode; node && node !== rootNode; node = node.parentNode) {
-    if (isContentEditableTrue(node)) {
-      return node;
-    }
-  }
-
-  return rootNode;
+const getEditingHost = (node: Node, rootNode: HTMLElement): HTMLElement => {
+  const isCETrue = (node: SugarElement<Node>): node is SugarElement<HTMLElement> => isContentEditableTrue(node.dom);
+  const isRoot = (node: SugarElement<Node>) => node.dom === rootNode;
+  return PredicateFind.ancestor(SugarElement.fromDom(node), isCETrue, isRoot)
+    .map((elm) => elm.dom)
+    .getOr(rootNode);
 };
 
-const getParentBlock = (node: Node, rootNode?: Node): Node | null => {
+const getParentBlock = (node: Node | null, rootNode?: Node): Node | null => {
   while (node && node !== rootNode) {
     if (isBlockLike(node)) {
       return node;
@@ -101,26 +94,27 @@ const getParentBlock = (node: Node, rootNode?: Node): Node | null => {
 const isInSameBlock = (caretPosition1: CaretPosition, caretPosition2: CaretPosition, rootNode?: Node): boolean =>
   getParentBlock(caretPosition1.container(), rootNode) === getParentBlock(caretPosition2.container(), rootNode);
 
-const isInSameEditingHost = (caretPosition1: CaretPosition, caretPosition2: CaretPosition, rootNode?: Node): boolean =>
+const isInSameEditingHost = (caretPosition1: CaretPosition, caretPosition2: CaretPosition, rootNode: HTMLElement): boolean =>
   getEditingHost(caretPosition1.container(), rootNode) === getEditingHost(caretPosition2.container(), rootNode);
 
-const getChildNodeAtRelativeOffset = (relativeOffset: number, caretPosition: CaretPosition): Node | null => {
+const getChildNodeAtRelativeOffset = (relativeOffset: number, caretPosition: CaretPosition): Optional<Node> => {
   if (!caretPosition) {
-    return null;
+    return Optional.none();
   }
 
   const container = caretPosition.container();
   const offset = caretPosition.offset();
 
   if (!isElement(container)) {
-    return null;
+    return Optional.none();
   }
 
-  return container.childNodes[offset + relativeOffset];
+  return Optional.from(container.childNodes[offset + relativeOffset]);
 };
 
 const beforeAfter = (before: boolean, node: Node): Range => {
-  const range = node.ownerDocument.createRange();
+  const doc = node.ownerDocument ?? document;
+  const range = doc.createRange();
 
   if (before) {
     range.setStartBefore(node);
@@ -139,15 +133,16 @@ const isNodesInSameBlock = (root: Node, node1: Node, node2: Node): boolean =>
 const lean = (left: boolean, root: Node, node: Node): Node | null => {
   const siblingName = left ? 'previousSibling' : 'nextSibling';
 
-  while (node && node !== root) {
-    let sibling = node[siblingName];
+  let tempNode: Node | null = node;
+  while (tempNode && tempNode !== root) {
+    let sibling = tempNode[siblingName];
 
-    if (isCaretContainer(sibling)) {
+    if (sibling && isCaretContainer(sibling)) {
       sibling = sibling[siblingName];
     }
 
     if (isContentEditableFalse(sibling) || isMedia(sibling)) {
-      if (isNodesInSameBlock(root, sibling, node)) {
+      if (isNodesInSameBlock(root, sibling, tempNode)) {
         return sibling;
       }
 
@@ -158,7 +153,7 @@ const lean = (left: boolean, root: Node, node: Node): Node | null => {
       break;
     }
 
-    node = node.parentNode;
+    tempNode = tempNode.parentNode;
   }
 
   return null;
@@ -168,31 +163,27 @@ const before: (node: Node) => Range = Fun.curry(beforeAfter, true);
 const after: (node: Node) => Range = Fun.curry(beforeAfter, false);
 
 const normalizeRange = (direction: number, root: Node, range: Range): Range => {
-  let node: Node;
+  let node: Node | null;
   const leanLeft = Fun.curry(lean, true, root);
   const leanRight = Fun.curry(lean, false, root);
 
-  let container = range.startContainer;
+  const container = range.startContainer;
   const offset = range.startOffset;
 
   if (CaretContainer.isCaretContainerBlock(container)) {
-    if (!isElement(container)) {
-      container = container.parentNode;
-    }
+    const block = isText(container) ? container.parentNode as Element : container;
 
-    // TODO: The `isCaretContainerBlock` function already asserts container is an element, so
-    //       the above isElement check likely isn't needed which would remove the need for the cast.
-    const location = (container as Element).getAttribute('data-mce-caret');
+    const location = block.getAttribute('data-mce-caret');
 
     if (location === 'before') {
-      node = container.nextSibling;
+      node = block.nextSibling;
       if (isFakeCaretTarget(node)) {
         return before(node);
       }
     }
 
     if (location === 'after') {
-      node = container.previousSibling;
+      node = block.previousSibling;
       if (isFakeCaretTarget(node)) {
         return after(node);
       }
@@ -277,16 +268,11 @@ const normalizeRange = (direction: number, root: Node, range: Range): Range => {
 };
 
 const getRelativeCefElm = (forward: boolean, caretPosition: CaretPosition): Optional<HTMLElement> =>
-  Optional.from(getChildNodeAtRelativeOffset(forward ? 0 : -1, caretPosition)).filter(isContentEditableFalse);
+  getChildNodeAtRelativeOffset(forward ? 0 : -1, caretPosition).filter(isContentEditableFalse);
 
 const getNormalizedRangeEndPoint = (direction: number, root: Node, range: Range): CaretPosition => {
   const normalizedRange = normalizeRange(direction, root, range);
-
-  if (direction === -1) {
-    return CaretPosition.fromRangeStart(normalizedRange);
-  }
-
-  return CaretPosition.fromRangeEnd(normalizedRange);
+  return direction === -1 ? CaretPosition.fromRangeStart(normalizedRange) : CaretPosition.fromRangeEnd(normalizedRange);
 };
 
 const getElementFromPosition = (pos: CaretPosition): Optional<SugarElement> =>
@@ -295,14 +281,15 @@ const getElementFromPosition = (pos: CaretPosition): Optional<SugarElement> =>
 const getElementFromPrevPosition = (pos: CaretPosition): Optional<SugarElement> =>
   Optional.from(pos.getNode(true)).map(SugarElement.fromDom);
 
-const getVisualCaretPosition = (walkFn: (pos: CaretPosition) => CaretPosition | null, caretPosition: CaretPosition): CaretPosition => {
-  while ((caretPosition = walkFn(caretPosition))) {
-    if (caretPosition.isVisible()) {
-      return caretPosition;
+const getVisualCaretPosition = (walkFn: (pos: CaretPosition) => CaretPosition | null, caretPosition: CaretPosition): CaretPosition | null => {
+  let pos: CaretPosition | null = caretPosition;
+  while ((pos = walkFn(pos))) {
+    if (pos.isVisible()) {
+      return pos;
     }
   }
 
-  return caretPosition;
+  return pos;
 };
 
 const isMoveInsideSameBlock = (from: CaretPosition, to: CaretPosition): boolean => {
@@ -324,6 +311,7 @@ export {
   getParentBlock,
   isInSameBlock,
   isInSameEditingHost,
+  isBlockLike,
   isMoveInsideSameBlock,
   normalizeRange,
   getRelativeCefElm,

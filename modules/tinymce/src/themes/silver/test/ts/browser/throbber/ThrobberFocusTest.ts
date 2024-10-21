@@ -5,12 +5,11 @@ import { TinyDom, TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.themes.silver.throbber.ThrobberFocusTest', () => {
   const hook = TinyHooks.bddSetup<Editor>({
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ], true);
+  }, [], true);
 
   before(() => {
     const input = SugarElement.fromHtml('<input id="tempInput" />');
@@ -211,10 +210,10 @@ describe('browser.tinymce.themes.silver.throbber.ThrobberFocusTest', () => {
     // ensure the throbber logic acts as expected
 
     // Make sure throbber doesn't take focus when the pastebin is the target
-    editor.dom.fire(fakePasteBin.dom, 'focusin');
+    editor.dom.dispatch(fakePasteBin.dom, 'focusin');
     await pAssertInputFocus();
     // Make sure throbber takes focus when the target is not a pastebin
-    editor.dom.fire(normalDiv.dom, 'focusin');
+    editor.dom.dispatch(normalDiv.dom, 'focusin');
     await pAssertThrobberFocus();
 
     // Focus should return back to editor when throbber is closed

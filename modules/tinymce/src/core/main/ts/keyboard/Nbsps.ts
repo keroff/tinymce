@@ -1,33 +1,27 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Arr, Optional, Strings, Unicode } from '@ephox/katamari';
+import { Arr, Optional, Optionals, Strings, Type, Unicode } from '@ephox/katamari';
 import { Css, PredicateFind, SugarElement, SugarNode } from '@ephox/sugar';
 
+import DomTreeWalker from '../api/dom/TreeWalker';
 import Editor from '../api/Editor';
 import { isAfterBlock, isAtEndOfBlock, isAtStartOfBlock, isBeforeBlock } from '../caret/BlockBoundary';
 import { isAfterBr, isBeforeBr } from '../caret/CaretBr';
 import * as CaretFinder from '../caret/CaretFinder';
 import { CaretPosition } from '../caret/CaretPosition';
 import { isAfterSpace, isBeforeSpace } from '../caret/CaretPositionPredicates';
-import { getElementFromPosition } from '../caret/CaretUtils';
+import { getElementFromPosition, isBlockLike } from '../caret/CaretUtils';
 import * as ElementType from '../dom/ElementType';
 import * as NodeType from '../dom/NodeType';
 import * as Parents from '../dom/Parents';
-import { isContent, isNbsp } from '../text/CharType';
+import { isContent, isNbsp, isWhiteSpace } from '../text/CharType';
 
 const isInMiddleOfText = (pos: CaretPosition) => CaretPosition.isTextPosition(pos) && !pos.isAtStart() && !pos.isAtEnd();
 
-const getClosestBlock = (root: SugarElement, pos: CaretPosition): SugarElement => {
+const getClosestBlock = (root: SugarElement<Node>, pos: CaretPosition): SugarElement<Node> => {
   const parentBlocks = Arr.filter(Parents.parentsAndSelf(SugarElement.fromDom(pos.container()), root), ElementType.isBlock);
   return Arr.head(parentBlocks).getOr(root);
 };
 
-const hasSpaceBefore = (root: SugarElement, pos: CaretPosition): boolean => {
+const hasSpaceBefore = (root: SugarElement<Node>, pos: CaretPosition): boolean => {
   if (isInMiddleOfText(pos)) {
     return isAfterSpace(pos);
   } else {
@@ -35,7 +29,7 @@ const hasSpaceBefore = (root: SugarElement, pos: CaretPosition): boolean => {
   }
 };
 
-const hasSpaceAfter = (root: SugarElement, pos: CaretPosition): boolean => {
+const hasSpaceAfter = (root: SugarElement<Node>, pos: CaretPosition): boolean => {
   if (isInMiddleOfText(pos)) {
     return isBeforeSpace(pos);
   } else {
@@ -47,12 +41,12 @@ const isPreValue = (value: string) => Arr.contains([ 'pre', 'pre-wrap' ], value)
 
 const isInPre = (pos: CaretPosition) => getElementFromPosition(pos)
   .bind((elm) => PredicateFind.closest(elm, SugarNode.isElement))
-  .exists((elm: SugarElement<Element>) => isPreValue(Css.get(elm, 'white-space')));
+  .exists((elm) => isPreValue(Css.get(elm, 'white-space')));
 
-const isAtBeginningOfBody = (root: SugarElement, pos: CaretPosition) => CaretFinder.prevPosition(root.dom, pos).isNone();
-const isAtEndOfBody = (root: SugarElement, pos: CaretPosition) => CaretFinder.nextPosition(root.dom, pos).isNone();
+const isAtBeginningOfBody = (root: SugarElement<Node>, pos: CaretPosition) => CaretFinder.prevPosition(root.dom, pos).isNone();
+const isAtEndOfBody = (root: SugarElement<Node>, pos: CaretPosition) => CaretFinder.nextPosition(root.dom, pos).isNone();
 
-const isAtLineBoundary = (root: SugarElement, pos: CaretPosition) => (
+const isAtLineBoundary = (root: SugarElement<Node>, pos: CaretPosition): boolean => (
   isAtBeginningOfBody(root, pos) ||
     isAtEndOfBody(root, pos) ||
     isAtStartOfBlock(root, pos) ||
@@ -61,7 +55,28 @@ const isAtLineBoundary = (root: SugarElement, pos: CaretPosition) => (
     isBeforeBr(root, pos)
 );
 
-const needsToHaveNbsp = (root: SugarElement, pos: CaretPosition) => {
+const isCefBlock = (node: Node | null | undefined): node is HTMLElement =>
+  Type.isNonNullable(node) && NodeType.isContentEditableFalse(node) && isBlockLike(node);
+
+// Check the next/previous element in case it is a cef and the next/previous caret position then would skip it, then check
+// the next next/previous caret position ( for example in case the next element is a strong, containing a cef ).
+const isSiblingCefBlock = (root: Element, direction: 'next' | 'prev') => (container: Node) => {
+  return isCefBlock(new DomTreeWalker(container, root)[direction]());
+};
+
+const isBeforeCefBlock = (root: SugarElement, pos: CaretPosition) => {
+  const nextPos = CaretFinder.nextPosition(root.dom, pos).getOr(pos);
+  const isNextCefBlock = isSiblingCefBlock(root.dom, 'next');
+  return pos.isAtEnd() && (isNextCefBlock(pos.container()) || isNextCefBlock(nextPos.container()));
+};
+
+const isAfterCefBlock = (root: SugarElement, pos: CaretPosition) => {
+  const prevPos = CaretFinder.prevPosition(root.dom, pos).getOr(pos);
+  const isPrevCefBlock = isSiblingCefBlock(root.dom, 'prev');
+  return pos.isAtStart() && (isPrevCefBlock(pos.container()) || isPrevCefBlock(prevPos.container()));
+};
+
+const needsToHaveNbsp = (root: SugarElement<Node>, pos: CaretPosition): boolean => {
   if (isInPre(pos)) {
     return false;
   } else {
@@ -69,11 +84,11 @@ const needsToHaveNbsp = (root: SugarElement, pos: CaretPosition) => {
   }
 };
 
-const needsToBeNbspLeft = (root: SugarElement, pos: CaretPosition) => {
+const needsToBeNbspLeft = (root: SugarElement<Node>, pos: CaretPosition): boolean => {
   if (isInPre(pos)) {
     return false;
   } else {
-    return isAtStartOfBlock(root, pos) || isBeforeBlock(root, pos) || isAfterBr(root, pos) || hasSpaceBefore(root, pos);
+    return isAtStartOfBlock(root, pos) || isBeforeBlock(root, pos) || isAfterBr(root, pos) || hasSpaceBefore(root, pos) || isAfterCefBlock(root, pos);
   }
 };
 
@@ -88,19 +103,24 @@ const leanRight = (pos: CaretPosition): CaretPosition => {
   }
 };
 
-const needsToBeNbspRight = (root: SugarElement, pos: CaretPosition) => {
+const needsToBeNbspRight = (root: SugarElement<Node>, pos: CaretPosition): boolean => {
   if (isInPre(pos)) {
     return false;
   } else {
-    return isAtEndOfBlock(root, pos) || isAfterBlock(root, pos) || isBeforeBr(root, pos) || hasSpaceAfter(root, pos);
+    return isAtEndOfBlock(root, pos) || isAfterBlock(root, pos) || isBeforeBr(root, pos) || hasSpaceAfter(root, pos) || isBeforeCefBlock(root, pos);
   }
 };
 
-const needsToBeNbsp = (root: SugarElement, pos: CaretPosition) => needsToBeNbspLeft(root, pos) || needsToBeNbspRight(root, leanRight(pos));
+const needsToBeNbsp = (root: SugarElement<Node>, pos: CaretPosition): boolean =>
+  needsToBeNbspLeft(root, pos) || needsToBeNbspRight(root, leanRight(pos));
 
-const isNbspAt = (text: string, offset: number) => isNbsp(text.charAt(offset));
+const isNbspAt = (text: string, offset: number): boolean =>
+  isNbsp(text.charAt(offset));
 
-const hasNbsp = (pos: CaretPosition) => {
+const isWhiteSpaceAt = (text: string, offset: number): boolean =>
+  isWhiteSpace(text.charAt(offset));
+
+const hasNbsp = (pos: CaretPosition): boolean => {
   const container = pos.container();
   return NodeType.isText(container) && Strings.contains(container.data, Unicode.nbsp);
 };
@@ -116,12 +136,15 @@ const normalizeNbspMiddle = (text: string): string => {
   }).join('');
 };
 
-const normalizeNbspAtStart = (root: SugarElement, node: Text): boolean => {
+const normalizeNbspAtStart = (root: SugarElement<Node>, node: Text, makeNbsp: boolean): boolean => {
   const text = node.data;
   const firstPos = CaretPosition(node, 0);
 
-  if (isNbspAt(text, 0) && !needsToBeNbsp(root, firstPos)) {
+  if (!makeNbsp && isNbspAt(text, 0) && !needsToBeNbsp(root, firstPos)) {
     node.data = ' ' + text.slice(1);
+    return true;
+  } else if (makeNbsp && isWhiteSpaceAt(text, 0) && needsToBeNbspLeft(root, firstPos)) {
+    node.data = Unicode.nbsp + text.slice(1);
     return true;
   } else {
     return false;
@@ -139,24 +162,38 @@ const normalizeNbspInMiddleOfTextNode = (node: Text): boolean => {
   }
 };
 
-const normalizeNbspAtEnd = (root: SugarElement, node: Text): boolean => {
+const normalizeNbspAtEnd = (root: SugarElement<Node>, node: Text, makeNbsp: boolean): boolean => {
   const text = node.data;
   const lastPos = CaretPosition(node, text.length - 1);
-  if (isNbspAt(text, text.length - 1) && !needsToBeNbsp(root, lastPos)) {
+  if (!makeNbsp && isNbspAt(text, text.length - 1) && !needsToBeNbsp(root, lastPos)) {
     node.data = text.slice(0, -1) + ' ';
+    return true;
+  } else if (makeNbsp && isWhiteSpaceAt(text, text.length - 1) && needsToBeNbspRight(root, lastPos)) {
+    node.data = text.slice(0, -1) + Unicode.nbsp;
     return true;
   } else {
     return false;
   }
 };
 
-const normalizeNbsps = (root: SugarElement, pos: CaretPosition): Optional<CaretPosition> => Optional.some(pos).filter(hasNbsp).bind((pos) => {
-  const container = pos.container() as Text;
-  const normalized = normalizeNbspAtStart(root, container) || normalizeNbspInMiddleOfTextNode(container) || normalizeNbspAtEnd(root, container);
-  return normalized ? Optional.some(pos) : Optional.none();
-});
+const normalizeNbsps = (root: SugarElement<Node>, pos: CaretPosition): Optional<CaretPosition> => {
+  const container = pos.container();
+  if (!NodeType.isText(container)) {
+    return Optional.none();
+  }
 
-const normalizeNbspsInEditor = (editor: Editor) => {
+  if (hasNbsp(pos)) {
+    const normalized = normalizeNbspAtStart(root, container, false) || normalizeNbspInMiddleOfTextNode(container) || normalizeNbspAtEnd(root, container, false);
+    return Optionals.someIf(normalized, pos);
+  } else if (needsToBeNbsp(root, pos)) {
+    const normalized = normalizeNbspAtStart(root, container, true) || normalizeNbspAtEnd(root, container, true);
+    return Optionals.someIf(normalized, pos);
+  } else {
+    return Optional.none();
+  }
+};
+
+const normalizeNbspsInEditor = (editor: Editor): void => {
   const root = SugarElement.fromDom(editor.getBody());
 
   if (editor.selection.isCollapsed()) {

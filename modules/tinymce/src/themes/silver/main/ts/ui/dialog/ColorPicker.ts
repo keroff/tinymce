@@ -1,21 +1,14 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { ColourPicker } from '@ephox/acid';
-import { AlloyTriggers, Behaviour, Composing, Form, Memento, NativeEvents, Representing, SimpleSpec } from '@ephox/alloy';
+import { AlloyComponent, AlloyTriggers, Behaviour, Composing, Form, Memento, NativeEvents, Representing, SimpleSpec } from '@ephox/alloy';
 import { Dialog } from '@ephox/bridge';
-import { Optional } from '@ephox/katamari';
+import { Arr, Optional, Strings } from '@ephox/katamari';
 
+import { UiFactoryBackstageProviders } from '../../backstage/Backstage';
 import { ComposingConfigs } from '../alien/ComposingConfigs';
+import * as RepresentingConfigs from '../alien/RepresentingConfigs';
 import { formActionEvent } from '../general/FormEvents';
 
-// import I18n from 'tinymce/core/api/util/I18n';
-
-const english = {
+const english: Record<string, string> = {
   'colorcustom.rgb.red.label': 'R',
   'colorcustom.rgb.red.description': 'Red component',
   'colorcustom.rgb.green.label': 'G',
@@ -25,40 +18,26 @@ const english = {
   'colorcustom.rgb.hex.label': '#',
   'colorcustom.rgb.hex.description': 'Hex color code',
   'colorcustom.rgb.range': 'Range 0 to 255',
-  'colorcustom.sb.saturation': 'Saturation',
-  'colorcustom.sb.brightness': 'Brightness',
-  'colorcustom.sb.picker': 'Saturation and Brightness Picker',
-  'colorcustom.sb.palette': 'Saturation and Brightness Palette',
-  'colorcustom.sb.instructions': 'Use arrow keys to select saturation and brightness, on x and y axes',
-  'colorcustom.hue.hue': 'Hue',
-  'colorcustom.hue.slider': 'Hue Slider',
-  'colorcustom.hue.palette': 'Hue Palette',
-  'colorcustom.hue.instructions': 'Use arrow keys to select a hue',
   'aria.color.picker': 'Color Picker',
   'aria.input.invalid': 'Invalid input'
 };
 
-const getEnglishText = (key) => {
-  return english[key];
-};
-
-const translate = (key) => {
-  // TODO: use this: I18n.translate()
-  return getEnglishText(key);
+const translate = (providerBackstage: UiFactoryBackstageProviders) => (key: string) => {
+  return providerBackstage.translate(english[key]);
 };
 
 type ColorPickerSpec = Omit<Dialog.ColorPicker, 'type'>;
 
-export const renderColorPicker = (_spec: ColorPickerSpec): SimpleSpec => {
+export const renderColorPicker = (_spec: ColorPickerSpec, providerBackstage: UiFactoryBackstageProviders, initialData: Optional<string>): SimpleSpec => {
   const getClass = (key: string) => 'tox-' + key;
 
-  const colourPickerFactory = ColourPicker.makeFactory(translate, getClass);
+  const colourPickerFactory = ColourPicker.makeFactory(translate(providerBackstage), getClass);
 
-  const onValidHex = (form) => {
+  const onValidHex = (form: AlloyComponent) => {
     AlloyTriggers.emitWith(form, formActionEvent, { name: 'hex-valid', value: true });
   };
 
-  const onInvalidHex = (form) => {
+  const onInvalidHex = (form: AlloyComponent) => {
     AlloyTriggers.emitWith(form, formActionEvent, { name: 'hex-valid', value: false });
   };
 
@@ -85,39 +64,37 @@ export const renderColorPicker = (_spec: ColorPickerSpec): SimpleSpec => {
     ],
     behaviours: Behaviour.derive([
       // We'll allow invalid values
-      Representing.config({
-        store: {
-          mode: 'manual',
-          getValue: (comp) => {
-            const picker = memPicker.get(comp);
-            const optRgbForm = Composing.getCurrent(picker);
-            const optHex = optRgbForm.bind((rgbForm) => {
-              const formValues = Representing.getValue(rgbForm);
-              return formValues.hex as Optional<string>;
-            }) ;
-            return optHex.map((hex) => '#' + hex).getOr('');
-          },
-          setValue: (comp, newValue) => {
-            const pattern = /^#([a-fA-F0-9]{3}(?:[a-fA-F0-9]{3})?)/;
-            const m = pattern.exec(newValue);
-            const picker = memPicker.get(comp);
-            const optRgbForm = Composing.getCurrent(picker);
-            optRgbForm.fold(() => {
-              // eslint-disable-next-line no-console
-              console.log('Can not find form');
-            }, (rgbForm) => {
-              Representing.setValue(rgbForm, {
-                hex: Optional.from(m[1]).getOr('')
-              });
-
-              // So not the way to do this.
-              Form.getField(rgbForm, 'hex').each((hexField) => {
-                AlloyTriggers.emit(hexField, NativeEvents.input());
-              });
+      RepresentingConfigs.withComp(
+        initialData,
+        (comp) => {
+          const picker = memPicker.get(comp);
+          const optRgbForm = Composing.getCurrent(picker);
+          const optHex = optRgbForm.bind((rgbForm) => {
+            const formValues = Representing.getValue(rgbForm);
+            return formValues.hex as Optional<string>;
+          });
+          return optHex.map((hex) => '#' + Strings.removeLeading(hex, '#')).getOr('');
+        },
+        (comp, newValue) => {
+          const pattern = /^#([a-fA-F0-9]{3}(?:[a-fA-F0-9]{3})?)/;
+          const valOpt = Optional.from(pattern.exec(newValue)).bind((matches) => Arr.get(matches, 1));
+          const picker = memPicker.get(comp);
+          const optRgbForm = Composing.getCurrent(picker);
+          optRgbForm.fold(() => {
+            // eslint-disable-next-line no-console
+            console.log('Can not find form');
+          }, (rgbForm) => {
+            Representing.setValue(rgbForm, {
+              hex: valOpt.getOr('')
             });
-          }
+
+            // So not the way to do this.
+            Form.getField(rgbForm, 'hex').each((hexField) => {
+              AlloyTriggers.emit(hexField, NativeEvents.input());
+            });
+          });
         }
-      }),
+      ),
       ComposingConfigs.self()
     ])
   };

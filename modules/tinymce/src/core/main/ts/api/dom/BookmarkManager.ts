@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Fun } from '@ephox/katamari';
 
 import * as Bookmarks from '../../bookmark/Bookmarks';
@@ -18,7 +11,7 @@ import EditorSelection from './Selection';
  */
 
 interface BookmarkManager {
-  getBookmark: (type: number, normalized?: boolean) => Bookmark;
+  getBookmark: (type?: number, normalized?: boolean) => Bookmark;
   moveToBookmark: (bookmark: Bookmark) => void;
 }
 
@@ -41,7 +34,7 @@ const BookmarkManager = (selection: EditorSelection): BookmarkManager => {
      * @return {Object} Bookmark object, use moveToBookmark with this object to restore the selection.
      * @example
      * // Stores a bookmark of the current selection
-     * var bm = tinymce.activeEditor.selection.getBookmark();
+     * const bm = tinymce.activeEditor.selection.getBookmark();
      *
      * tinymce.activeEditor.setContent(tinymce.activeEditor.getContent() + 'Some new content');
      *
@@ -57,7 +50,7 @@ const BookmarkManager = (selection: EditorSelection): BookmarkManager => {
      * @param {Object} bookmark Bookmark to restore selection from.
      * @example
      * // Stores a bookmark of the current selection
-     * var bm = tinymce.activeEditor.selection.getBookmark();
+     * const bm = tinymce.activeEditor.selection.getBookmark();
      *
      * tinymce.activeEditor.setContent(tinymce.activeEditor.getContent() + 'Some new content');
      *

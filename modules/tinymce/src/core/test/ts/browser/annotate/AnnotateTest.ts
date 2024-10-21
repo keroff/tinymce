@@ -1,9 +1,8 @@
 import { ApproxStructure } from '@ephox/agar';
 import { describe, it } from '@ephox/bedrock-client';
-import { TinyAssertions, TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
+import { TinyAssertions, TinyHooks, TinySelections, TinyState } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import { annotate, assertHtmlContent } from '../../module/test/AnnotationAsserts';
 
@@ -22,7 +21,7 @@ describe('browser.tinymce.core.annotate.AnnotateTest', () => {
         });
       });
     }
-  }, [ Theme ], true);
+  }, [], true);
 
   // TODO: Consider testing collapse sections.
   it('should word grab with a collapsed selection', () => {
@@ -195,5 +194,16 @@ describe('browser.tinymce.core.annotate.AnnotateTest', () => {
     ], true);
 
     TinyAssertions.assertSelection(editor, [ 0, 0, 0, 0, 0 ], 0, [ 0, 0, 0, 0, 0, 0 ], 1);
+  });
+
+  it('TINY-9467: Annotations should apply for noneditable content', () => {
+    TinyState.withNoneditableRootEditor(hook.editor(), (editor) => {
+      editor.setContent('<p>text</p>');
+      TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 4);
+      annotate(editor, 'test-annotation', 'test-uid', { anything: 'noneditable' });
+      assertHtmlContent(editor, [
+        '<p><span class="mce-annotation" data-mce-annotation-uid="test-uid" data-mce-annotation="test-annotation" data-test-anything="noneditable">text</span></p>',
+      ]);
+    });
   });
 });

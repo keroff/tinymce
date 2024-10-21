@@ -1,30 +1,38 @@
 import { describe, it } from '@ephox/bedrock-client';
-import { PlatformDetection } from '@ephox/sand';
 import { TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import { GetContentEvent } from 'tinymce/core/api/EventTypes';
+import { BeforeGetContentEvent } from 'tinymce/core/api/EventTypes';
 import { EditorEvent } from 'tinymce/core/api/util/EventDispatcher';
-import { getContent, GetSelectionContentArgs } from 'tinymce/core/selection/GetSelectionContent';
-import Theme from 'tinymce/themes/silver/Theme';
+import { GetSelectionContentArgs } from 'tinymce/core/content/ContentTypes';
+import { getContent } from 'tinymce/core/selection/GetSelectionContent';
 
 describe('browser.tinymce.selection.GetSelectionContentTest', () => {
-  const browser = PlatformDetection.detect().browser;
   const hook = TinyHooks.bddSetupLight<Editor>({
     indent: false,
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ]);
+  }, []);
   const testDivId = 'testDiv1';
 
+  const assertSelectedRadioButtons = (editor: Editor, nrOfInputs: number, shouldBeSelected: number) => {
+    const total = editor.getBody().querySelectorAll('input').length;
+    const selected = editor.getBody().querySelectorAll('input:checked').length;
+
+    assert.equal(total, nrOfInputs, 'Should have the right amount of inputs');
+    assert.equal(selected, shouldBeSelected, 'Should have exactly one radio button');
+  };
+
   const focusDiv = () => {
-    const input = document.querySelector<HTMLDivElement>('#' + testDivId);
+    const input = document.querySelector('#' + testDivId) as HTMLDivElement;
     input.focus();
   };
 
   const removeTestDiv = () => {
     const input = document.querySelector('#' + testDivId);
-    input.parentNode.removeChild(input);
+    if (input) {
+      input.parentNode?.removeChild(input);
+    }
   };
 
   const addTestDiv = () => {
@@ -35,16 +43,16 @@ describe('browser.tinymce.selection.GetSelectionContentTest', () => {
     document.body.appendChild(div);
   };
 
-  const getSelectionContent = (editor: Editor, args: GetSelectionContentArgs) =>
+  const getSelectionContent = (editor: Editor, args: Partial<GetSelectionContentArgs>) =>
     getContent(editor, args).toString().replace(/[\r]+/g, '');
 
-  const assertGetContent = (label: string, editor: Editor, expectedContent: string, args: GetSelectionContentArgs = {}) => {
+  const assertGetContent = (label: string, editor: Editor, expectedContent: string, args: Partial<GetSelectionContentArgs> = {}) => {
     const content = getSelectionContent(editor, args);
     assert.equal(content, expectedContent, label + ': Should be expected contents');
   };
 
-  const assertGetContentOverrideBeforeGetContent = (label: string, editor: Editor, expectedContent: string, args: GetSelectionContentArgs = {}) => {
-    const handler = (e: EditorEvent<GetContentEvent>) => {
+  const assertGetContentOverrideBeforeGetContent = (label: string, editor: Editor, expectedContent: string, args: Partial<GetSelectionContentArgs> = {}) => {
+    const handler = (e: EditorEvent<BeforeGetContentEvent>) => {
       if (e.selection === true) {
         e.preventDefault();
         e.content = expectedContent;
@@ -123,15 +131,19 @@ describe('browser.tinymce.selection.GetSelectionContentTest', () => {
     assertGetContent('Should be some content', editor, 'This Has Spaces', { format: 'text' });
   });
 
+  it('TINY-7981: inputs should not be deselected', () => {
+    const editor = hook.editor();
+    editor.setContent('<p><input name="group-name" type="radio">Option 1<input checked="checked" name="group-name" type="radio">Option 2<input name="group-name" type="radio">Option 3</p>');
+    TinySelections.setSelection(editor, [ 0 ], 0, [ 0 ], 6);
+    assertGetContent('Should be some content', editor, 'Option 1Option 2Option 3', { format: 'text' });
+    assertSelectedRadioButtons(editor, 3, 1);
+  });
+
   it('TBA: Should be text content without non-visible leading/trailing spaces', () => {
     const editor = hook.editor();
     editor.setContent('<p><em> spaces </em></p>');
     TinySelections.setSelection(editor, [ 0 ], 0, [ 0 ], 1);
-    // Firefox, IE & Edge actually renders the trailing space within the editor in this case
-    // however Firefox reports via innerText that it doesn't render the trailing space. So
-    // as discussed we should use whatever it is returning for innerText
-    const expectedContent = browser.isIE() || browser.isEdge() ? 'spaces ' : 'spaces';
-    assertGetContent('Should be some content', editor, expectedContent, { format: 'text' });
+    assertGetContent('Should be some content', editor, 'spaces', { format: 'text' });
     editor.setContent('<p> spaces </p>');
     TinySelections.setSelection(editor, [], 0, [], 1);
     assertGetContent('Should be some content', editor, 'spaces', { format: 'text' });

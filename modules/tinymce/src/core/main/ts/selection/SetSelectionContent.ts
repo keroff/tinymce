@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Optional } from '@ephox/katamari';
 import { Remove, SugarElement, SugarNode, Traverse } from '@ephox/sugar';
 
@@ -12,14 +5,11 @@ import BookmarkManager from '../api/dom/BookmarkManager';
 import Editor from '../api/Editor';
 import HtmlSerializer from '../api/html/Serializer';
 import CaretPosition from '../caret/CaretPosition';
-import { SetContentArgs } from '../content/ContentTypes';
+import { SetSelectionContentArgs } from '../content/ContentTypes';
+import { postProcessSetContent, preProcessSetContent } from '../content/PrePostProcess';
 import * as MergeText from '../delete/MergeText';
 import * as ScrollIntoView from '../dom/ScrollIntoView';
 import { needsToBeNbspLeft, needsToBeNbspRight } from '../keyboard/Nbsps';
-
-export interface SelectionSetContentArgs extends SetContentArgs {
-  selection?: boolean;
-}
 
 const removeEmpty = (text: SugarElement<Text>): Optional<SugarElement<Text>> => {
   if (text.dom.length === 0) {
@@ -90,7 +80,7 @@ const rngSetContent = (rng: Range, fragment: DocumentFragment): void => {
   rng.collapse(false);
 };
 
-const setupArgs = (args: Partial<SelectionSetContentArgs>, content: string): SelectionSetContentArgs => ({
+const setupArgs = (args: Partial<SetSelectionContentArgs>, content: string): SetSelectionContentArgs => ({
   format: 'html',
   ...args,
   set: true,
@@ -98,46 +88,34 @@ const setupArgs = (args: Partial<SelectionSetContentArgs>, content: string): Sel
   content
 });
 
-const cleanContent = (editor: Editor, args: SelectionSetContentArgs) => {
+const cleanContent = (editor: Editor, args: SetSelectionContentArgs) => {
   if (args.format !== 'raw') {
     // Find which context to parse the content in
     const rng = editor.selection.getRng();
     const contextBlock = editor.dom.getParent(rng.commonAncestorContainer, editor.dom.isBlock);
     const contextArgs = contextBlock ? { context: contextBlock.nodeName.toLowerCase() } : { };
 
-    const node = editor.parser.parse(args.content, { isRootContent: true, forced_root_block: false, ...contextArgs, ...args });
-    return HtmlSerializer({ validate: editor.validate }, editor.schema).serialize(node);
+    const node = editor.parser.parse(args.content, { forced_root_block: false, ...contextArgs, ...args });
+    return HtmlSerializer({ validate: false }, editor.schema).serialize(node);
   } else {
     return args.content;
   }
 };
 
-const setContent = (editor: Editor, content: string, args: SelectionSetContentArgs = {}) => {
+const setContent = (editor: Editor, content: string, args: Partial<SetSelectionContentArgs> = {}): void => {
   const defaultedArgs = setupArgs(args, content);
+  preProcessSetContent(editor, defaultedArgs).each((updatedArgs) => {
+    // Sanitize the content
+    const cleanedContent = cleanContent(editor, updatedArgs);
 
-  let updatedArgs = defaultedArgs;
-  if (!defaultedArgs.no_events) {
-    const eventArgs = editor.fire('BeforeSetContent', defaultedArgs);
-    if (eventArgs.isDefaultPrevented()) {
-      editor.fire('SetContent', eventArgs);
-      return;
-    } else {
-      updatedArgs = eventArgs;
-    }
-  }
+    const rng = editor.selection.getRng();
+    rngSetContent(rng, rng.createContextualFragment(cleanedContent));
+    editor.selection.setRng(rng);
 
-  // Sanitize the content
-  updatedArgs.content = cleanContent(editor, updatedArgs);
+    ScrollIntoView.scrollRangeIntoView(editor, rng);
 
-  const rng = editor.selection.getRng();
-  rngSetContent(rng, rng.createContextualFragment(updatedArgs.content));
-  editor.selection.setRng(rng);
-
-  ScrollIntoView.scrollRangeIntoView(editor, rng);
-
-  if (!updatedArgs.no_events) {
-    editor.fire('SetContent', updatedArgs);
-  }
+    postProcessSetContent(editor, cleanedContent, updatedArgs);
+  });
 };
 
 export {

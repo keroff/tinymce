@@ -16,6 +16,7 @@ const schema = Fun.constant([
   FieldSchema.option('dragBlockClass'),
   FieldSchema.defaultedFunction('getBounds', Boxes.win),
   FieldSchema.defaulted('useTabstopAt', Fun.always),
+  FieldSchema.defaulted('firstTabstop', 0),
   FieldSchema.defaulted('eventOrder', {}),
   SketchBehaviours.field('modalBehaviours', [ Keying ]),
 
@@ -34,7 +35,7 @@ const parts: () => PartType.PartTypeAdt[] = Fun.constant([
           Dragging.config({
             mode: 'mouse',
             getTarget: (handle) => {
-              return SelectorFind.ancestor(handle, '[role="dialog"]').getOr(handle);
+              return SelectorFind.ancestor<HTMLElement>(handle, '[role="dialog"]').getOr(handle);
             },
             blockerClass: detail.dragBlockClass.getOrDie(
               // TODO: Support errors in Optional getOrDie.

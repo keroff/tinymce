@@ -1,45 +1,44 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Arr, Fun } from '@ephox/katamari';
+import { Arr, Fun, Type } from '@ephox/katamari';
 
 import * as EditorContent from '../content/EditorContent';
+import * as Deprecations from '../Deprecations';
 import * as NodeType from '../dom/NodeType';
 import * as EditorRemove from '../EditorRemove';
-import { getEditorSettings, getParam, ParamTypeMap } from '../EditorSettings';
 import { BlobInfoImagePair } from '../file/ImageScanner';
 import * as EditorFocus from '../focus/EditorFocus';
 import * as Render from '../init/Render';
+import * as EditableRoot from '../mode/EditableRoot';
 import { NodeChange } from '../NodeChange';
+import { normalizeOptions } from '../options/NormalizeOptions';
 import SelectionOverrides from '../SelectionOverrides';
 import { UndoManager } from '../undo/UndoManagerTypes';
 import Quirks from '../util/Quirks';
 import * as VisualAids from '../view/VisualAids';
 import AddOnManager from './AddOnManager';
 import Annotator from './Annotator';
-import DomQuery, { DomQueryConstructor } from './dom/DomQuery';
+import * as Commands from './commands/Commands';
 import DOMUtils from './dom/DOMUtils';
+import { EventUtilsCallback } from './dom/EventUtils';
 import ScriptLoader from './dom/ScriptLoader';
 import EditorSelection from './dom/Selection';
 import DomSerializer from './dom/Serializer';
-import EditorCommands, { EditorCommandCallback } from './EditorCommands';
+import EditorCommands, { ExecCommandArgs, EditorCommandCallback } from './EditorCommands';
 import EditorManager from './EditorManager';
 import EditorObservable from './EditorObservable';
-import EditorUpload, { UploadCallback, UploadResult } from './EditorUpload';
+import { BuiltInOptionType, BuiltInOptionTypeMap, Options as EditorOptions, create as createOptions } from './EditorOptions';
+import EditorUpload, { UploadResult } from './EditorUpload';
 import Env from './Env';
+import { SaveContentEvent } from './EventTypes';
 import Formatter from './Formatter';
 import DomParser from './html/DomParser';
 import AstNode from './html/Node';
 import Schema from './html/Schema';
-import { create, EditorMode } from './Mode';
+import { create as createMode, EditorMode } from './Mode';
+import { Model } from './ModelManager';
 import NotificationManager from './NotificationManager';
+import * as Options from './Options';
+import { NormalizedEditorOptions, RawEditorOptions } from './OptionTypes';
 import PluginManager, { Plugin } from './PluginManager';
-import * as Settings from './Settings';
-import { EditorSettings, RawEditorSettings } from './SettingsTypes';
 import Shortcuts from './Shortcuts';
 import { Theme } from './ThemeManager';
 import { registry } from './ui/Registry';
@@ -60,11 +59,11 @@ import WindowManager from './WindowManager';
  * tinymce.activeEditor.dom.addClass(tinymce.activeEditor.dom.select('p'), 'someclass');
  *
  * // Gets the current editors selection as text
- * tinymce.activeEditor.selection.getContent({format: 'text'});
+ * tinymce.activeEditor.selection.getContent({ format: 'text' });
  *
  * // Creates a new editor instance
- * var ed = new tinymce.Editor('textareaid', {
- *     some_setting: 1
+ * const ed = new tinymce.Editor('textareaid', {
+ *   some_setting: 1
  * }, tinymce.EditorManager);
  *
  * ed.render();
@@ -73,14 +72,12 @@ import WindowManager from './WindowManager';
 export interface EditorConstructor {
   readonly prototype: Editor;
 
-  new (id: string, settings: RawEditorSettings, editorManager: EditorManager): Editor;
+  new (id: string, options: RawEditorOptions, editorManager: EditorManager): Editor;
 }
 
 // Shorten these names
 const DOM = DOMUtils.DOM;
 const extend = Tools.extend, each = Tools.each;
-const resolve = Tools.resolve;
-const ie = Env.ie;
 
 /**
  * Include Editor API docs.
@@ -91,17 +88,6 @@ const ie = Env.ie;
 class Editor implements EditorObservable {
   public documentBaseUrl: string;
   public baseUri: URI;
-
-  /**
-   * Name/value collection with editor settings.
-   *
-   * @property settings
-   * @type Object
-   * @example
-   * // Get the value of the theme setting
-   * tinymce.activeEditor.windowManager.alert("You are using the " + tinymce.activeEditor.settings.theme + " theme");
-   */
-  public settings: EditorSettings;
 
   /**
    * Editor instance id, normally the same as the div/textarea that was replaced.
@@ -183,99 +169,89 @@ class Editor implements EditorObservable {
   public mode: EditorMode;
 
   /**
-   * Sets the editor mode. For example: "design", "code" or "readonly".
-   * <br>
-   * <em>Deprecated in TinyMCE 5.0.4 and has been marked for removal in TinyMCE 6.0</em> - Use <code>editor.mode.set(mode)</code> instead.
+   * Editor options API
    *
-   * @method setMode
-   * @param {String} mode Mode to set the editor in.
-   * @deprecated now an alias for editor.mode.set()
+   * @property options
+   * @type tinymce.EditorOptions
    */
-  public setMode: (mode: string) => void;
+  public options: EditorOptions;
 
   /**
-   * Dom query instance with default scope to the editor document and default element is the body of the editor.
-   * <br>
-   * <em>Deprecated in TinyMCE 5.10 and has been marked for removal in TinyMCE 6.0.</em>
+   * Editor upload API
    *
-   * @deprecated
-   * @property $
-   * @type tinymce.dom.DomQuery
-   * @example
-   * tinymce.activeEditor.$('p').css('color', 'red');
-   * tinymce.activeEditor.$().append('<p>new</p>');
+   * @property editorUpload
+   * @type tinymce.EditorUpload
    */
-  public $: DomQueryConstructor;
+  public editorUpload!: EditorUpload;
 
   public shortcuts: Shortcuts;
   public loadedCSS: Record<string, any> = {};
   public editorCommands: EditorCommands;
   public suffix: string;
   public editorManager: EditorManager;
+  public hidden: boolean;
   public inline: boolean;
+  public hasVisual: boolean;
 
   public isNotDirty: boolean = false;
 
-  // TODO type these properties
-  public callbackLookup: any;
-  public _nodeChangeDispatcher: NodeChange;
-  public editorUpload: EditorUpload;
-
   // Arguments set later, for example by InitContentBody.ts
-  public annotator: Annotator;
-  public bodyElement: HTMLElement;
+  // Note that these may technically be undefined up until PreInit (or similar) has fired,
+  // however the types are aimed at an initialised editor for ease of use.
+  public annotator!: Annotator;
+  public bodyElement: HTMLElement | undefined;
   public bookmark: any; // Note: Intentionally any so as to not expose Optional
-  public composing: boolean;
-  public container: HTMLElement;
-  public contentAreaContainer: HTMLElement;
-  public contentDocument: Document;
-  public contentWindow: Window;
-  public delegates: Record<string, (event: any) => void>;
-  public destroyed: boolean;
-  public dom: DOMUtils;
-  public editorContainer: HTMLElement;
-  public eventRoot?: Element;
-  public formatter: Formatter;
-  public formElement: HTMLElement;
-  public formEventDelegate: (e: Event) => void;
-  public hasHiddenInput: boolean;
-  public hasVisual: boolean;
-  public hidden: boolean;
-  public iframeElement: HTMLIFrameElement | null;
-  public iframeHTML: string;
-  public initialized: boolean;
-  public notificationManager: NotificationManager;
-  public orgDisplay: string;
-  public orgVisibility: string;
-  public parser: DomParser;
-  public quirks: Quirks;
-  public readonly: boolean;
-  public removed: boolean;
-  public schema: Schema;
-  public selection: EditorSelection;
-  public serializer: DomSerializer;
-  public startContent: string;
-  public targetElm: HTMLElement;
-  public theme: Theme;
-  public undoManager: UndoManager;
-  public validate: boolean;
-  public windowManager: WindowManager;
-  public _beforeUnload: () => void;
-  public _eventDispatcher: EventDispatcher<NativeEventMap>;
-  public _mceOldSubmit: any;
-  public _pendingNativeEvents: string[];
-  public _selectionOverrides: SelectionOverrides;
-  public _skinLoaded: boolean;
+  public composing: boolean = false;
+  public container!: HTMLElement;
+  public contentAreaContainer!: HTMLElement;
+  public contentDocument!: Document;
+  public contentWindow!: Window;
+  public delegates: Record<string, EventUtilsCallback<any>> | undefined;
+  public destroyed: boolean = false;
+  public dom!: DOMUtils;
+  public editorContainer!: HTMLElement;
+  public eventRoot: Element | undefined;
+  public formatter!: Formatter;
+  public formElement: HTMLElement | undefined;
+  public formEventDelegate: ((e: Event) => void) | undefined;
+  public hasHiddenInput: boolean = false;
+  public iframeElement: HTMLIFrameElement | null = null;
+  public iframeHTML: string | undefined;
+  public initialized: boolean = false;
+  public notificationManager!: NotificationManager;
+  public orgDisplay!: string;
+  public orgVisibility: string | undefined;
+  public parser!: DomParser;
+  public quirks!: Quirks;
+  public readonly: boolean = false;
+  public removed: boolean = false;
+  public schema!: Schema;
+  public selection!: EditorSelection;
+  public serializer!: DomSerializer;
+  public startContent: string = '';
+  public targetElm!: HTMLElement;
+  public theme!: Theme;
+  public model!: Model;
+  public undoManager!: UndoManager;
+  public windowManager!: WindowManager;
+  public _beforeUnload: (() => void) | undefined;
+  public _eventDispatcher: EventDispatcher<NativeEventMap> | undefined;
+  public _nodeChangeDispatcher!: NodeChange;
+  public _pendingNativeEvents: string[] = [];
+  public _selectionOverrides!: SelectionOverrides;
+  public _skinLoaded: boolean = false;
+  public _editableRoot: boolean = true;
 
   // EditorObservable patches
-  public bindPendingEventDelegates: EditorObservable['bindPendingEventDelegates'];
-  public toggleNativeEvent: EditorObservable['toggleNativeEvent'];
-  public unbindAllNativeEvents: EditorObservable['unbindAllNativeEvents'];
-  public fire: EditorObservable['fire'];
-  public on: EditorObservable['on'];
-  public off: EditorObservable['off'];
-  public once: EditorObservable['once'];
-  public hasEventListeners: EditorObservable['hasEventListeners'];
+  public bindPendingEventDelegates!: EditorObservable['bindPendingEventDelegates'];
+  public toggleNativeEvent!: EditorObservable['toggleNativeEvent'];
+  public unbindAllNativeEvents!: EditorObservable['unbindAllNativeEvents'];
+  public fire!: EditorObservable['fire'];
+  public dispatch!: EditorObservable['dispatch'];
+  public on!: EditorObservable['on'];
+  public off!: EditorObservable['off'];
+  public once!: EditorObservable['once'];
+  public hasEventListeners!: EditorObservable['hasEventListeners'];
 
   /**
    * Constructs a editor instance by id.
@@ -283,76 +259,90 @@ class Editor implements EditorObservable {
    * @constructor
    * @method Editor
    * @param {String} id Unique id for the editor.
-   * @param {Object} settings Settings for the editor.
+   * @param {Object} options Options for the editor.
    * @param {tinymce.EditorManager} editorManager EditorManager instance.
    */
-  public constructor(id: string, settings: RawEditorSettings, editorManager: EditorManager) {
+  public constructor(id: string, options: RawEditorOptions, editorManager: EditorManager) {
     this.editorManager = editorManager;
     this.documentBaseUrl = editorManager.documentBaseURL;
 
     // Patch in the EditorObservable functions
     extend(this, EditorObservable);
+    const self = this;
 
-    this.settings = getEditorSettings(this, id, this.documentBaseUrl, editorManager.defaultSettings, settings);
+    this.id = id;
+    this.hidden = false;
+    const normalizedOptions = normalizeOptions(editorManager.defaultOptions, options);
 
-    if (this.settings.suffix) {
-      editorManager.suffix = this.settings.suffix;
+    this.options = createOptions(self, normalizedOptions);
+    Options.register(self);
+    const getOption = this.options.get;
+
+    if (getOption('deprecation_warnings')) {
+      Deprecations.logWarnings(options, normalizedOptions);
+    }
+
+    const suffix = getOption('suffix');
+    if (suffix) {
+      editorManager.suffix = suffix;
     }
     this.suffix = editorManager.suffix;
 
-    if (this.settings.base_url) {
-      editorManager._setBaseUrl(this.settings.base_url);
+    const baseUrl = getOption('base_url');
+    if (baseUrl) {
+      editorManager._setBaseUrl(baseUrl);
     }
     this.baseUri = editorManager.baseURI;
 
-    if (this.settings.referrer_policy) {
-      ScriptLoader.ScriptLoader._setReferrerPolicy(this.settings.referrer_policy);
-      DOMUtils.DOM.styleSheetLoader._setReferrerPolicy(this.settings.referrer_policy);
+    const referrerPolicy = Options.getReferrerPolicy(self);
+    if (referrerPolicy) {
+      ScriptLoader.ScriptLoader._setReferrerPolicy(referrerPolicy);
+      DOMUtils.DOM.styleSheetLoader._setReferrerPolicy(referrerPolicy);
     }
 
-    AddOnManager.languageLoad = this.settings.language_load;
-    AddOnManager.baseURL = editorManager.baseURL;
+    const contentCssCors = Options.hasContentCssCors(self);
+    if (Type.isNonNullable(contentCssCors)) {
+      DOMUtils.DOM.styleSheetLoader._setContentCssCors(contentCssCors);
+    }
 
-    this.id = id;
+    AddOnManager.languageLoad = getOption('language_load');
+    AddOnManager.baseURL = editorManager.baseURL;
 
     this.setDirty(false);
 
-    this.documentBaseURI = new URI(this.settings.document_base_url, {
+    this.documentBaseURI = new URI(Options.getDocumentBaseUrl(self), {
       base_uri: this.baseUri
     });
     this.baseURI = this.baseUri;
-    this.inline = !!this.settings.inline;
+    this.inline = Options.isInline(self);
+    this.hasVisual = Options.isVisualAidsEnabled(self);
 
     this.shortcuts = new Shortcuts(this);
     this.editorCommands = new EditorCommands(this);
+    Commands.registerCommands(this);
 
-    if (this.settings.cache_suffix) {
-      Env.cacheSuffix = this.settings.cache_suffix.replace(/^[\?\&]+/, '');
+    const cacheSuffix = getOption('cache_suffix');
+    if (cacheSuffix) {
+      Env.cacheSuffix = cacheSuffix.replace(/^[\?\&]+/, '');
     }
 
     this.ui = {
       registry: registry(),
-      styleSheetLoader: undefined,
+      styleSheetLoader: undefined as any,
       show: Fun.noop,
       hide: Fun.noop,
-      enable: Fun.noop,
-      disable: Fun.noop,
-      isDisabled: Fun.never
+      setEnabled: Fun.noop,
+      isEnabled: Fun.always
     };
 
-    const self = this;
-    const modeInstance = create(self);
-    this.mode = modeInstance;
-    this.setMode = modeInstance.set;
+    this.mode = createMode(self);
 
     // Call setup
-    editorManager.fire('SetupEditor', { editor: this });
-    this.execCallback('setup', this);
-
-    this.$ = DomQuery.overrideDefaults(() => ({
-      context: this.inline ? this.getBody() : this.getDoc(),
-      element: this.getBody()
-    }));
+    editorManager.dispatch('SetupEditor', { editor: this });
+    const setupCallback = Options.getSetupCallback(self);
+    if (Type.isFunction(setupCallback)) {
+      setupCallback.call(self, self);
+    }
   }
 
   /**
@@ -360,7 +350,7 @@ class Editor implements EditorObservable {
    *
    * @method render
    */
-  public render() {
+  public render(): void {
     Render.render(this);
   }
 
@@ -371,7 +361,7 @@ class Editor implements EditorObservable {
    * @method focus
    * @param {Boolean} skipFocus Skip DOM focus. Just set is as the active editor.
    */
-  public focus(skipFocus?: boolean) {
+  public focus(skipFocus?: boolean): void {
     this.execCommand('mceFocus', false, skipFocus);
   }
 
@@ -383,42 +373,6 @@ class Editor implements EditorObservable {
    */
   public hasFocus(): boolean {
     return EditorFocus.hasFocus(this);
-  }
-
-  /**
-   * Executes a legacy callback. This method is useful to call old 2.x option callbacks.
-   * There new event model is a better way to add callback so this method might be removed in the future.
-   * <br>
-   * <em>Deprecated in TinyMCE 5.10 and has been marked for removal in TinyMCE 6.0.</em>
-   *
-   * @deprecated
-   * @method execCallback
-   * @param {String} name Name of the callback to execute.
-   * @return {Object} Return value passed from callback function.
-   */
-  public execCallback(name: string, ...x: any[]): any {
-    const self = this;
-    let callback = self.settings[name], scope;
-
-    if (!callback) {
-      return;
-    }
-
-    // Look through lookup
-    if (self.callbackLookup && (scope = self.callbackLookup[name])) {
-      callback = scope.func;
-      scope = scope.scope;
-    }
-
-    if (typeof callback === 'string') {
-      scope = callback.replace(/\.\w+$/, '');
-      scope = scope ? resolve(scope) : 0;
-      callback = resolve(callback);
-      self.callbackLookup = self.callbackLookup || {};
-      self.callbackLookup[name] = { func: callback, scope };
-    }
-
-    return callback.apply(scope || self, x);
   }
 
   /**
@@ -435,30 +389,43 @@ class Editor implements EditorObservable {
 
   /**
    * Returns a configuration parameter by name.
+   * <br>
+   * <em>Deprecated in TinyMCE 6.0 and has been marked for removal in TinyMCE 7.0. Use the <code>editor.options.get</code> API instead.</em>
    *
    * @method getParam
-   * @param {String} name Configruation parameter to retrieve.
+   * @param {String} name Configuration parameter to retrieve.
    * @param {String} defaultVal Optional default value to return.
    * @param {String} type Optional type parameter.
    * @return {String} Configuration parameter value or default value.
+   * @deprecated Use editor.options.get instead
    * @example
    * // Returns a specific config value from the currently active editor
-   * var someval = tinymce.activeEditor.getParam('myvalue');
+   * const someval = tinymce.activeEditor.getParam('myvalue');
    *
    * // Returns a specific config value from a specific editor instance by id
-   * var someval2 = tinymce.get('my_editor').getParam('myvalue');
+   * const someval2 = tinymce.get('my_editor').getParam('myvalue');
    */
-  public getParam <K extends keyof ParamTypeMap>(name: string, defaultVal: ParamTypeMap[K], type: K): ParamTypeMap[K];
-  public getParam <K extends keyof EditorSettings>(name: K, defaultVal?: EditorSettings[K], type?: string): EditorSettings[K];
-  public getParam <T>(name: string, defaultVal: T, type?: string): T;
-  public getParam(name: string, defaultVal?: any, type?: string): any {
-    return getParam(this, name, defaultVal, type);
+  public getParam <K extends BuiltInOptionType>(name: string, defaultVal: BuiltInOptionTypeMap[K], type: K): BuiltInOptionTypeMap[K];
+  public getParam <K extends keyof NormalizedEditorOptions>(name: K, defaultVal?: NormalizedEditorOptions[K], type?: BuiltInOptionType): NormalizedEditorOptions[K];
+  public getParam <T>(name: string, defaultVal: T, type?: BuiltInOptionType): T;
+  public getParam(name: string, defaultVal?: any, type?: BuiltInOptionType): any {
+    const options = this.options;
+
+    // To keep the legacy API we need to register the option if it's not already been registered
+    if (!options.isRegistered(name)) {
+      if (Type.isNonNullable(type)) {
+        options.register(name, { processor: type, default: defaultVal });
+      } else {
+        options.register(name, { processor: Fun.always, default: defaultVal });
+      }
+    }
+
+    // Attempt to use the passed default value if nothing has been set already
+    return !options.isSet(name) && !Type.isUndefined(defaultVal) ? defaultVal : options.get(name);
   }
 
   /**
    * Checks that the plugin is in the editor configuration and can optionally check if the plugin has been loaded.
-   * <br>
-   * <em>Added in TinyMCE 5.5</em>
    *
    * @method hasPlugin
    * @param {String} name The name of the plugin, as specified for the TinyMCE `plugins` option.
@@ -471,7 +438,7 @@ class Editor implements EditorObservable {
    * tinymce.activeEditor.hasPlugin('table');
    */
   public hasPlugin(name: string, loaded?: boolean): boolean {
-    const hasPlugin = Arr.contains(Settings.getPlugins(this).split(/[ ,]/), name);
+    const hasPlugin = Arr.contains(Options.getPlugins(this), name);
     if (hasPlugin) {
       return loaded ? PluginManager.get(name) !== undefined : true;
     } else {
@@ -486,32 +453,34 @@ class Editor implements EditorObservable {
    * @method nodeChanged
    * @param {Object} args Optional args to pass to NodeChange event handlers.
    */
-  public nodeChanged(args?: any) {
+  public nodeChanged(args?: any): void {
     this._nodeChangeDispatcher.nodeChanged(args);
   }
 
   /**
-   * Adds a custom command to the editor, you can also override existing commands with this method.
+   * Adds a custom command to the editor. This function can also be used to override existing commands.
    * The command that you add can be executed with execCommand.
    *
    * @method addCommand
    * @param {String} name Command name to add/override.
-   * @param {addCommandCallback} callback Function to execute when the command occurs.
+   * @param {Function} callback Function to execute when the command occurs.
    * @param {Object} scope Optional scope to execute the function in.
    * @example
    * // Adds a custom command that later can be executed using execCommand
    * tinymce.init({
-   *    ...
+   *  ...
    *
-   *    setup: function(ed) {
-   *       // Register example command
-   *       ed.addCommand('mycommand', function(ui, v) {
-   *          ed.windowManager.alert('Hello world!! Selection: ' + ed.selection.getContent({format: 'text'}));
-   *       });
-   *    }
+   *   setup: (ed) => {
+   *     // Register example command
+   *     ed.addCommand('mycommand', (ui, v) => {
+   *       ed.windowManager.alert('Hello world!! Selection: ' + ed.selection.getContent({ format: 'text' }));
+   *     });
+   *   }
    * });
    */
-  public addCommand(name: string, callback: EditorCommandCallback, scope?: object) {
+  public addCommand<S>(name: string, callback: EditorCommandCallback<S>, scope: S): void;
+  public addCommand(name: string, callback: EditorCommandCallback<Editor>): void;
+  public addCommand(name: string, callback: EditorCommandCallback<any>, scope?: object): void {
     /**
      * Callback function that gets called when a command is executed.
      *
@@ -524,15 +493,17 @@ class Editor implements EditorObservable {
   }
 
   /**
-   * Adds a custom query state command to the editor, you can also override existing commands with this method.
+   * Adds a custom query state command to the editor. This function can also be used to override existing commands.
    * The command that you add can be executed with queryCommandState function.
    *
    * @method addQueryStateHandler
    * @param {String} name Command name to add/override.
-   * @param {addQueryStateHandlerCallback} callback Function to execute when the command state retrieval occurs.
+   * @param {Function} callback Function to execute when the command state retrieval occurs.
    * @param {Object} scope Optional scope to execute the function in.
    */
-  public addQueryStateHandler(name: string, callback: () => boolean, scope?: any) {
+  public addQueryStateHandler<S>(name: string, callback: (this: S) => boolean, scope?: S): void;
+  public addQueryStateHandler(name: string, callback: (this: Editor) => boolean): void;
+  public addQueryStateHandler(name: string, callback: (this: any) => boolean, scope?: any): void {
     /**
      * Callback function that gets called when a queryCommandState is executed.
      *
@@ -543,15 +514,17 @@ class Editor implements EditorObservable {
   }
 
   /**
-   * Adds a custom query value command to the editor, you can also override existing commands with this method.
+   * Adds a custom query value command to the editor. This function can also be used to override existing commands.
    * The command that you add can be executed with queryCommandValue function.
    *
    * @method addQueryValueHandler
    * @param {String} name Command name to add/override.
-   * @param {addQueryValueHandlerCallback} callback Function to execute when the command value retrieval occurs.
+   * @param {Function} callback Function to execute when the command value retrieval occurs.
    * @param {Object} scope Optional scope to execute the function in.
    */
-  public addQueryValueHandler(name: string, callback: () => string, scope?: any) {
+  public addQueryValueHandler<S>(name: string, callback: (this: S) => string, scope: S): void;
+  public addQueryValueHandler(name: string, callback: (this: Editor) => string): void;
+  public addQueryValueHandler(name: string, callback: (this: any) => string, scope?: any): void {
     /**
      * Callback function that gets called when a queryCommandValue is executed.
      *
@@ -571,40 +544,37 @@ class Editor implements EditorObservable {
    * @param {Object} scope Optional scope to execute the function in.
    * @return {Boolean} true/false state if the shortcut was added or not.
    * @example
-   * editor.addShortcut('ctrl+a', "description of the shortcut", function() {});
-   * editor.addShortcut('ctrl+alt+a', "description of the shortcut", function() {});
+   * editor.addShortcut('ctrl+a', 'description of the shortcut', () => {});
+   * editor.addShortcut('ctrl+alt+a', 'description of the shortcut', () => {});
    * // "meta" maps to Command on Mac and Ctrl on PC
-   * editor.addShortcut('meta+a', "description of the shortcut", function() {});
+   * editor.addShortcut('meta+a', 'description of the shortcut', () => {});
    * // "access" maps to Control+Option on Mac and shift+alt on PC
-   * editor.addShortcut('access+a', "description of the shortcut", function() {});
+   * editor.addShortcut('access+a', 'description of the shortcut', () => {});
    *
-   * editor.addShortcut(
-   *  'meta+access+c', 'Opens the code editor dialog.', function () {
-   *    editor.execCommand('mceCodeEditor');
+   * editor.addShortcut('meta+access+c', 'Opens the code editor dialog.', () => {
+   *   editor.execCommand('mceCodeEditor');
    * });
    *
-   * editor.addShortcut(
-   *  'meta+shift+32', 'Inserts "Hello, World!" for meta+shift+space', function () {
-   *    editor.execCommand('mceInsertContent', false, 'Hello, World!');
+   * editor.addShortcut('meta+shift+32', 'Inserts "Hello, World!" for meta+shift+space', () => {
+   *   editor.execCommand('mceInsertContent', false, 'Hello, World!');
    * });
    */
-  public addShortcut(pattern: string, desc: string, cmdFunc: string | [string, boolean, any] | (() => void), scope?: any) {
+  public addShortcut(pattern: string, desc: string, cmdFunc: string | [string, boolean, any] | (() => void), scope?: any): void {
     this.shortcuts.add(pattern, desc, cmdFunc, scope);
   }
 
   /**
-   * Executes a command on the current instance. These commands can be TinyMCE internal commands prefixed with "mce" or
-   * they can be build in browser commands such as "Bold". A compleate list of browser commands is available on MSDN or Mozilla.org.
-   * This function will dispatch the execCommand function on each plugin, theme or the execcommand_callback option if none of these
-   * return true it will handle the command as a internal browser command.
+   * Executes a registered command on the current instance. A list of available commands can be found in
+   * the tinymce command identifiers documentation.
    *
    * @method execCommand
    * @param {String} cmd Command name to execute, for example mceLink or Bold.
-   * @param {Boolean} ui True/false state if a UI (dialog) should be presented or not.
-   * @param {mixed} value Optional command value, this can be anything.
+   * @param {Boolean} ui Specifies if a UI (dialog) should be presented or not.
+   * @param {Object/Array/String/Number/Boolean} value Optional command value, this can be anything.
    * @param {Object} args Optional arguments object.
+   * @return {Boolean} true or false if the command was supported or not.
    */
-  public execCommand(cmd: string, ui?: boolean, value?: any, args?: any): boolean {
+  public execCommand(cmd: string, ui?: boolean, value?: any, args?: ExecCommandArgs): boolean {
     return this.editorCommands.execCommand(cmd, ui, value, args);
   }
 
@@ -612,7 +582,7 @@ class Editor implements EditorObservable {
    * Returns a command specific state, for example if bold is enabled or not.
    *
    * @method queryCommandState
-   * @param {string} cmd Command to query state from.
+   * @param {String} cmd Command to query state from.
    * @return {Boolean} Command specific state, for example if bold is enabled or not.
    */
   public queryCommandState(cmd: string): boolean {
@@ -623,8 +593,8 @@ class Editor implements EditorObservable {
    * Returns a command specific value, for example the current font size.
    *
    * @method queryCommandValue
-   * @param {string} cmd Command to query value from.
-   * @return {Object} Command specific value, for example the current font size.
+   * @param {String} cmd Command to query value from.
+   * @return {String} Command value, for example the current font size or an empty string (`""`) if the query command is not found.
    */
   public queryCommandValue(cmd: string): string {
     return this.editorCommands.queryCommandValue(cmd);
@@ -646,7 +616,7 @@ class Editor implements EditorObservable {
    *
    * @method show
    */
-  public show() {
+  public show(): void {
     const self = this;
 
     if (self.hidden) {
@@ -660,7 +630,7 @@ class Editor implements EditorObservable {
       }
 
       self.load();
-      self.fire('show');
+      self.dispatch('show');
     }
   }
 
@@ -669,15 +639,10 @@ class Editor implements EditorObservable {
    *
    * @method hide
    */
-  public hide() {
-    const self = this, doc = self.getDoc();
+  public hide(): void {
+    const self = this;
 
     if (!self.hidden) {
-      // Fixed bug where IE has a blinking cursor left from the editor
-      if (ie && doc && !self.inline) {
-        doc.execCommand('SelectAll');
-      }
-
       // We must save before we hide so Safari doesn't crash
       self.save();
 
@@ -694,7 +659,7 @@ class Editor implements EditorObservable {
       }
 
       self.hidden = true;
-      self.fire('hide');
+      self.dispatch('hide');
     }
   }
 
@@ -704,8 +669,8 @@ class Editor implements EditorObservable {
    * @method isHidden
    * @return {Boolean} True/false if the editor is hidden or not.
    */
-  public isHidden() {
-    return !!this.hidden;
+  public isHidden(): boolean {
+    return this.hidden;
   }
 
   /**
@@ -726,8 +691,8 @@ class Editor implements EditorObservable {
    * // Show progress after 3 seconds
    * tinymce.activeEditor.setProgressState(true, 3000);
    */
-  public setProgressState(state: boolean, time?: number) {
-    this.fire('ProgressState', { state, time });
+  public setProgressState(state: boolean, time?: number): void {
+    this.dispatch('ProgressState', { state, time });
   }
 
   /**
@@ -739,30 +704,34 @@ class Editor implements EditorObservable {
    * @param {Object} args Optional content object, this gets passed around through the whole load process.
    * @return {String} HTML string that got set into the editor.
    */
-  public load(args?: any): string {
+  public load(args: Partial<EditorContent.SetContentArgs> = {}): string {
     const self = this;
-    let elm = self.getElement(), html;
+    const elm = self.getElement();
 
     if (self.removed) {
       return '';
     }
 
     if (elm) {
-      args = args || {};
-      args.load = true;
+      const loadArgs: Partial<EditorContent.SetContentArgs> & { load: boolean } = {
+        ...args,
+        load: true
+      };
 
       const value = NodeType.isTextareaOrInput(elm) ? elm.value : elm.innerHTML;
 
-      html = self.setContent(value, args);
-      args.element = elm;
+      const html = self.setContent(value, loadArgs);
 
-      if (!args.no_events) {
-        self.fire('LoadContent', args);
+      if (!loadArgs.no_events) {
+        self.dispatch('LoadContent', {
+          ...loadArgs,
+          element: elm
+        });
       }
 
-      args.element = elm = null;
-
       return html;
+    } else {
+      return '';
     }
   }
 
@@ -775,30 +744,33 @@ class Editor implements EditorObservable {
    * @param {Object} args Optional content object, this gets passed around through the whole save process.
    * @return {String} HTML string that got set into the textarea/div.
    */
-  public save(args?: any): string {
+  public save(args: Partial<EditorContent.GetContentArgs> = {}): string {
     const self = this;
-    let elm = self.getElement(), html, form: HTMLFormElement;
+    let elm: HTMLElement | null = self.getElement();
 
     if (!elm || !self.initialized || self.removed) {
-      return;
+      return '';
     }
 
-    args = args || {};
-    args.save = true;
+    const getArgs: Partial<EditorContent.GetContentArgs> = {
+      ...args,
+      save: true,
+      element: elm
+    };
 
-    args.element = elm;
-    html = args.content = self.getContent(args);
+    let html = self.getContent(getArgs);
 
-    if (!args.no_events) {
-      self.fire('SaveContent', args);
+    const saveArgs = { ...getArgs, content: html } as SaveContentEvent;
+    if (!saveArgs.no_events) {
+      self.dispatch('SaveContent', saveArgs);
     }
 
     // Always run this internal event
-    if (args.format === 'raw') {
-      self.fire('RawSaveContent', args);
+    if (saveArgs.format === 'raw') {
+      self.dispatch('RawSaveContent', saveArgs);
     }
 
-    html = args.content;
+    html = saveArgs.content;
 
     if (!NodeType.isTextareaOrInput(elm)) {
       if (args.is_removing || !self.inline) {
@@ -806,21 +778,24 @@ class Editor implements EditorObservable {
       }
 
       // Update hidden form element
-      if ((form = DOM.getParent(self.id, 'form'))) {
+      const form = DOM.getParent(self.id, 'form');
+      if (form) {
         each(form.elements, (elm) => {
           if ((elm as any).name === self.id) {
             (elm as any).value = html;
             return false;
+          } else {
+            return true;
           }
         });
       }
     } else {
-      (elm as any).value = html;
+      elm.value = html;
     }
 
-    args.element = elm = null;
+    saveArgs.element = getArgs.element = elm = null;
 
-    if (args.set_dirty !== false) {
+    if (saveArgs.set_dirty !== false) {
       self.setDirty(false);
     }
 
@@ -830,6 +805,8 @@ class Editor implements EditorObservable {
   /**
    * Sets the specified content to the editor instance, this will cleanup the content before it gets set using
    * the different cleanup rules options.
+   * <br>
+   * <em>Note: The content return value was deprecated in TinyMCE 6.0 and has been marked for removal in TinyMCE 7.0.</em>
    *
    * @method setContent
    * @param {String} content Content to set to editor, normally HTML contents but can be other formats as well.
@@ -843,12 +820,12 @@ class Editor implements EditorObservable {
    * tinymce.get('my_editor').setContent(data);
    *
    * // Sets the content of the activeEditor editor using the specified format
-   * tinymce.activeEditor.setContent('<p>Some html</p>', {format: 'html'});
+   * tinymce.activeEditor.setContent('<p>Some html</p>', { format: 'html' });
    */
-  public setContent(content: string, args?: EditorContent.SetContentArgs): string;
-  public setContent(content: AstNode, args?: EditorContent.SetContentArgs): AstNode;
-  public setContent(content: EditorContent.Content, args?: EditorContent.SetContentArgs): EditorContent.Content;
-  public setContent(content: EditorContent.Content, args?: EditorContent.SetContentArgs): EditorContent.Content {
+  public setContent(content: string, args?: Partial<EditorContent.SetContentArgs>): string;
+  public setContent(content: AstNode, args?: Partial<EditorContent.SetContentArgs>): AstNode;
+  public setContent(content: EditorContent.Content, args?: Partial<EditorContent.SetContentArgs>): EditorContent.Content;
+  public setContent(content: EditorContent.Content, args?: Partial<EditorContent.SetContentArgs>): EditorContent.Content {
     return EditorContent.setContent(this, content, args);
   }
 
@@ -864,14 +841,14 @@ class Editor implements EditorObservable {
    * console.debug(tinymce.activeEditor.getContent());
    *
    * // Get the contents of the currently active editor as plain text
-   * tinymce.activeEditor.getContent({format: 'text'});
+   * tinymce.activeEditor.getContent({ format: 'text' });
    *
    * // Get content of a specific editor:
    * tinymce.get('content id').getContent()
    */
-  public getContent(args: { format: 'tree' } & EditorContent.GetContentArgs): AstNode;
-  public getContent(args?: EditorContent.GetContentArgs): string;
-  public getContent(args?: EditorContent.GetContentArgs): EditorContent.Content {
+  public getContent(args: { format: 'tree' } & Partial<EditorContent.GetContentArgs>): AstNode;
+  public getContent(args?: Partial<EditorContent.GetContentArgs>): string;
+  public getContent(args?: Partial<EditorContent.GetContentArgs>): EditorContent.Content {
     return EditorContent.getContent(this, args);
   }
 
@@ -882,7 +859,7 @@ class Editor implements EditorObservable {
    * @param {String} content Content to insert.
    * @param {Object} args Optional args to pass to insert call.
    */
-  public insertContent(content: string, args?: any) {
+  public insertContent(content: string, args?: any): void {
     if (args) {
       content = extend({ content }, args);
     }
@@ -897,7 +874,7 @@ class Editor implements EditorObservable {
    * @method resetContent
    * @param {String} initialContent An optional string to use as the initial content of the editor.
    */
-  public resetContent(initialContent?: string) {
+  public resetContent(initialContent?: string): void {
     // Set the editor content
     if (initialContent === undefined) {
       // editor.startContent is generated by using the `raw` format, so we should set it the same way
@@ -923,10 +900,11 @@ class Editor implements EditorObservable {
    * @method isDirty
    * @return {Boolean} True/false if the editor is dirty or not. It will get dirty if the user has made modifications to the contents.
    * @example
-   * if (tinymce.activeEditor.isDirty())
-   *     alert("You must save your contents.");
+   * if (tinymce.activeEditor.isDirty()) {
+   *   alert("You must save your contents.");
+   * }
    */
-  public isDirty() {
+  public isDirty(): boolean {
     return !this.isNotDirty;
   }
 
@@ -937,22 +915,22 @@ class Editor implements EditorObservable {
    * @method setDirty
    * @param {Boolean} state True/false if the editor is considered dirty.
    * @example
-   * function ajaxSave() {
-   *     var editor = tinymce.get('elm1');
+   * const ajaxSave = () => {
+   *   const editor = tinymce.get('elm1');
    *
-   *     // Save contents using some XHR call
-   *     alert(editor.getContent());
+   *   // Save contents using some XHR call
+   *   alert(editor.getContent());
    *
-   *     editor.setDirty(false); // Force not dirty state
+   *   editor.setDirty(false); // Force not dirty state
    * }
    */
-  public setDirty(state: boolean) {
+  public setDirty(state: boolean): void {
     const oldState = !this.isNotDirty;
 
     this.isNotDirty = !state;
 
     if (state && state !== oldState) {
-      this.fire('dirty');
+      this.dispatch('dirty');
     }
   }
 
@@ -967,7 +945,7 @@ class Editor implements EditorObservable {
     const self = this;
 
     if (!self.container) {
-      self.container = DOM.get(self.editorContainer || self.id + '_parent');
+      self.container = self.editorContainer || DOM.get(self.id + '_parent') as HTMLElement;
     }
 
     return self.container;
@@ -992,7 +970,7 @@ class Editor implements EditorObservable {
    */
   public getElement(): HTMLElement {
     if (!this.targetElm) {
-      this.targetElm = DOM.get(this.id);
+      this.targetElm = DOM.get(this.id) as HTMLElement;
     }
 
     return this.targetElm;
@@ -1006,13 +984,12 @@ class Editor implements EditorObservable {
    */
   public getWin(): Window {
     const self = this;
-    let elm;
 
     if (!self.contentWindow) {
-      elm = self.iframeElement;
+      const elm = self.iframeElement;
 
       if (elm) {
-        self.contentWindow = elm.contentWindow;
+        self.contentWindow = elm.contentWindow as Window;
       }
     }
 
@@ -1027,10 +1004,9 @@ class Editor implements EditorObservable {
    */
   public getDoc(): Document {
     const self = this;
-    let win;
 
     if (!self.contentDocument) {
-      win = self.getWin();
+      const win = self.getWin();
 
       if (win) {
         self.contentDocument = win.document;
@@ -1049,7 +1025,7 @@ class Editor implements EditorObservable {
    */
   public getBody(): HTMLElement {
     const doc = this.getDoc();
-    return this.bodyElement || (doc ? doc.body : null);
+    return this.bodyElement ?? doc?.body ?? null;
   }
 
   /**
@@ -1058,43 +1034,70 @@ class Editor implements EditorObservable {
    * manipulation functions.
    *
    * @method convertURL
-   * @param {string} url URL to convert.
-   * @param {string} name Attribute name src, href etc.
-   * @param {string/HTMLElement} elm Tag name or HTML DOM element depending on HTML or DOM insert.
-   * @return {string} Converted URL string.
+   * @param {String} url URL to convert.
+   * @param {String} name Attribute name src, href etc.
+   * @param {String/HTMLElement} elm Tag name or HTML DOM element depending on HTML or DOM insert.
+   * @return {String} Converted URL string.
    */
-  public convertURL(url: string, name: string, elm?): string {
-    const self = this, settings = self.settings;
+  public convertURL(url: string, name: string, elm?: string | Element): string {
+    const self = this, getOption = self.options.get;
 
     // Use callback instead
-    if (settings.urlconverter_callback) {
-      return self.execCallback('urlconverter_callback', url, elm, true, name);
+    const urlConverterCallback = Options.getUrlConverterCallback(self);
+    if (Type.isFunction(urlConverterCallback)) {
+      return urlConverterCallback.call(self, url, elm, true, name);
     }
 
-    // Don't convert link href since thats the CSS files that gets loaded into the editor also skip local file URLs
-    if (!settings.convert_urls || (elm && elm.nodeName === 'LINK') || url.indexOf('file:') === 0 || url.length === 0) {
+    // Don't convert link href since that's the CSS files that gets loaded into the editor also skip local file URLs
+    if (
+      !getOption('convert_urls') ||
+      elm === 'link' ||
+      (Type.isObject(elm) && (elm as HTMLElement).nodeName === 'LINK') ||
+      url.indexOf('file:') === 0 ||
+      url.length === 0
+    ) {
       return url;
     }
 
     // Convert to relative
-    if (settings.relative_urls) {
+    if (getOption('relative_urls')) {
       return self.documentBaseURI.toRelative(url);
     }
 
     // Convert to absolute
-    url = self.documentBaseURI.toAbsolute(url, settings.remove_script_host);
+    url = self.documentBaseURI.toAbsolute(url, getOption('remove_script_host'));
 
     return url;
   }
 
   /**
-   * Adds visual aid for tables, anchors etc so they can be more easily edited inside the editor.
+   * Adds visual aids for tables, anchors, etc so they can be more easily edited inside the editor.
    *
    * @method addVisual
-   * @param {Element} elm Optional root element to loop though to find tables etc that needs the visual aid.
+   * @param {Element} elm Optional root element to loop though to find tables, etc that needs the visual aid.
    */
-  public addVisual(elm?: HTMLElement) {
+  public addVisual(elm?: HTMLElement): void {
     VisualAids.addVisual(this, elm);
+  }
+
+  /**
+   * Changes the editable state of the editor's root element.
+   *
+   * @method setEditableRoot
+   * @param {Boolean} state State to set true for editable and false for non-editable.
+   */
+  public setEditableRoot(state: boolean): void {
+    EditableRoot.setEditableRoot(this, state);
+  }
+
+  /**
+   * Returns the current editable state of the editor's root element.
+   *
+   * @method hasEditableRoot
+   * @return {Boolean} True if the root element is editable, false if it is not editable.
+   */
+  public hasEditableRoot(): boolean {
+    return EditableRoot.hasEditableRoot(this);
   }
 
   /**
@@ -1102,7 +1105,7 @@ class Editor implements EditorObservable {
    *
    * @method remove
    */
-  public remove() {
+  public remove(): void {
     EditorRemove.remove(this);
   }
 
@@ -1114,7 +1117,7 @@ class Editor implements EditorObservable {
    * @method destroy
    * @param {Boolean} automatic Optional state if the destroy is an automatic destroy or user called one.
    */
-  public destroy(automatic?: boolean) {
+  public destroy(automatic?: boolean): void {
     EditorRemove.destroy(this, automatic);
   }
 
@@ -1122,45 +1125,16 @@ class Editor implements EditorObservable {
    * Uploads all data uri/blob uri images in the editor contents to server.
    *
    * @method uploadImages
-   * @param {function} callback Optional callback with images and status for each image.
-   * @return {Promise} Promise instance.
+   * @return {Promise} Promise instance with images and status for each image.
    */
-  public uploadImages(callback?: UploadCallback): Promise<UploadResult[]> {
-    return this.editorUpload.uploadImages(callback);
+  public uploadImages(): Promise<UploadResult[]> {
+    return this.editorUpload.uploadImages();
   }
 
   // Internal functions
 
   public _scanForImages(): Promise<BlobInfoImagePair[]> {
     return this.editorUpload.scanForImages();
-  }
-
-  /**
-   * No longer supported, use editor.ui.registry.addButton instead
-   */
-  public addButton() {
-    throw new Error('editor.addButton has been removed in tinymce 5x, use editor.ui.registry.addButton or editor.ui.registry.addToggleButton or editor.ui.registry.addSplitButton instead');
-  }
-
-  /**
-   * No longer supported, use editor.ui.registry.addSidebar instead
-   */
-  public addSidebar() {
-    throw new Error('editor.addSidebar has been removed in tinymce 5x, use editor.ui.registry.addSidebar instead');
-  }
-
-  /**
-   * No longer supported, use editor.ui.registry.addMenuItem instead
-   */
-  public addMenuItem() {
-    throw new Error('editor.addMenuItem has been removed in tinymce 5x, use editor.ui.registry.addMenuItem instead');
-  }
-
-  /**
-   * No longer supported, use editor.ui.registry.addContextMenu instead
-   */
-  public addContextToolbar() {
-    throw new Error('editor.addContextToolbar has been removed in tinymce 5x, use editor.ui.registry.addContextToolbar instead');
   }
 }
 

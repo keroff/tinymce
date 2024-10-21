@@ -1,26 +1,25 @@
 import { Assertions, Cursors, Waiter } from '@ephox/agar';
 import { after, before, describe, it } from '@ephox/bedrock-client';
-import { PlatformDetection } from '@ephox/sand';
 import { Hierarchy, Html, SimRange, SugarElement } from '@ephox/sugar';
-import { TinyAssertions, TinyDom, TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
+import { TinyDom, TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
 
 import DOMUtils from 'tinymce/core/api/dom/DOMUtils';
 import Editor from 'tinymce/core/api/Editor';
 import { EditorEvent } from 'tinymce/core/api/util/EventDispatcher';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.selection.SelectionBookmarkInlineEditorTest', () => {
-  const browser = PlatformDetection.detect().browser;
   const hook = TinyHooks.bddSetupLight<Editor>({
     inline: true,
     indent: false,
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ]);
+  }, []);
   const testDivId = 'testDiv1234';
 
   const removeTestDiv = () => {
     const input = document.querySelector('#' + testDivId);
-    input.parentNode.removeChild(input);
+    if (input) {
+      input.parentNode?.removeChild(input);
+    }
   };
 
   const addTestDiv = () => {
@@ -38,11 +37,11 @@ describe('browser.tinymce.core.selection.SelectionBookmarkInlineEditorTest', () 
   };
 
   const focusDiv = () => {
-    const input = document.querySelector<HTMLDivElement>('#' + testDivId);
+    const input = document.querySelector('#' + testDivId) as HTMLDivElement;
     input.focus();
   };
 
-  const assertPath = (label: string, root: SugarElement, expPath: number[], expOffset: number, actElement: Node, actOffset: number) => {
+  const assertPath = (label: string, root: SugarElement<Node>, expPath: number[], expOffset: number, actElement: Node, actOffset: number) => {
     const expected = Cursors.calculateOne(root, expPath);
     const message = () => {
       const actual = SugarElement.fromDom(actElement);
@@ -63,108 +62,87 @@ describe('browser.tinymce.core.selection.SelectionBookmarkInlineEditorTest', () 
   before(() => addTestDiv());
   after(() => removeTestDiv());
 
-  // On edge and ie it restores on focusout only
-  if (browser.isIE() || browser.isEdge()) {
-    it('restore even without second nodechange, restores on focusout', () => {
-      const editor = hook.editor();
-      editor.setContent('<p>a</p><p>b</p>');
+  it('assert bookmark is updated in response to `setRng`', () => {
+    const editor = hook.editor();
+    editor.resetContent('<p>a</p><p>b</p>');
 
-      TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
-      TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1, false);
-      focusDiv();
+    TinySelections.setRawSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
+    TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1, false); // Ensure node change doesn't fire
+    assertBookmark(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
+  });
 
-      TinyAssertions.assertSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
-    });
+  it('assert selection after no nodechanged, should not restore', () => {
+    const editor = hook.editor();
+    editor.resetContent('<p>a</p><p>b</p>');
 
-    it('restore with second nodechange, restores on focusout', () => {
-      const editor = hook.editor();
-      editor.setContent('<p>a</p><p>b</p>');
+    TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
+    TinySelections.setRawSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
+    assertBookmark(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
+  });
 
-      TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
-      TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
-      focusDiv();
+  it('assert selection after nodechanged, should restore', () => {
+    const editor = hook.editor();
+    editor.setContent('<p>a</p><p>b</p>');
 
-      TinyAssertions.assertSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
-    });
-  // On the other browsers we test for bookmark saved on nodechange, keyup, mouseup and touchend events
-  } else {
-    it('assert selection after no nodechanged, should not restore', () => {
-      const editor = hook.editor();
-      editor.setContent('<p>a</p><p>b</p>');
-      // In FireFox blurring the editor adds an undo level that triggers a nodechange that creates a bookmark,
-      // so by adding an undo level first we keep it from adding a bookmark because the undo manager
-      // does not add a new undolevel if it is the same as the previous level.
-      editor.undoManager.add();
+    TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
+    TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
+    assertBookmark(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
+  });
 
-      TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
-      TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1, false); // Ensure node change doesn't fire
-      assertBookmark(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
-    });
+  it('assert selection after keyup, should restore', () => {
+    const editor = hook.editor();
+    editor.setContent('<p>a</p><p>b</p>');
 
-    it('assert selection after nodechanged, should restore', () => {
-      const editor = hook.editor();
-      editor.setContent('<p>a</p><p>b</p>');
+    TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
+    TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1, false);
+    editor.dispatch('keyup', { } as KeyboardEvent);
+    assertBookmark(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
+  });
 
-      TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
-      TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
-      assertBookmark(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
-    });
+  it('assert selection after mouseup, should restore', () => {
+    const editor = hook.editor();
+    editor.setContent('<p>a</p><p>b</p>');
 
-    it('assert selection after keyup, should restore', () => {
-      const editor = hook.editor();
-      editor.setContent('<p>a</p><p>b</p>');
+    TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
+    TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1, false);
+    editor.dispatch('mouseup', { } as MouseEvent);
+    return pWaitForBookmark(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
+  });
 
-      TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
-      TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1, false);
-      editor.fire('keyup', { } as KeyboardEvent);
-      assertBookmark(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
-    });
+  it('assert selection after touchend, should restore', () => {
+    const editor = hook.editor();
+    editor.setContent('<p>a</p><p>b</p>');
 
-    it('assert selection after mouseup, should restore', () => {
-      const editor = hook.editor();
-      editor.setContent('<p>a</p><p>b</p>');
+    TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
+    TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1, false);
+    editor.dispatch('touchend', { } as TouchEvent);
+    return pWaitForBookmark(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
+  });
 
-      TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
-      TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1, false);
-      editor.fire('mouseup', { } as MouseEvent);
-      return pWaitForBookmark(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
-    });
+  it('selection with mouseup outside editor body', () => {
+    const editor = hook.editor();
+    editor.setContent('<p>ab</p>');
+    TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 1, false);
+    DOMUtils.DOM.dispatch(document, 'mouseup');
+    return pWaitForBookmark(editor, [ 0, 0 ], 0, [ 0, 0 ], 1);
+  });
 
-    it('assert selection after touchend, should restore', () => {
-      const editor = hook.editor();
-      editor.setContent('<p>a</p><p>b</p>');
+  it('getSelectionRange event should fire on bookmarked ranges', () => {
+    const editor = hook.editor();
+    const modifyRange = (e: EditorEvent<{ range: Range }>) => {
+      const newRng = document.createRange();
+      newRng.selectNodeContents(editor.getBody().lastChild as HTMLParagraphElement);
+      e.range = newRng;
+    };
 
-      TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
-      TinySelections.setSelection(editor, [ 1, 0 ], 1, [ 1, 0 ], 1, false);
-      editor.fire('touchend', { } as TouchEvent);
-      return pWaitForBookmark(editor, [ 1, 0 ], 1, [ 1, 0 ], 1);
-    });
+    editor.setContent('<p>a</p><p>b</p>');
+    TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 1);
+    focusDiv();
 
-    it('selection with mouseup outside editor body', () => {
-      const editor = hook.editor();
-      editor.setContent('<p>ab</p>');
-      TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 1, false);
-      DOMUtils.DOM.fire(document, 'mouseup');
-      return pWaitForBookmark(editor, [ 0, 0 ], 0, [ 0, 0 ], 1);
-    });
+    editor.on('GetSelectionRange', modifyRange);
+    const elm = editor.selection.getNode();
+    editor.off('GetSelectedRange', modifyRange);
 
-    it('getSelectionRange event should fire on bookmarked ranges', () => {
-      const editor = hook.editor();
-      const modifyRange = (e: EditorEvent<{ range: Range }>) => {
-        const newRng = document.createRange();
-        newRng.selectNodeContents(editor.getBody().lastChild);
-        e.range = newRng;
-      };
-
-      editor.setContent('<p>a</p><p>b</p>');
-      TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 1);
-      focusDiv();
-
-      editor.on('GetSelectionRange', modifyRange);
-      const elm = editor.selection.getNode();
-      editor.off('GetSelectedRange', modifyRange);
-
-      Assertions.assertHtml('Expect event to change the selection from a to b', 'b', elm.innerHTML);
-    });
-  }
+    Assertions.assertHtml('Expect event to change the selection from a to b', 'b', elm.innerHTML);
+  });
 });

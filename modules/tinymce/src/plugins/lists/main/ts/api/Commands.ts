@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Type } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -17,7 +10,7 @@ import * as Dialog from '../ui/Dialog';
 
 const queryListCommandState = (editor: Editor, listName: string) => (): boolean => {
   const parentList = getParentList(editor);
-  return parentList && parentList.nodeName === listName;
+  return Type.isNonNullable(parentList) && parentList.nodeName === listName;
 };
 
 const registerDialog = (editor: Editor): void => {

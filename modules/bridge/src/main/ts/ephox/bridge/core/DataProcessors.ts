@@ -8,10 +8,12 @@ import { colorPickerDataProcessor } from '../components/dialog/ColorPicker';
 import { customEditorDataProcessor } from '../components/dialog/CustomEditor';
 import { dropZoneDataProcessor } from '../components/dialog/Dropzone';
 import { iframeDataProcessor } from '../components/dialog/Iframe';
+import { imagePreviewDataProcessor } from '../components/dialog/ImagePreview';
 import { inputDataProcessor } from '../components/dialog/Input';
 import { listBoxDataProcessor } from '../components/dialog/ListBox';
 import { selectBoxDataProcessor } from '../components/dialog/SelectBox';
 import { sizeInputDataProcessor } from '../components/dialog/SizeInput';
+import { sliderInputDataProcessor } from '../components/dialog/Slider';
 import { textAreaDataProcessor } from '../components/dialog/Textarea';
 import { dialogToggleMenuItemDataProcessor } from '../components/dialog/ToggleMenuItem';
 import { urlInputDataProcessor } from '../components/dialog/UrlInput';
@@ -24,15 +26,17 @@ interface NamedItem {
 
 const isNamedItem = (obj: any): obj is NamedItem => Type.isString(obj.type) && Type.isString(obj.name);
 
-const dataProcessors = {
+const dataProcessors: Record<string, StructureProcessor> = {
   checkbox: checkboxDataProcessor,
   colorinput: colorInputDataProcessor,
   colorpicker: colorPickerDataProcessor,
   dropzone: dropZoneDataProcessor,
   input: inputDataProcessor,
   iframe: iframeDataProcessor,
-  sizeinput: sizeInputDataProcessor,
+  imagepreview: imagePreviewDataProcessor,
   selectbox: selectBoxDataProcessor,
+  sizeinput: sizeInputDataProcessor,
+  slider: sliderInputDataProcessor,
   listbox: listBoxDataProcessor,
   size: sizeInputDataProcessor,
   textarea: textAreaDataProcessor,

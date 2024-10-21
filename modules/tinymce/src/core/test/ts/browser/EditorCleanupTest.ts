@@ -5,37 +5,35 @@ import { McEditor, TinyDom } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import { RawEditorSettings } from 'tinymce/core/api/SettingsTypes';
+import { RawEditorOptions } from 'tinymce/core/api/OptionTypes';
 import VisualBlocksPlugin from 'tinymce/plugins/visualblocks/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
-
-const assertPageLinkPresence = (url: string, exists: boolean): void => {
-  const links = document.head.querySelectorAll(`link[href="${url}"]`);
-  assert.equal(links.length > 0, exists, `Should have link with url="${url}"`);
-};
-
-const testCleanup = (comment: string, settings: RawEditorSettings, html: string = '<div></div>', fn: (editor) => void = Fun.noop) => {
-  it(comment, async () => {
-    // spin the editor up and down, getting a reference to its target element in between
-    const editor = await McEditor.pFromHtml<Editor>(html, { base_url: '/project/tinymce/js/tinymce', ...settings });
-    const element = TinyDom.targetElement(editor);
-    // Run any additional chains
-    fn(editor);
-    editor.remove();
-    // first, remove the id of the element, as that's inserted from McEditor.cFromHtml and is out of our control
-    Attribute.remove(element, 'id');
-    // assert that the html of the element is correct
-    assert.equal(Truncate.getHtml(element), html, comment + ' all properties on the element should be cleaned up');
-    // remove the element
-    Remove.remove(element);
-  });
-};
 
 describe('browser.tinymce.core.EditorCleanupTest', () => {
   before(() => {
-    Theme();
     VisualBlocksPlugin();
   });
+
+  const assertPageLinkPresence = (url: string, exists: boolean): void => {
+    const links = document.head.querySelectorAll(`link[href="${url}"]`);
+    assert.equal(links.length > 0, exists, `Should have link with url="${url}"`);
+  };
+
+  const testCleanup = (comment: string, settings: RawEditorOptions, html: string = '<div></div>', fn: (editor: Editor) => void = Fun.noop) => {
+    it(comment, async () => {
+      // spin the editor up and down, getting a reference to its target element in between
+      const editor = await McEditor.pFromHtml<Editor>(html, { base_url: '/project/tinymce/js/tinymce', ...settings });
+      const element = TinyDom.targetElement(editor);
+      // Run any additional chains
+      fn(editor);
+      editor.remove();
+      // first, remove the id of the element, as that's inserted from McEditor.cFromHtml and is out of our control
+      Attribute.remove(element, 'id');
+      // assert that the html of the element is correct
+      assert.equal(Truncate.getHtml(element), html, comment + ' all properties on the element should be cleaned up');
+      // remove the element
+      Remove.remove(element);
+    });
+  };
 
   testCleanup('TINY-4001: Inline editor should clean up attributes', { inline: true });
 

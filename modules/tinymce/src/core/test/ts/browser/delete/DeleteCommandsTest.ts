@@ -1,17 +1,16 @@
-import { describe, it } from '@ephox/bedrock-client';
+import { context, describe, it } from '@ephox/bedrock-client';
 import { Cell } from '@ephox/katamari';
-import { TinyAssertions, TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
+import { TinyAssertions, TinyHooks, TinySelections, TinyState } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import * as DeleteCommands from 'tinymce/core/delete/DeleteCommands';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.delete.DeleteCommandsTest', () => {
-  const caret = Cell<Text>(null);
+  const caret = Cell<Text | null>(null);
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce',
     indent: false
-  }, [ Theme ], true);
+  }, [], true);
 
   it('Delete should merge blocks', () => {
     const editor = hook.editor();
@@ -29,5 +28,58 @@ describe('browser.tinymce.core.delete.DeleteCommandsTest', () => {
     DeleteCommands.forwardDeleteCommand(editor, caret);
     TinyAssertions.assertContent(editor, '<p><span style="color: red;">a</span>b</p>');
     TinyAssertions.assertSelection(editor, [ 0, 0, 0 ], 1, [ 0, 0, 0 ], 1);
+  });
+
+  it('TINY-9807: If placed between two images the first image should be deleted, not the second one', () => {
+    const editor = hook.editor();
+    editor.setContent('<p><img id="one" src="about:blank"><img id="two" src="about:blank"></p>');
+    TinySelections.setCursor(editor, [ 0 ], 1);
+    DeleteCommands.deleteCommand(editor, caret);
+    TinyAssertions.assertContent(editor, '<p><img id="two" src="about:blank"></p>');
+    TinyAssertions.assertCursor(editor, [ 0 ], 0);
+  });
+
+  context('noneditable', () => {
+    it('TINY-9477: Delete on noneditable blocks should not do anything', () => {
+      const editor = hook.editor();
+      const initialContent = '<div contenteditable="false"><p>a</p><p>b</p></div>';
+      editor.setContent(initialContent);
+      TinySelections.setSelection(editor, [ 1, 0, 0 ], 0, [ 1, 1, 0 ], 1);
+      DeleteCommands.deleteCommand(editor, caret);
+      TinyAssertions.assertContent(editor, initialContent);
+      TinyAssertions.assertSelection(editor, [ 0, 0, 0 ], 0, [ 0, 1, 0 ], 1);
+    });
+
+    it('TINY-9477: ForwardDelete on noneditable blocks should not do anything', () => {
+      const editor = hook.editor();
+      const initialContent = '<div contenteditable="false"><p>a</p><p>b</p></div>';
+      editor.setContent(initialContent);
+      TinySelections.setSelection(editor, [ 1, 0, 0 ], 0, [ 1, 1, 0 ], 1);
+      DeleteCommands.forwardDeleteCommand(editor, caret);
+      TinyAssertions.assertContent(editor, initialContent);
+      TinyAssertions.assertSelection(editor, [ 0, 0, 0 ], 0, [ 0, 1, 0 ], 1);
+    });
+
+    it('TINY-9477: Delete on blocks in noneditable root should not do anything', () => {
+      TinyState.withNoneditableRootEditor(hook.editor(), (editor) => {
+        const initialContent = '<p>a</p><p>b</p>';
+        editor.setContent(initialContent);
+        TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 1, 0 ], 1);
+        DeleteCommands.deleteCommand(editor, caret);
+        TinyAssertions.assertContent(editor, initialContent);
+        TinyAssertions.assertSelection(editor, [ 0, 0 ], 0, [ 1, 0 ], 1);
+      });
+    });
+
+    it('TINY-9477: ForwardDelete on blocks in noneditable root should not do anything', () => {
+      TinyState.withNoneditableRootEditor(hook.editor(), (editor) => {
+        const initialContent = '<p>a</p><p>b</p>';
+        editor.setContent(initialContent);
+        TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 1, 0 ], 1);
+        DeleteCommands.forwardDeleteCommand(editor, caret);
+        TinyAssertions.assertContent(editor, initialContent);
+        TinyAssertions.assertSelection(editor, [ 0, 0 ], 0, [ 1, 0 ], 1);
+      });
+    });
   });
 });

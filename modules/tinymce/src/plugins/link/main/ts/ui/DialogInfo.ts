@@ -1,16 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Optional } from '@ephox/katamari';
 
 import DOMUtils from 'tinymce/core/api/dom/DOMUtils';
 import Editor from 'tinymce/core/api/Editor';
 
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import * as Utils from '../core/Utils';
 import { LinkDialogInfo } from './DialogTypes';
 import { AnchorListOptions } from './sections/AnchorListOptions';
@@ -24,15 +17,15 @@ const nonEmptyAttr = (dom: DOMUtils, elem: string | Element, name: string): Opti
   return val !== null && val.length > 0 ? Optional.some(val) : Optional.none();
 };
 
-const extractFromAnchor = (editor: Editor, anchor: HTMLAnchorElement): LinkDialogInfo['anchor'] => {
+const extractFromAnchor = (editor: Editor, anchor: Optional<HTMLAnchorElement>): LinkDialogInfo['anchor'] => {
   const dom = editor.dom;
   const onlyText = Utils.isOnlyTextSelected(editor);
   const text: Optional<string> = onlyText ? Optional.some(Utils.getAnchorText(editor.selection, anchor)) : Optional.none();
-  const url: Optional<string> = anchor ? Optional.some(dom.getAttrib(anchor, 'href')) : Optional.none();
-  const target: Optional<string> = anchor ? Optional.from(dom.getAttrib(anchor, 'target')) : Optional.none();
-  const rel = nonEmptyAttr(dom, anchor, 'rel');
-  const linkClass = nonEmptyAttr(dom, anchor, 'class');
-  const title = nonEmptyAttr(dom, anchor, 'title');
+  const url: Optional<string> = anchor.bind((anchorElm) => Optional.from(dom.getAttrib(anchorElm, 'href')));
+  const target: Optional<string> = anchor.bind((anchorElm) => Optional.from(dom.getAttrib(anchorElm, 'target')));
+  const rel = anchor.bind((anchorElm) => nonEmptyAttr(dom, anchorElm, 'rel'));
+  const linkClass = anchor.bind((anchorElm) => nonEmptyAttr(dom, anchorElm, 'class'));
+  const title = anchor.bind((anchorElm) => nonEmptyAttr(dom, anchorElm, 'title'));
 
   return {
     url,
@@ -44,7 +37,7 @@ const extractFromAnchor = (editor: Editor, anchor: HTMLAnchorElement): LinkDialo
   };
 };
 
-const collect = (editor: Editor, linkNode: HTMLAnchorElement): Promise<LinkDialogInfo> =>
+const collect = (editor: Editor, linkNode: Optional<HTMLAnchorElement>): Promise<LinkDialogInfo> =>
   LinkListOptions.getLinks(editor).then((links) => {
     const anchor = extractFromAnchor(editor, linkNode);
     return {
@@ -57,9 +50,9 @@ const collect = (editor: Editor, linkNode: HTMLAnchorElement): Promise<LinkDialo
         anchor: AnchorListOptions.getAnchors(editor),
         link: links
       },
-      optNode: Optional.from(linkNode),
+      optNode: linkNode,
       flags: {
-        titleEnabled: Settings.shouldShowLinkTitle(editor)
+        titleEnabled: Options.shouldShowLinkTitle(editor)
       }
     };
   });

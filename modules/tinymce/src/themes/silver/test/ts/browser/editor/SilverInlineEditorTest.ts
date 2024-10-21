@@ -2,18 +2,18 @@
 import { ApproxStructure, Assertions, Keys, UiFinder } from '@ephox/agar';
 import { beforeEach, describe, it } from '@ephox/bedrock-client';
 import { Cell, Fun } from '@ephox/katamari';
+import { PlatformDetection } from '@ephox/sand';
 import { Css, SugarBody } from '@ephox/sugar';
 import { TinyDom, TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Env from 'tinymce/core/api/Env';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as UiUtils from '../../module/UiUtils';
 
 describe('browser.tinymce.themes.silver.editor.SilverInlineEditorTest', () => {
-  const store = Cell([ ]);
+  const os = PlatformDetection.detect().os;
+  const store = Cell<string[]>([ ]);
   const hook = TinyHooks.bddSetup<Editor>({
     inline: true,
     toolbar: 'custom1 customtoggle1 dropdown1-with-text dropdown1-with-icon splitbutton1-with-text splitbutton2-with-icon',
@@ -132,7 +132,7 @@ describe('browser.tinymce.themes.silver.editor.SilverInlineEditorTest', () => {
         }
       });
     }
-  }, [ Theme ]);
+  }, []);
 
   beforeEach(async () => {
     hook.editor().focus();
@@ -348,13 +348,13 @@ describe('browser.tinymce.themes.silver.editor.SilverInlineEditorTest', () => {
           }),
           s.element('div', {
             classes: [ arr.has('tox-collection__item-accessory') ],
-            html: str.is(Env.mac ? '\u2318' + 'M' : 'Ctrl' + '+M')
+            html: str.is(os.isMacOS() || os.isiOS() ? '\u2318' + 'M' : 'Ctrl' + '+M')
           })
         ]
       })),
       activeItem
     );
-    TinyUiActions.keydown(editor, Keys.escape());
+    TinyUiActions.keyup(editor, Keys.escape());
     UiFinder.notExists(SugarBody.body(), '[role="menu"]');
   });
 
@@ -374,7 +374,7 @@ describe('browser.tinymce.themes.silver.editor.SilverInlineEditorTest', () => {
 
   it('TBA: Using the api should toggle a toggle button', () => {
     const editor = hook.editor();
-    editor.fire('customtoggle1-toggle');
+    editor.dispatch('customtoggle1-toggle');
     const button = UiFinder.findIn(TinyDom.container(editor), '.tox-tbtn:contains("ToggleMe")').getOrDie();
     Assertions.assertStructure('ToggleMe button should be pressed',
       ApproxStructure.build((s, str, arr) => s.element('button', {
@@ -401,7 +401,7 @@ describe('browser.tinymce.themes.silver.editor.SilverInlineEditorTest', () => {
 
   it('TBA: Using the api should toggle a split button', () => {
     const editor = hook.editor();
-    editor.fire('splitbutton1-toggle');
+    editor.dispatch('splitbutton1-toggle');
     const button = UiFinder.findIn(TinyDom.container(editor), '.tox-split-button > .tox-tbtn:contains("Delta")').getOrDie();
     Assertions.assertStructure('Delta button should be pressed',
       ApproxStructure.build((s, str, arr) => s.element('span', {

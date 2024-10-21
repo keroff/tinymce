@@ -1,27 +1,35 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { ItemTypes, MenuTypes } from '@ephox/alloy';
 import { StructureSchema } from '@ephox/boulder';
 import { InlineContent, Menu, Toolbar } from '@ephox/bridge';
 import { Arr, Optional } from '@ephox/katamari';
 
 import { components as menuComponents, dom as menuDom } from './MenuParts';
-import { forCollection, forHorizontalCollection, forSwatch, forToolbar } from './MenuStructures';
+import { forCollection, forCollectionWithSearchField, forCollectionWithSearchResults, forHorizontalCollection, forSwatch, forToolbar, StructureSpec } from './MenuStructures';
+import { SearchMenuWithFieldMode, SearchMenuWithResultsMode } from './searchable/SearchableMenu';
 import { SingleMenuItemSpec } from './SingleMenuTypes';
 
-export const menuHasIcons = (xs: Array<SingleMenuItemSpec | Menu.CardMenuItemSpec | InlineContent.AutocompleterItemSpec>) => Arr.exists(xs, (item) => 'icon' in item && item.icon !== undefined);
-
 export interface PartialMenuSpec {
-  value: string;
-  dom: MenuTypes.MenuSpec['dom'];
-  components: MenuTypes.MenuSpec['components'];
-  items: MenuTypes.MenuSpec['items'];
+  readonly value: string;
+  readonly dom: MenuTypes.MenuSpec['dom'];
+  readonly components: MenuTypes.MenuSpec['components'];
+  readonly items: MenuTypes.MenuSpec['items'];
 }
+
+// This is an internal version of the presets, that includes a couple more
+// options which aren't available externally relating to searching
+export type MenuLayoutType = UnsearchableMenuLayout | SearchableMenuLayout;
+
+export interface UnsearchableMenuLayout {
+  readonly menuType: 'color' | 'normal' | 'listpreview';
+}
+
+export interface SearchableMenuLayout {
+  readonly menuType: 'searchable';
+  readonly searchMode: SearchMenuWithFieldMode | SearchMenuWithResultsMode;
+}
+
+export const menuHasIcons = (xs: Array<SingleMenuItemSpec | Menu.CardMenuItemSpec | InlineContent.AutocompleterItemSpec>): boolean =>
+  Arr.exists(xs, (item) => 'icon' in item && item.icon !== undefined);
 
 export const handleError = (error: StructureSchema.SchemaError<any>): Optional<ItemTypes.ItemSpec> => {
   // eslint-disable-next-line no-console
@@ -31,7 +39,8 @@ export const handleError = (error: StructureSchema.SchemaError<any>): Optional<I
   return Optional.none();
 };
 
-export const createHorizontalPartialMenuWithAlloyItems = (value: string, _hasIcons: boolean, items, _columns: Toolbar.ColumnTypes, _presets: Toolbar.PresetTypes): PartialMenuSpec => {
+export const createHorizontalPartialMenuWithAlloyItems = (value: string, _hasIcons: boolean, items: ItemTypes.ItemSpec[], _columns: Toolbar.ColumnTypes, _menuLayout: MenuLayoutType): PartialMenuSpec => {
+  // Horizontal collections do not support different menu layout structures currently.
   const structure = forHorizontalCollection(items);
   return {
     value,
@@ -41,9 +50,18 @@ export const createHorizontalPartialMenuWithAlloyItems = (value: string, _hasIco
   };
 };
 
-// TODO: Potentially make this private again.
-export const createPartialMenuWithAlloyItems = (value: string, hasIcons: boolean, items, columns: Toolbar.ColumnTypes, presets: Toolbar.PresetTypes): PartialMenuSpec => {
-  if (presets === 'color') {
+export const createPartialMenuWithAlloyItems = (value: string, hasIcons: boolean, items: ItemTypes.ItemSpec[], columns: Toolbar.ColumnTypes, menuLayout: MenuLayoutType): PartialMenuSpec => {
+  const getNormalStructure = (): StructureSpec => {
+    if (menuLayout.menuType !== 'searchable') {
+      return forCollection(columns, items);
+    } else {
+      return menuLayout.searchMode.searchMode === 'search-with-field'
+        ? forCollectionWithSearchField(columns, items, menuLayout.searchMode)
+        : forCollectionWithSearchResults(columns, items);
+    }
+  };
+
+  if (menuLayout.menuType === 'color') {
     const structure = forSwatch(columns);
     return {
       value,
@@ -51,9 +69,7 @@ export const createPartialMenuWithAlloyItems = (value: string, hasIcons: boolean
       components: structure.components,
       items
     };
-  }
-
-  if (presets === 'normal' && columns === 'auto') {
+  } else if (menuLayout.menuType === 'normal' && columns === 'auto') {
     const structure = forCollection(columns, items);
     return {
       value,
@@ -61,29 +77,15 @@ export const createPartialMenuWithAlloyItems = (value: string, hasIcons: boolean
       components: structure.components,
       items
     };
-  }
-
-  if (presets === 'normal' && columns === 1) {
-    const structure = forCollection(1, items);
+  } else if (menuLayout.menuType === 'normal' || menuLayout.menuType === 'searchable') {
+    const structure = getNormalStructure();
     return {
       value,
       dom: structure.dom,
       components: structure.components,
       items
     };
-  }
-
-  if (presets === 'normal') {
-    const structure = forCollection(columns, items);
-    return {
-      value,
-      dom: structure.dom,
-      components: structure.components,
-      items
-    };
-  }
-
-  if (presets === 'listpreview' && columns !== 'auto') {
+  } else if (menuLayout.menuType === 'listpreview' && columns !== 'auto') {
     const structure = forToolbar(columns);
     return {
       value,
@@ -91,12 +93,12 @@ export const createPartialMenuWithAlloyItems = (value: string, hasIcons: boolean
       components: structure.components,
       items
     };
+  } else {
+    return {
+      value,
+      dom: menuDom(hasIcons, columns, menuLayout.menuType),
+      components: menuComponents,
+      items
+    };
   }
-
-  return {
-    value,
-    dom: menuDom(hasIcons, columns, presets),
-    components: menuComponents,
-    items
-  };
 };

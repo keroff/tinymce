@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AlloyEvents, FocusManagers, ItemTypes, Keying, MenuTypes, TieredMenu, TieredMenuTypes } from '@ephox/alloy';
+import { AlloyEvents, InlineViewTypes, ItemTypes, Keying, TieredMenu, TieredMenuTypes } from '@ephox/alloy';
 import { InlineContent, Menu as BridgeMenu, Toolbar } from '@ephox/bridge';
 import { Arr, Obj, Optional, Optionals } from '@ephox/katamari';
 
@@ -19,13 +12,15 @@ import * as MenuItems from '../item/MenuItems';
 import { deriveMenuMovement } from './MenuMovement';
 import { markers as getMenuMarkers } from './MenuParts';
 import * as MenuUtils from './MenuUtils';
+import { identifyMenuLayout, MenuSearchMode } from './searchable/SearchableMenu';
 import { SingleMenuItemSpec } from './SingleMenuTypes';
 
 type PartialMenuSpec = MenuUtils.PartialMenuSpec;
 
-export type ItemChoiceActionHandler = (value: string) => void;
-
-export enum FocusMode { ContentFocus, UiFocus }
+export enum FocusMode {
+  ContentFocus,
+  UiFocus
+}
 
 const createMenuItemFromBridge = (
   item: SingleMenuItemSpec,
@@ -37,11 +32,12 @@ const createMenuItemFromBridge = (
   const providersBackstage = backstage.shared.providers;
   // If we're making a horizontal menu (mobile context menu) we want text OR icons
   // to simplify the UI. We also don't want shortcut text.
-  const parseForHorizontalMenu = (menuitem) => !isHorizontalMenu ? menuitem : ({
+  const parseForHorizontalMenu = <T extends { text: Optional<string>; icon: Optional<string> }>(menuitem: T) => !isHorizontalMenu ? menuitem : ({
     ...menuitem,
     shortcut: Optional.none(),
     icon: menuitem.text.isSome() ? Optional.none() : menuitem.icon
   });
+
   switch (item.type) {
     case 'menuitem':
       return BridgeMenu.createMenuItem(item).fold(
@@ -84,7 +80,8 @@ const createMenuItemFromBridge = (
     case 'fancymenuitem':
       return BridgeMenu.createFancyMenuItem(item).fold(
         MenuUtils.handleError,
-        (d) => MenuItems.fancy(parseForHorizontalMenu(d), backstage)
+        // Fancy menu items don't have shortcuts or icons
+        (d) => MenuItems.fancy(d, backstage)
       );
     default: {
       // eslint-disable-next-line no-console
@@ -102,7 +99,7 @@ export const createAutocompleteItems = (
   itemResponse: ItemResponse,
   sharedBackstage: UiFactoryBackstageShared,
   highlightOn: string[]
-) => {
+): ItemTypes.ItemSpec[] => {
   // Render text and icons if we're using a single column, otherwise only render icons
   const renderText = columns === 1;
   const renderIcons = !renderText || MenuUtils.menuHasIcons(items);
@@ -141,9 +138,9 @@ export const createAutocompleteItems = (
 
         case 'autocompleteitem':
         default:
-          return InlineContent.createAutocompleterItem(item).fold(
+          return InlineContent.createAutocompleterItem(item as InlineContent.AutocompleterItemSpec).fold(
             MenuUtils.handleError,
-            (d: InlineContent.AutocompleterItem) => Optional.some(MenuItems.autocomplete(
+            (d) => Optional.some(MenuItems.autocomplete(
               d,
               matchText,
               renderText,
@@ -164,7 +161,8 @@ export const createPartialMenu = (
   items: SingleMenuItemSpec[],
   itemResponse: ItemResponse,
   backstage: UiFactoryBackstage,
-  isHorizontalMenu: boolean
+  isHorizontalMenu: boolean,
+  searchMode: MenuSearchMode
 ): PartialMenuSpec => {
   const hasIcons = MenuUtils.menuHasIcons(items);
 
@@ -182,51 +180,49 @@ export const createPartialMenu = (
         isHorizontalMenu
       );
       if (item.type === 'nestedmenuitem' && item.getSubmenuItems().length <= 0) {
-        return createItem({ ...item, disabled: true });
+        return createItem({ ...item, enabled: false });
       } else {
         return createItem(item);
       }
     })
   );
+
+  // The menu layout is dependent upon our search mode.
+  const menuLayout = identifyMenuLayout(searchMode);
+
   const createPartial = isHorizontalMenu ?
     MenuUtils.createHorizontalPartialMenuWithAlloyItems :
     MenuUtils.createPartialMenuWithAlloyItems;
-  return createPartial(value, hasIcons, alloyItems, 1, 'normal');
+  return createPartial(value, hasIcons, alloyItems, 1, menuLayout);
 };
 
-export const createTieredDataFrom = (partialMenu: TieredMenuTypes.PartialMenuSpec) =>
+export const createTieredDataFrom = (partialMenu: TieredMenuTypes.PartialMenuSpec & { value: string }): TieredMenuTypes.TieredData =>
   TieredMenu.singleData(partialMenu.value, partialMenu);
 
-export const createMenuFrom = (
+export const createInlineMenuFrom = (
   partialMenu: PartialMenuSpec,
   columns: number | 'auto',
   focusMode: FocusMode,
   presets: Toolbar.PresetTypes
-): MenuTypes.MenuSpec => {
-  const focusManager = focusMode === FocusMode.ContentFocus ? FocusManagers.highlights() : FocusManagers.dom();
-
+): InlineViewTypes.InlineMenuSpec => {
   const movement = deriveMenuMovement(columns, presets);
   const menuMarkers = getMenuMarkers(presets);
 
   return {
-    dom: partialMenu.dom,
-    components: partialMenu.components,
-    items: partialMenu.items,
-    value: partialMenu.value,
-    markers: {
-      selectedItem: menuMarkers.selectedItem,
-      item: menuMarkers.item
-    },
-    movement,
-    fakeFocus: focusMode === FocusMode.ContentFocus,
-    focusManager,
-
-    menuBehaviours: SimpleBehaviours.unnamedEvents(columns !== 'auto' ? [ ] : [
-      AlloyEvents.runOnAttached((comp, _se) => {
-        detectSize(comp, 4, menuMarkers.item).each(({ numColumns, numRows }) => {
-          Keying.setGridSize(comp, numRows, numColumns);
-        });
-      })
-    ])
+    data: createTieredDataFrom({
+      ...partialMenu,
+      movement,
+      menuBehaviours: SimpleBehaviours.unnamedEvents(columns !== 'auto' ? [ ] : [
+        AlloyEvents.runOnAttached((comp, _se) => {
+          detectSize(comp, 4, menuMarkers.item).each(({ numColumns, numRows }) => {
+            Keying.setGridSize(comp, numRows, numColumns);
+          });
+        })
+      ])
+    }),
+    menu: {
+      markers: getMenuMarkers(presets),
+      fakeFocus: focusMode === FocusMode.ContentFocus
+    }
   };
 };

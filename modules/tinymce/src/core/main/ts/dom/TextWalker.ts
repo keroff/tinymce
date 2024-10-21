@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Fun, Optional } from '@ephox/katamari';
 
 import DomTreeWalker from '../api/dom/TreeWalker';
@@ -21,7 +14,7 @@ const TextWalker = (startNode: Node, rootNode: Node, isBoundary: (node: Node) =>
   const walker = new DomTreeWalker(startNode, rootNode);
 
   const walk = (direction: 'next' | 'prev' | 'prev2'): Optional<Text> => {
-    let next: Node;
+    let next: Node | null | undefined;
     do {
       next = walker[direction]();
     } while (next && !NodeType.isText(next) && !isBoundary(next));

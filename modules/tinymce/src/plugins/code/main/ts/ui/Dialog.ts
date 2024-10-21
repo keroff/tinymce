@@ -1,16 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import Editor from 'tinymce/core/api/Editor';
 
 import * as Content from '../core/Content';
 
 const open = (editor: Editor): void => {
-  const editorContent: string = Content.getContent(editor);
+  const editorContent = Content.getContent(editor);
 
   editor.windowManager.open({
     title: 'Source Code',
@@ -45,11 +38,6 @@ const open = (editor: Editor): void => {
       api.close();
     }
   });
-
-  // TODO - ask Spocke about this. Works without, is maybe an outdated comment?
-  // Gecko has a major performance issue with textarea
-  // contents so we need to set it when all reflows are done
-  // win.find('#code').value(Content.getContent(editor));
 };
 
 export {

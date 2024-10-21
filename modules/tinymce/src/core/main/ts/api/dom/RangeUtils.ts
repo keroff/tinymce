@@ -1,12 +1,6 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Fun } from '@ephox/katamari';
 
+import * as ExpandRange from '../../fmt/ExpandRange';
 import * as CaretRangeFromPoint from '../../selection/CaretRangeFromPoint';
 import * as NormalizeRange from '../../selection/NormalizeRange';
 import * as RangeCompare from '../../selection/RangeCompare';
@@ -20,6 +14,7 @@ interface RangeUtils {
   walk: (rng: Range, callback: (nodes: Node[]) => void) => void;
   split: (rng: Range) => RangeLikeObject;
   normalize: (rng: Range) => boolean;
+  expand: (rng: Range, options?: { type: 'word' }) => Range;
 }
 
 /**
@@ -67,9 +62,31 @@ const RangeUtils = (dom: DOMUtils): RangeUtils => {
     );
   };
 
+  /**
+   * Returns a range expanded around the entire word the provided selection was collapsed within.
+   *
+   * @method expand
+   * @param {Range} rng The initial range to work from.
+   * @param {Object} options Optional options provided to the expansion. Defaults to { type: 'word' }
+   * @return {Range} Returns the expanded range.
+   */
+  const expand = (rng: Range, options: { type: 'word' } = { type: 'word' }): Range => {
+    if (options.type === 'word') {
+      const rangeLike = ExpandRange.expandRng(dom, rng, [{ inline: 'span' }]);
+      const newRange = dom.createRng();
+      newRange.setStart(rangeLike.startContainer, rangeLike.startOffset);
+      newRange.setEnd(rangeLike.endContainer, rangeLike.endOffset);
+
+      return newRange;
+    }
+
+    return rng;
+  };
+
   return {
     walk,
     split,
+    expand,
     normalize
   };
 };

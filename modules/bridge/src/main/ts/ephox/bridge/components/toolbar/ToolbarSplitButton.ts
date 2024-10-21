@@ -1,7 +1,8 @@
 import { FieldSchema, StructureSchema } from '@ephox/boulder';
-import { Fun, Optional, Result } from '@ephox/katamari';
+import { Optional, Result } from '@ephox/katamari';
 
 import { ChoiceMenuItemSpec, SeparatorMenuItemSpec } from '../../api/Menu';
+import * as ComponentSchema from '../../core/ComponentSchema';
 
 // Temporarily disable separators until things are clearer
 export type ToolbarSplitButtonItemTypes = ChoiceMenuItemSpec | SeparatorMenuItemSpec;
@@ -41,27 +42,28 @@ export interface ToolbarSplitButton {
 }
 
 export interface ToolbarSplitButtonInstanceApi {
-  isDisabled: () => boolean;
-  setDisabled: (state: boolean) => void;
+  isEnabled: () => boolean;
+  setEnabled: (state: boolean) => void;
   setIconFill: (id: string, value: string) => void;
-  setIconStroke: (id: string, value: string) => void; // Deprecated as of TinyMCE 5.8 (see TINY-3551)
   isActive: () => boolean;
   setActive: (state: boolean) => void;
+  setText: (text: string) => void;
+  setIcon: (icon: string) => void;
 }
 
 export const splitButtonSchema = StructureSchema.objOf([
-  FieldSchema.requiredString('type'),
-  FieldSchema.optionString('tooltip'),
-  FieldSchema.optionString('icon'),
-  FieldSchema.optionString('text'),
-  FieldSchema.optionFunction('select'),
-  FieldSchema.requiredFunction('fetch'),
-  FieldSchema.defaultedFunction('onSetup', () => Fun.noop),
+  ComponentSchema.type,
+  ComponentSchema.optionalTooltip,
+  ComponentSchema.optionalIcon,
+  ComponentSchema.optionalText,
+  ComponentSchema.optionalSelect,
+  ComponentSchema.fetch,
+  ComponentSchema.onSetup,
   // TODO: Validate the allowed presets
   FieldSchema.defaultedStringEnum('presets', 'normal', [ 'normal', 'color', 'listpreview' ]),
-  FieldSchema.defaulted('columns', 1),
-  FieldSchema.requiredFunction('onAction'),
-  FieldSchema.requiredFunction('onItemAction')
+  ComponentSchema.defaultedColumns(1),
+  ComponentSchema.onAction,
+  ComponentSchema.onItemAction
 ]);
 
 export const isSplitButtonButton = (spec: any): spec is ToolbarSplitButton => spec.type === 'splitbutton';

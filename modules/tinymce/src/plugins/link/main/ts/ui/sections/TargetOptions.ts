@@ -1,15 +1,8 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Optional, Type } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
 
-import * as Settings from '../../api/Settings';
+import * as Options from '../../api/Options';
 import { ListOptions } from '../../core/ListOptions';
 import { ListItem } from '../DialogTypes';
 
@@ -22,7 +15,7 @@ const fallbacks = [
 ];
 
 const getTargets = (editor: Editor): Optional<ListItem[]> => {
-  const list = Settings.getTargetList(editor);
+  const list = Options.getTargetList(editor);
   if (Type.isArray(list)) {
     return ListOptions.sanitize(list).orThunk(
       () => Optional.some(fallbacks)

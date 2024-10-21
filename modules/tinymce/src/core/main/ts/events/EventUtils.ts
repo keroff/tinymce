@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Fun, Obj, Type } from '@ephox/katamari';
 
 export interface PartialEvent {
@@ -18,6 +11,7 @@ export interface PartialEvent {
   readonly isImmediatePropagationStopped?: () => boolean;
   readonly stopImmediatePropagation?: () => void;
   readonly composedPath?: () => EventTarget[];
+  readonly getModifierState?: (keyArg: string) => boolean;
   returnValue?: boolean;
   defaultPrevented?: boolean;
   cancelBubble?: boolean;
@@ -71,8 +65,15 @@ const clone = <T extends PartialEvent>(originalEvent: T, data?: T): T => {
   }
 
   // The composed path can't be cloned, so delegate instead
-  if (Type.isNonNullable(event.composedPath)) {
-    event.composedPath = () => originalEvent.composedPath();
+  if (Type.isNonNullable(originalEvent.composedPath)) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    event.composedPath = () => originalEvent.composedPath!();
+  }
+
+  // The getModifierState won't work when cloned, so delegate instead
+  if (Type.isNonNullable(originalEvent.getModifierState)) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    event.getModifierState = (keyArg: string) => originalEvent.getModifierState!(keyArg);
   }
 
   return event as T;
@@ -96,8 +97,6 @@ const normalize = <T extends PartialEvent>(type: string, originalEvent: T, fallb
       // Execute preventDefault on the original event object
       if (Type.isFunction(originalEvent.preventDefault)) {
         originalEvent.preventDefault();
-      } else if (isNativeEvent(originalEvent)) {
-        originalEvent.returnValue = false; // IE
       }
     };
 
@@ -109,8 +108,6 @@ const normalize = <T extends PartialEvent>(type: string, originalEvent: T, fallb
       // Execute stopPropagation on the original event object
       if (Type.isFunction(originalEvent.stopPropagation)) {
         originalEvent.stopPropagation();
-      } else if (isNativeEvent(originalEvent)) {
-        originalEvent.cancelBubble = true; // IE
       }
     };
 

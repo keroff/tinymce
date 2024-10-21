@@ -2,23 +2,22 @@ import { FocusTools, RealKeys, UiFinder } from '@ephox/agar';
 import { after, before, describe, it } from '@ephox/bedrock-client';
 import { Arr } from '@ephox/katamari';
 import { Insert, Remove, SelectorFind, SugarBody, SugarDocument, SugarElement } from '@ephox/sugar';
-import { TinyHooks } from '@ephox/wrap-mcagar';
+import { TinyDom, TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Env from 'tinymce/core/api/Env';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as UiUtils from '../../module/UiUtils';
 
 describe('webdriver.tinymce.themes.silver.throbber.ThrobberTabbingTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ]);
+  }, []);
 
   before(() => {
     const editor = hook.editor();
-    const target = SugarElement.fromDom(editor.getElement());
+    const target = TinyDom.targetElement(editor);
     const inputBefore = SugarElement.fromHtml('<div><input id="beforeInput" /></div>');
     const inputAfter = SugarElement.fromHtml('<div><input id="afterInput" /></div>');
     Insert.before(target, inputBefore);

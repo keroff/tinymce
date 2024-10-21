@@ -1,17 +1,24 @@
 import { Waiter } from '@ephox/agar';
 import { describe, it } from '@ephox/bedrock-client';
 import { Cell } from '@ephox/katamari';
-import { TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
+import { TinyAssertions, TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
+import { AnnotationListenerApi } from 'tinymce/core/api/Annotator';
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import { annotate, assertHtmlContent, assertMarker } from '../../module/test/AnnotationAsserts';
+
+interface AnnotationResult {
+  readonly state: boolean;
+  readonly name: string;
+  readonly uid: string | null;
+}
 
 describe('browser.tinymce.core.annotate.AnnotationChangedTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce',
+    indent: false,
     setup: (ed: Editor) => {
       ed.on('init', () => {
         ed.annotator.register('alpha', {
@@ -52,13 +59,14 @@ describe('browser.tinymce.core.annotate.AnnotationChangedTest', () => {
 
         // NOTE: Have to use old function syntax here when accessing "arguments"
         // eslint-disable-next-line prefer-arrow/prefer-arrow-functions
-        const listener = function (state, name, obj) {
+        const listener: AnnotationListenerApi = function (state, name, obj) {
           // NOTE: These failures won't stop the tests, but they will stop it before it updates
           // the changes in changes.set
-          if (state === false) {
+          if (!state) {
             assert.lengthOf(arguments, 2, 'Argument count must be "2" (state, name) if state is false');
           } else {
-            const { uid, nodes } = obj;
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            const { uid, nodes } = obj!;
             // In this test, gamma markers span multiple nodes
             if (name === 'gamma') {
               assert.lengthOf(nodes, 2, 'Gamma annotations must have 2 nodes');
@@ -68,7 +76,7 @@ describe('browser.tinymce.core.annotate.AnnotationChangedTest', () => {
 
           changes.set(
             changes.get().concat([
-              { uid: state ? obj.uid : null, name, state }
+              { uid: obj?.uid ?? null, name, state }
             ])
           );
         };
@@ -79,11 +87,11 @@ describe('browser.tinymce.core.annotate.AnnotationChangedTest', () => {
         ed.annotator.annotationChanged('delta', listener);
       });
     }
-  }, [ Theme ], true);
+  }, [], true);
 
-  const changes: Cell<Array<{state: boolean; name: string; uid: string}>> = Cell([ ]);
+  const changes = Cell<AnnotationResult[]>([ ]);
 
-  const assertChanges = (message: string, expected: Array<{uid: string; state: boolean; name: string}>) => {
+  const assertChanges = (message: string, expected: AnnotationResult[]) => {
     const cs = changes.get();
     assert.deepEqual(cs, expected, `Checking changes: ${message}`);
   };
@@ -92,7 +100,7 @@ describe('browser.tinymce.core.annotate.AnnotationChangedTest', () => {
     changes.set([ ]);
   };
 
-  const pTestAnnotationEvents = async (label: string, editor: Editor, start: number[], soffset: number, expected: Array<{ uid: string; name: string; state: boolean}>) => {
+  const pTestAnnotationEvents = async (label: string, editor: Editor, start: number[], soffset: number, expected: AnnotationResult[]) => {
     TinySelections.setSelection(editor, start, soffset, start, soffset);
     await Waiter.pTryUntil(label, () => assertChanges('sTestAnnotationEvents.sAssertChanges', expected));
   };
@@ -260,8 +268,6 @@ describe('browser.tinymce.core.annotate.AnnotationChangedTest', () => {
     clearChanges();
 
     TinySelections.setSelection(editor, [ 4, 0, 1, 0 ], 'a'.length, [ 4, 0, 1, 0 ], 'a'.length);
-    // Give it time to throttle a node change.
-    await Waiter.pWait(400);
     await Waiter.pTryUntil(
       'Moving selection inside delta (which is inside gamma)',
       () => assertChanges('checking changes',
@@ -273,8 +279,6 @@ describe('browser.tinymce.core.annotate.AnnotationChangedTest', () => {
     );
 
     TinySelections.setSelection(editor, [ 4, 0, 0 ], 'p'.length, [ 4, 0, 0 ], 'p'.length);
-    // Give it time to throttle a node change.
-    await Waiter.pWait(400);
     await Waiter.pTryUntil(
       'Moving selection inside just gamma (but not delta)',
       () => assertChanges('checking changes',
@@ -284,6 +288,65 @@ describe('browser.tinymce.core.annotate.AnnotationChangedTest', () => {
           { state: false, name: 'delta', uid: null }
         ]
       )
+    );
+  });
+
+  it('TINY-8195: annotation change active attribute', async () => {
+    const editor = hook.editor();
+
+    editor.setContent('<p>one two three</p><p>outside</p>');
+    TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 'one two three'.length);
+    annotate(editor, 'alpha', 'id-one', { anything: 'comment-1' });
+    TinySelections.setSelection(editor, [ 0, 0, 0 ], 'one '.length, [ 0, 0, 0 ], 'one two three'.length);
+    annotate(editor, 'beta', 'id-two', { something: 'comment-2' });
+    TinySelections.setSelection(editor, [ 0, 0, 1, 0 ], 'two '.length, [ 0, 0, 1, 0 ], 'two three'.length);
+    annotate(editor, 'beta', 'id-three', { something: 'comment-3' });
+
+    // Content should not include the view only active state attributes
+    assertHtmlContent(editor, [
+      '<p>' +
+        '<span class="mce-annotation" data-mce-annotation-uid="id-one" data-mce-annotation="alpha" data-test-anything="comment-1">one ' +
+        '<span class="mce-annotation" data-mce-annotation-uid="id-two" data-mce-annotation="beta" data-test-something="comment-2">two ' +
+        '<span class="mce-annotation" data-mce-annotation-uid="id-three" data-mce-annotation="beta" data-test-something="comment-3">three</span></span></span>' +
+      '</p>',
+      '<p>outside</p>'
+    ]);
+
+    await Waiter.pTryUntil(
+      'The latest added annotation (nested beta) should be active and the parent alpha but not the parent beta',
+      () => TinyAssertions.assertContentPresence(editor, {
+        'span[data-mce-annotation="alpha"][data-mce-annotation-active="true"]': 1,
+        'span[data-mce-annotation="beta"][data-mce-annotation-active="true"]': 1,
+        'span[data-mce-annotation="beta"] span[data-mce-annotation="beta"][data-mce-annotation-active="true"]': 1
+      })
+    );
+
+    TinySelections.setCursor(editor, [ 0, 0, 0 ], 1);
+    await Waiter.pTryUntil(
+      'Alpha should be the only active annotation',
+      () => TinyAssertions.assertContentPresence(editor, {
+        'span[data-mce-annotation="alpha"][data-mce-annotation-active="true"]': 1,
+        'span[data-mce-annotation="beta"][data-mce-annotation-active="true"]': 0
+      })
+    );
+
+    TinySelections.setCursor(editor, [ 0, 0, 1, 1, 0 ], 1);
+    await Waiter.pTryUntil(
+      'Both alpha and beta should be active again but not parent beta',
+      () => TinyAssertions.assertContentPresence(editor, {
+        'span[data-mce-annotation="alpha"][data-mce-annotation-active="true"]': 1,
+        'span[data-mce-annotation="beta"][data-mce-annotation-active="true"]': 1,
+        'span[data-mce-annotation="beta"] span[data-mce-annotation="beta"][data-mce-annotation-active="true"]': 1
+      })
+    );
+
+    TinySelections.setCursor(editor, [ 1, 0 ], 0);
+    await Waiter.pTryUntil(
+      'No annotation should be active since selection was moved to plain text',
+      () => TinyAssertions.assertContentPresence(editor, {
+        'span[data-mce-annotation="alpha"][data-mce-annotation-active="true"]': 0,
+        'span[data-mce-annotation="beta"][data-mce-annotation-active="true"]': 0
+      })
     );
   });
 });

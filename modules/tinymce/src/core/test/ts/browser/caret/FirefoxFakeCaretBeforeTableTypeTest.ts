@@ -1,11 +1,10 @@
 import { before, describe, it } from '@ephox/bedrock-client';
-import { TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
+import { TinyAssertions, TinyHooks, TinySelections, TinyState } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Env from 'tinymce/core/api/Env';
 import TablePlugin from 'tinymce/plugins/table/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as KeyUtils from '../../module/test/KeyUtils';
 
@@ -23,7 +22,7 @@ describe('browser.tinymce.core.FirefoxFakeCaretBeforeTableTypeTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce',
     plugins: 'table'
-  }, [ Theme, TablePlugin ]);
+  }, [ TablePlugin ]);
 
   it('cursor before table type', () => {
     const editor = hook.editor();
@@ -42,5 +41,14 @@ describe('browser.tinymce.core.FirefoxFakeCaretBeforeTableTypeTest', () => {
     assertUndoManagerDataLength(editor, 1);
     KeyUtils.type(editor, 'a');
     assertUndoManagerDataLength(editor, 3);
+  });
+
+  it('TINY-9459: should not render a fake caret before tables inside a noneditable root', () => {
+    TinyState.withNoneditableRootEditor(hook.editor(), (editor) => {
+      editor.setContent('<table><tbody><tr><td></td></tr></tbody></table>');
+      TinySelections.setCursor(editor, [], 0);
+      editor.nodeChanged();
+      TinyAssertions.assertContentPresence(editor, { '.mce-visual-caret': 0 });
+    });
   });
 });

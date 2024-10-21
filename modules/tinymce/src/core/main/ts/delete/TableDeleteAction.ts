@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Adt, Arr, Optional, Optionals } from '@ephox/katamari';
 import { Compare, SelectorFind, SugarElement } from '@ephox/sugar';
 
@@ -199,7 +192,7 @@ const handleMultiTable = (cellRng: Optional<TableCellRng>, selectionDetails: Sel
       }
     });
 
-const getActionFromRange = (root: SugarElement, rng: Range): Optional<DeleteActionAdt> => {
+const getActionFromRange = (root: SugarElement<Node>, rng: Range): Optional<DeleteActionAdt> => {
   const isRoot = TableDeleteUtils.isRootFromElement(root);
   const optCellRng = getCellRng(rng, isRoot);
   const selectionDetails = TableDeleteUtils.getTableDetailsFromRange(rng, isRoot);

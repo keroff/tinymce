@@ -1,10 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
+import { ItemTypes } from '@ephox/alloy';
 import { Menu as BridgeMenu, Toolbar } from '@ephox/bridge';
 import { Arr, Optional, Optionals } from '@ephox/katamari';
 
@@ -30,7 +24,10 @@ export const createPartialChoiceMenu = (
   const hasIcons = MenuUtils.menuHasIcons(items);
   const presetItemTypes = presets !== 'color' ? 'normal' : 'color';
   const alloyItems = createChoiceItems(items, onItemValueHandler, columns, presetItemTypes, itemResponse, select, providersBackstage);
-  return MenuUtils.createPartialMenuWithAlloyItems(value, hasIcons, alloyItems, columns, presets);
+  const menuLayout: MenuUtils.MenuLayoutType = {
+    menuType: presets
+  };
+  return MenuUtils.createPartialMenuWithAlloyItems(value, hasIcons, alloyItems, columns, menuLayout);
 };
 
 export const createChoiceItems = (
@@ -41,16 +38,17 @@ export const createChoiceItems = (
   itemResponse: ItemResponse,
   select: (value: string) => boolean,
   providersBackstage: UiFactoryBackstageProviders
-) => Optionals.cat(
+): ItemTypes.ItemSpec[] => Optionals.cat(
   Arr.map(items, (item) => {
     if (item.type === 'choiceitem') {
       return BridgeMenu.createChoiceMenuItem(item).fold(
         MenuUtils.handleError,
-        (d: BridgeMenu.ChoiceMenuItem) => Optional.some(renderChoiceItem(
-          d, columns === 1,
+        (d) => Optional.some(renderChoiceItem(
+          d,
+          columns === 1,
           itemPresets,
           onItemValueHandler,
-          select(item.value),
+          select(d.value),
           itemResponse,
           providersBackstage,
           MenuUtils.menuHasIcons(items)

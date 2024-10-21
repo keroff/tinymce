@@ -1,17 +1,10 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr } from '@ephox/katamari';
 import { SugarElement } from '@ephox/sugar';
 
 import * as RangeNodes from './RangeNodes';
 
-const getRanges = (selection) => {
-  const ranges = [];
+const getRanges = (selection: Selection | null): Range[] => {
+  const ranges: Range[] = [];
 
   if (selection) {
     for (let i = 0; i < selection.rangeCount; i++) {
@@ -22,14 +15,14 @@ const getRanges = (selection) => {
   return ranges;
 };
 
-const getSelectedNodes = (ranges) => {
+const getSelectedNodes = (ranges: Range[]): SugarElement<Node>[] => {
   return Arr.bind(ranges, (range) => {
     const node = RangeNodes.getSelectedNode(range);
     return node ? [ SugarElement.fromDom(node) ] : [];
   });
 };
 
-const hasMultipleRanges = (selection) => {
+const hasMultipleRanges = (selection: Selection | null): boolean => {
   return getRanges(selection).length > 1;
 };
 

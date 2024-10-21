@@ -4,12 +4,12 @@ import { TinyAssertions, TinyContentActions, TinyDom, TinyHooks, TinySelections 
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
+import Env from 'tinymce/core/api/Env';
 
 describe('browser.tinymce.core.dom.SelectionQuirksTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ], true);
+  }, [], true);
   let normalizeMonitor: Monitor<Range>;
 
   before(() => {
@@ -30,8 +30,8 @@ describe('browser.tinymce.core.dom.SelectionQuirksTest', () => {
     editor.setContent('<p>a<img src="about:blank" style="float: right"></p>');
     TinySelections.setSelection(editor, [ 0 ], 1, [ 0 ], 2);
     const selection = editor.selection.getSel();
-    assert.equal(selection.anchorNode.nodeName, 'P', 'Anchor node should be the paragraph not the text node');
-    assert.equal(selection.anchorOffset, 1, 'Anchor offset should be the element index');
+    assert.equal(selection?.anchorNode?.nodeName, 'P', 'Anchor node should be the paragraph not the text node');
+    assert.equal(selection?.anchorOffset, 1, 'Anchor offset should be the element index');
   });
 
   it('Normalize on key events when range is collapsed', () => {
@@ -65,8 +65,20 @@ describe('browser.tinymce.core.dom.SelectionQuirksTest', () => {
     TinySelections.setSelection(editor, [ 0, 0, 0 ], 0, [ 0, 0 ], 0);
     TinyContentActions.keyup(editor, Keys.left(), { shift: true });
     assertNormalizeCounter(0);
-    TinyContentActions.keyup(editor, 17, { }); // single ctrl
+    TinyContentActions.keyup(editor, 17, { }); // Single Ctrl
     assertNormalizeCounter(1);
     TinyAssertions.assertSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 0);
+  });
+
+  it('TINY-4550: Normalization should not run after selecting all when there is only an image in the content', () => {
+    const editor = hook.editor();
+    resetNormalizeCounter();
+    editor.setContent('<p><img src="about:blank"></p>');
+    TinySelections.setCursor(editor, [ 0 ], 1);
+    editor.shortcuts.add('meta+a', null, 'SelectAll');
+    const isMac = Env.os.isMacOS() || Env.os.isiOS();
+    TinyContentActions.keydown(editor, 65, { metaKey: isMac, ctrlKey: !isMac });
+    editor.dispatch('keyup', new KeyboardEvent('keyup', { key: isMac ? 'Meta' : 'Control' }));
+    TinyAssertions.assertSelection(editor, [ ], 0, [ ], 1);
   });
 });

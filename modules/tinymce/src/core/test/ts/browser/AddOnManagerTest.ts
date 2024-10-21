@@ -47,7 +47,7 @@ const unpatch = (proto: any, name?: string): void => {
 };
 
 describe('browser.tinymce.core.AddOnManagerTest', () => {
-  let languagePackUrl: string;
+  let languagePackUrl: string | null;
 
   const getLanguagePackUrl = (code: string, languages?: string) => {
     languagePackUrl = null;
@@ -56,11 +56,9 @@ describe('browser.tinymce.core.AddOnManagerTest', () => {
     return languagePackUrl;
   };
 
-  before(() => patch(ScriptLoader.ScriptLoader, 'add', (origFunc, url, scriptSuccess) => {
+  before(() => patch(ScriptLoader.ScriptLoader, 'add', (origFunc, url) => {
     languagePackUrl = url;
-    if (scriptSuccess) {
-      scriptSuccess();
-    }
+    return Promise.resolve();
   }));
 
   after(() => unpatch(ScriptLoader.ScriptLoader));

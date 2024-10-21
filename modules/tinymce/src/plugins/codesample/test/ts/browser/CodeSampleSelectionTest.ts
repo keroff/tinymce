@@ -5,7 +5,6 @@ import { TinyDom, TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-m
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/codesample/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as TestUtils from '../module/CodeSampleTestUtils';
 
@@ -14,7 +13,7 @@ describe('browser.tinymce.plugins.codesample.CodeSampleSelectionTest', () => {
     plugins: 'codesample',
     toolbar: 'codesample',
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ]);
+  }, [ Plugin ]);
 
   const dialogSelector = 'div.tox-dialog';
   const markupContent = '<p>hello world</p>';
@@ -28,7 +27,7 @@ describe('browser.tinymce.plugins.codesample.CodeSampleSelectionTest', () => {
     await TestUtils.pSubmitDialog(editor);
     await TestUtils.pAssertEditorContents(TinyDom.body(editor), 'markup', markupContent, 'pre.language-markup');
     const pre = editor.getBody().querySelector('pre');
-    editor.fire('dblclick', { target: pre } as unknown as MouseEvent);
+    editor.dispatch('dblclick', { target: pre } as unknown as MouseEvent);
     await UiFinder.pWaitForVisible('Waited for dialog to be visible', SugarBody.body(), dialogSelector);
     TestUtils.assertCodeSampleDialog('markup', markupContent);
     await TestUtils.pCancelDialog(editor);

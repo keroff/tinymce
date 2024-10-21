@@ -1,15 +1,19 @@
 /* eslint-disable no-console */
-import Editor from 'tinymce/core/api/Editor';
+import { Global } from '@ephox/katamari';
 
-declare const window: any;
-declare let tinymce: any;
+import { Editor, TinyMCE } from 'tinymce/core/api/PublicApi';
+import CaretPosition from 'tinymce/core/caret/CaretPosition';
 
-export default () => {
+declare const tinymce: TinyMCE;
 
-  const paintClientRect = (rect, color, id) => {
-    const editor: Editor = tinymce.activeEditor;
-    const $ = editor.$;
-    let rectDiv;
+export default (): void => {
+
+  const isTextNode = (node: Node): node is Text =>
+    node.nodeType === 3;
+
+  const paintClientRect = (rect: DOMRect, color: string, id: string) => {
+    const editor = tinymce.activeEditor as Editor;
+    const dom = editor.dom;
     const viewPort = editor.dom.getViewPort();
 
     if (!rect) {
@@ -17,14 +21,14 @@ export default () => {
     }
 
     color = color || 'red';
-    id = id || color;
-    rectDiv = $('#' + id);
+    let rectDiv = dom.get(id || color);
 
-    if (!rectDiv[0]) {
-      rectDiv = $('<div></div>').appendTo(editor.getBody());
+    if (!rectDiv) {
+      rectDiv = dom.add(editor.getBody(), 'div');
     }
 
-    rectDiv.attr('id', id).css({
+    dom.setAttrib(rectDiv, 'id', id);
+    dom.setStyles(rectDiv, {
       position: 'absolute',
       left: (rect.left + viewPort.x) + 'px',
       top: (rect.top + viewPort.y) + 'px',
@@ -35,17 +39,17 @@ export default () => {
     });
   };
 
-  const paintClientRects = (rects, color) => {
-    tinymce.util.Tools.each(rects, (rect, index) => {
+  const paintClientRects = (rects: DOMRect[], color: string) => {
+    tinymce.each(rects, (rect, index) => {
       paintClientRect(rect, color, color + index);
     });
   };
 
-  const logPos = (caretPosition) => {
+  const logPos = (caretPosition: CaretPosition) => {
     const container = caretPosition.container(),
       offset = caretPosition.offset();
 
-    if (container.nodeType === 3) {
+    if (isTextNode(container)) {
       if (container.data[offset]) {
         console.log(container.data[offset]);
       } else {
@@ -56,17 +60,17 @@ export default () => {
     }
   };
 
-  window.paintClientRect = paintClientRect;
-  window.paintClientRects = paintClientRects;
-  window.logPos = logPos;
+  Global.paintClientRect = paintClientRect;
+  Global.paintClientRects = paintClientRects;
+  Global.logPos = logPos;
 
   tinymce.init({
     selector: 'textarea.tinymce',
     skin_url: '../../../../js/tinymce/skins/ui/oxide',
     add_unload_trigger: false,
-    toolbar: 'insertfile undo redo | styleselect | bold italic | alignleft aligncenter alignright alignjustify' +
-    ' | bullist numlist outdent indent | link image | print preview media fullpage | forecolor backcolor emoticons table codesample',
-    plugins: [ 'paste', 'list' ],
+    toolbar: 'insertfile undo redo | styles | bold italic | alignleft aligncenter alignright alignjustify' +
+    ' | bullist numlist outdent indent | link image | print preview media | forecolor backcolor emoticons table codesample',
+    plugins: [ 'code' ],
     content_css: '../css/content_editable.css',
     height: 400
   });
@@ -76,11 +80,9 @@ export default () => {
     inline: true,
     skin_url: '../../../../js/tinymce/skins/ui/oxide',
     add_unload_trigger: false,
-    toolbar: 'insertfile undo redo | styleselect | bold italic | alignleft aligncenter alignright alignjustify' +
-    ' | bullist numlist outdent indent | link image | print preview media fullpage | forecolor backcolor emoticons table codesample',
-    plugins: [ 'paste', 'list' ],
+    toolbar: 'insertfile undo redo | styles | bold italic | alignleft aligncenter alignright alignjustify' +
+    ' | bullist numlist outdent indent | link image | print preview media | forecolor backcolor emoticons table codesample',
+    plugins: [ 'code' ],
     content_css: '../css/content_editable.css'
   });
-
-  window.tinymce = tinymce;
 };

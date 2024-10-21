@@ -1,20 +1,17 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
+import { Type } from '@ephox/katamari';
 
 import DOMUtils from 'tinymce/core/api/dom/DOMUtils';
 import Editor from 'tinymce/core/api/Editor';
 
 const matchNodeName = <T extends Node = Node>(name: string) =>
-  (node: Node | null): node is T => node && node.nodeName.toLowerCase() === name;
+  (node: Node | null): node is T => Type.isNonNullable(node) && node.nodeName.toLowerCase() === name;
 
 const matchNodeNames = <T extends Node = Node>(regex: RegExp) =>
-  (node: Node | null): node is T => node && regex.test(node.nodeName);
+  (node: Node | null): node is T => Type.isNonNullable(node) && regex.test(node.nodeName);
 
-const isTextNode = (node: Node | null): node is Text => node && node.nodeType === 3;
+const isTextNode = (node: Node | null): node is Text => Type.isNonNullable(node) && node.nodeType === 3;
+
+const isElement = (node: Node | null): node is Element => Type.isNonNullable(node) && node.nodeType === 1;
 
 const isListNode = matchNodeNames<HTMLOListElement | HTMLUListElement | HTMLDListElement>(/^(OL|UL|DL)$/);
 
@@ -31,16 +28,19 @@ const isTableCellNode = matchNodeNames<HTMLTableHeaderCellElement | HTMLTableCel
 const isBr = matchNodeName<HTMLBRElement>('br');
 
 const isFirstChild = (node: Node): boolean =>
-  node.parentNode.firstChild === node;
+  node.parentNode?.firstChild === node;
 
 const isLastChild = (node: Node): boolean =>
-  node.parentNode.lastChild === node;
+  node.parentNode?.lastChild === node;
 
-const isTextBlock = (editor: Editor, node: Node): node is HTMLElement =>
-  node && !!editor.schema.getTextBlockElements()[node.nodeName];
+const isTextBlock = (editor: Editor, node: Node | null): node is HTMLElement =>
+  Type.isNonNullable(node) && node.nodeName in editor.schema.getTextBlockElements();
 
 const isBlock = (node: Node | null, blockElements: Record<string, any>): boolean =>
-  node && node.nodeName in blockElements;
+  Type.isNonNullable(node) && node.nodeName in blockElements;
+
+const isVoid = (editor: Editor, node: Node | null): boolean =>
+  Type.isNonNullable(node) && node.nodeName in editor.schema.getVoidElements();
 
 const isBogusBr = (dom: DOMUtils, node: Node): node is HTMLBRElement => {
   if (!isBr(node)) {
@@ -50,7 +50,7 @@ const isBogusBr = (dom: DOMUtils, node: Node): node is HTMLBRElement => {
   return dom.isBlock(node.nextSibling) && !isBr(node.previousSibling);
 };
 
-const isEmpty = (dom: DOMUtils, elm: Node, keepBookmarks?: boolean): boolean => {
+const isEmpty = (dom: DOMUtils, elm: Element, keepBookmarks?: boolean): boolean => {
   const empty = dom.isEmpty(elm);
 
   if (keepBookmarks && dom.select('span[data-mce-type=bookmark]', elm).length > 0) {
@@ -65,6 +65,7 @@ const isChildOfBody = (dom: DOMUtils, elm: Element): boolean =>
 
 export {
   isTextNode,
+  isElement,
   isListNode,
   isOlUlNode,
   isOlNode,
@@ -78,5 +79,6 @@ export {
   isBlock,
   isBogusBr,
   isEmpty,
-  isChildOfBody
+  isChildOfBody,
+  isVoid
 };

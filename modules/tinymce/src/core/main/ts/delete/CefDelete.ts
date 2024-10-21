@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Fun, Optional } from '@ephox/katamari';
 import { Remove, SelectorFilter, SugarElement } from '@ephox/sugar';
 
@@ -12,6 +5,7 @@ import Editor from '../api/Editor';
 import CaretPosition from '../caret/CaretPosition';
 import * as CefUtils from '../dom/CefUtils';
 import * as NodeType from '../dom/NodeType';
+import { isCefAtEdgeSelected } from '../keyboard/CefUtils';
 import * as CefDeleteAction from './CefDeleteAction';
 import * as DeleteElement from './DeleteElement';
 import * as DeleteUtils from './DeleteUtils';
@@ -33,10 +27,10 @@ const moveToPosition = (editor: Editor) => (pos: CaretPosition): boolean => {
   return true;
 };
 
-const getAncestorCe = (editor: Editor, node: Node): Optional<Node> =>
+const getAncestorCe = (editor: Editor, node: Node | null): Optional<Node> =>
   Optional.from(CefUtils.getContentEditableRoot(editor.getBody(), node));
 
-const backspaceDeleteCaret = (editor: Editor, forward: boolean): boolean => {
+const backspaceDeleteCaret = (editor: Editor, forward: boolean): Optional<() => void> => {
   const selectedNode = editor.selection.getNode(); // is the parent node if cursor before/after cef
 
   // Cases:
@@ -47,14 +41,15 @@ const backspaceDeleteCaret = (editor: Editor, forward: boolean): boolean => {
   // 5. CEF ancestor -> return true
 
   return getAncestorCe(editor, selectedNode).filter(NodeType.isContentEditableFalse).fold(
-    () => CefDeleteAction.read(editor.getBody(), forward, editor.selection.getRng()).exists((deleteAction) =>
-      deleteAction.fold(
-        deleteElement(editor, forward),
-        moveToElement(editor, forward),
-        moveToPosition(editor)
-      )
+    () => CefDeleteAction.read(editor.getBody(), forward, editor.selection.getRng()).map((deleteAction) =>
+      () =>
+        deleteAction.fold(
+          deleteElement(editor, forward),
+          moveToElement(editor, forward),
+          moveToPosition(editor)
+        )
     ),
-    Fun.always
+    () => Optional.some(Fun.noop)
   );
 };
 
@@ -62,7 +57,7 @@ const deleteOffscreenSelection = (rootElement: SugarElement<Node>): void => {
   Arr.each(SelectorFilter.descendants(rootElement, '.mce-offscreen-selection'), Remove.remove);
 };
 
-const backspaceDeleteRange = (editor: Editor, forward: boolean): boolean => {
+const backspaceDeleteRange = (editor: Editor, forward: boolean): Optional<() => void> => {
   const selectedNode = editor.selection.getNode(); // is the cef node if cef is selected
 
   // Cases:
@@ -74,16 +69,22 @@ const backspaceDeleteRange = (editor: Editor, forward: boolean): boolean => {
   if (NodeType.isContentEditableFalse(selectedNode) && !NodeType.isTableCell(selectedNode)) {
     const hasCefAncestor = getAncestorCe(editor, selectedNode.parentNode).filter(NodeType.isContentEditableFalse);
     return hasCefAncestor.fold(
-      () => {
-        deleteOffscreenSelection(SugarElement.fromDom(editor.getBody()));
-        DeleteElement.deleteElement(editor, forward, SugarElement.fromDom(editor.selection.getNode()));
-        DeleteUtils.paddEmptyBody(editor);
-        return true;
-      },
-      Fun.always
+      () =>
+        Optional.some(() => {
+          deleteOffscreenSelection(SugarElement.fromDom(editor.getBody()));
+          DeleteElement.deleteElement(editor, forward, SugarElement.fromDom(editor.selection.getNode()));
+          DeleteUtils.paddEmptyBody(editor);
+        }),
+      () => Optional.some(Fun.noop)
     );
   }
-  return false;
+
+  if (isCefAtEdgeSelected(editor)) {
+    return Optional.some(() => {
+      DeleteUtils.deleteRangeContents(editor, editor.selection.getRng(), SugarElement.fromDom(editor.getBody()));
+    });
+  }
+  return Optional.none();
 };
 
 const paddEmptyElement = (editor: Editor): boolean => {
@@ -100,7 +101,7 @@ const paddEmptyElement = (editor: Editor): boolean => {
   return true;
 };
 
-const backspaceDelete = (editor: Editor, forward: boolean): boolean => {
+const backspaceDelete = (editor: Editor, forward: boolean): Optional<() => void> => {
   if (editor.selection.isCollapsed()) {
     return backspaceDeleteCaret(editor, forward);
   } else {

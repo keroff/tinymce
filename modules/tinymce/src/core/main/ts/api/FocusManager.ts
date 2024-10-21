@@ -1,11 +1,4 @@
 /**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-/**
  * This class manages the focus/blur state of the editor. This class is needed since some
  * browsers fire false focus/blur states when the selection is moved to a UI dialog or similar.
  *
@@ -28,7 +21,7 @@ interface FocusManager {
  * @param  {Element} elm Element to check if it's part of the UI or not.
  * @return {Boolean} True/false state if the element is part of the UI or not.
  */
-const isEditorUIElement = (elm: Element) => {
+const isEditorUIElement = (elm: Element): boolean => {
   // Needs to be converted to string since svg can have focus: #6776
   const className = elm.className.toString();
   return className.indexOf('tox-') !== -1 || className.indexOf('mce-') !== -1;

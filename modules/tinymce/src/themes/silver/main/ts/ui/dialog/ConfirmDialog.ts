@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { AlloyEvents, Focusing, GuiFactory, Memento, ModalDialog } from '@ephox/alloy';
 import { Optional } from '@ephox/katamari';
 
@@ -13,11 +6,12 @@ import { renderFooterButton } from '../general/Button';
 import { formCancelEvent, FormCancelEvent, formSubmitEvent, FormSubmitEvent } from '../general/FormEvents';
 import * as Dialogs from './Dialogs';
 
-export interface ConfirmDialogSetup {
-  backstage: UiFactoryBackstage;
+interface ConfirmDialogApi {
+  readonly open: (message: string, callback: (state: boolean) => void) => void;
 }
-export const setup = (extras: ConfirmDialogSetup) => {
-  const sharedBackstage = extras.backstage.shared;
+
+export const setup = (backstage: UiFactoryBackstage): ConfirmDialogApi => {
+  const sharedBackstage = backstage.shared;
   // FIX: Extreme dupe with Alert dialog
   const open = (message: string, callback: (state: boolean) => void) => {
 
@@ -31,20 +25,22 @@ export const setup = (extras: ConfirmDialogSetup) => {
         name: 'yes',
         text: 'Yes',
         primary: true,
+        buttonType: Optional.some('primary'),
         align: 'end',
-        disabled: false,
+        enabled: true,
         icon: Optional.none()
-      }, 'submit', extras.backstage)
+      }, 'submit', backstage)
     );
 
     const footerNo = renderFooterButton({
       name: 'no',
       text: 'No',
       primary: false,
+      buttonType: Optional.some('secondary'),
       align: 'end',
-      disabled: false,
+      enabled: true,
       icon: Optional.none()
-    }, 'cancel', extras.backstage);
+    }, 'cancel', backstage);
 
     const titleSpec = Dialogs.pUntitled();
     const closeSpec = Dialogs.pClose(() => closeDialog(false), sharedBackstage.providers);

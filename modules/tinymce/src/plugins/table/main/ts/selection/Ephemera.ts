@@ -1,8 +1,8 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
+/*
+ NOTE: This file is duplicated in the following locations:
+  - models/dom/table/selection/Ephemera.ts
+  - advtable
+ Make sure that if making changes to this file, the other files are updated as well
  */
 
 import { Ephemera as DarwinEphemera } from '@ephox/darwin';

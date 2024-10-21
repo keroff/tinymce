@@ -27,7 +27,6 @@ interface Scenario {
   readonly waitForCompletion?: boolean;
 }
 
-// TINY-10259: Test passes locally but fails on CI, also observed by TINY-8278.
 describe.skip('browser.alloy.position.TransitionsTest', () => {
   const transitionTime = 75;
   const northLayout = {
@@ -152,6 +151,7 @@ describe.skip('browser.alloy.position.TransitionsTest', () => {
       await PositionTestUtils.pTestSink(sinkName, sink, sinks.popup(), scenario.spec);
       if (scenario.expectTransition) {
         assertClasses(`Has transition class for transition ${i + 1} in ${sinkName} sink`, [ 'transition' ]);
+
         if (scenario.waitForCompletion === false) {
           await Waiter.pWait(transitionTime / 2);
         } else {
@@ -271,7 +271,9 @@ describe.skip('browser.alloy.position.TransitionsTest', () => {
     assertClasses('Still transitioning', [ 'transition' ]);
     // Wait the rest of the transition time, plus ~2 frames and make sure the transition is complete
     await Waiter.pTryUntil('The transition should have completed', () => assertClasses('Transition Complete', [ ]), 10, transitionTime * 2);
-    const expectedEvents = [ 'transitioncancel', 'transitioncancel', 'transitioncancel' ];
+
+    const expectedEvents = [ 'transitioncancel', 'transitioncancel' ];
     await Waiter.pTryUntil('Transition events', () => gui.store().assertEq('Transition events', expectedEvents), 10, 100);
+
   });
 });

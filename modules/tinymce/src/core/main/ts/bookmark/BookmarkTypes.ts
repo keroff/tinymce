@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Obj, Type } from '@ephox/katamari';
 
 import Tools from '../api/util/Tools';
@@ -12,15 +5,18 @@ import Tools from '../api/util/Tools';
 export interface StringPathBookmark {
   start: string;
   end?: string;
+  forward?: boolean;
 }
 
 export interface RangeBookmark {
   rng: Range;
+  forward?: boolean;
 }
 
 export interface IdBookmark {
   id: string;
   keep?: boolean;
+  forward?: boolean;
 }
 
 export interface IndexBookmark {
@@ -32,6 +28,7 @@ export interface PathBookmark {
   start: number[];
   end?: number[];
   isFakeCaret?: boolean;
+  forward?: boolean;
 }
 
 export type Bookmark = StringPathBookmark | RangeBookmark | IdBookmark | IndexBookmark | PathBookmark;

@@ -2,19 +2,18 @@ import { describe, it } from '@ephox/bedrock-client';
 import { TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import HelpPlugin from 'tinymce/plugins/help/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as PluginAssert from '../module/PluginAssert';
 import { selectors } from '../module/Selectors';
 import FakePlugin from '../module/test/FakePlugin';
 import NoMetaFakePlugin from '../module/test/NoMetaFakePlugin';
 
-describe('Browser Test: .MetadataTest', () => {
+describe('browser.tinymce.plugins.help.MetadataTest', () => {
   const hook = TinyHooks.bddSetupLight({
     plugins: 'help fake nometafake',
     toolbar: 'help',
     base_url: '/project/tinymce/js/tinymce'
-  }, [ HelpPlugin, FakePlugin, NoMetaFakePlugin, Theme ]);
+  }, [ HelpPlugin, FakePlugin, NoMetaFakePlugin ]);
 
   it('TBA: Assert Help Plugin list contains getMetadata functionality', async () => {
     const editor = hook.editor();

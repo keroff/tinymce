@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { AlloyComponent, Disabling, ItemTypes } from '@ephox/alloy';
 import { Menu } from '@ephox/bridge';
 import { Optional } from '@ephox/katamari';
@@ -18,8 +11,8 @@ import { buildData, renderCommonItem } from './CommonMenuItem';
 // Note, this does not create a valid SketchSpec.
 const renderNormalItem = (spec: Menu.MenuItem, itemResponse: ItemResponse, providersBackstage: UiFactoryBackstageProviders, renderIcons: boolean = true): ItemTypes.ItemSpec => {
   const getApi = (component: AlloyComponent): Menu.MenuItemInstanceApi => ({
-    isDisabled: () => Disabling.isDisabled(component),
-    setDisabled: (state: boolean) => Disabling.set(component, state)
+    isEnabled: () => !Disabling.isDisabled(component),
+    setEnabled: (state: boolean) => Disabling.set(component, !state)
   });
 
   const structure = renderItemStructure({
@@ -36,7 +29,7 @@ const renderNormalItem = (spec: Menu.MenuItem, itemResponse: ItemResponse, provi
   return renderCommonItem({
     data: buildData(spec),
     getApi,
-    disabled: spec.disabled,
+    enabled: spec.enabled,
     onAction: spec.onAction,
     onSetup: spec.onSetup,
     triggersSubmenu: false,

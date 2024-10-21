@@ -26,7 +26,7 @@ There are four kinds of tests that alloy runs:
 * browser tests
 * webdriver tests
 
-### Running Headless Tests
+### Running Console Tests
 
 `$ yarn run test`
 

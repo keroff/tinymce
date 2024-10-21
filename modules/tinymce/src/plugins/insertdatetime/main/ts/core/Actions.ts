@@ -1,13 +1,6 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import Editor from 'tinymce/core/api/Editor';
 
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 
 const daysShort = 'Sun Mon Tue Wed Thu Fri Sat Sun'.split(' ');
 const daysLong = 'Sunday Monday Tuesday Wednesday Thursday Friday Saturday Sunday'.split(' ');
@@ -49,14 +42,13 @@ const getDateTime = (editor: Editor, fmt: string, date: Date = new Date()): stri
 
 const updateElement = (editor: Editor, timeElm: HTMLTimeElement, computerTime: string, userTime: string) => {
   const newTimeElm = editor.dom.create('time', { datetime: computerTime }, userTime);
-  timeElm.parentNode.insertBefore(newTimeElm, timeElm);
-  editor.dom.remove(timeElm);
+  editor.dom.replace(newTimeElm, timeElm);
   editor.selection.select(newTimeElm, true);
   editor.selection.collapse(false);
 };
 
 const insertDateTime = (editor: Editor, format: string): void => {
-  if (Settings.shouldInsertTimeElement(editor)) {
+  if (Options.shouldInsertTimeElement(editor)) {
     const userTime = getDateTime(editor, format);
     let computerTime;
 

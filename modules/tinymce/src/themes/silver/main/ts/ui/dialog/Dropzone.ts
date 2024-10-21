@@ -1,17 +1,10 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import {
   AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloyTriggers, Behaviour, Button, Disabling,
-  FormField as AlloyFormField, Memento, NativeEvents, Representing, SimpleSpec, SimulatedEvent,
+  FormField as AlloyFormField, GuiFactory, Memento, NativeEvents, Representing, SimpleSpec, SimulatedEvent, SketchSpec,
   SystemEvents, Tabstopping, Toggling
 } from '@ephox/alloy';
 import { Dialog } from '@ephox/bridge';
-import { Arr, Strings } from '@ephox/katamari';
+import { Arr, Optional, Strings } from '@ephox/katamari';
 import { EventArgs } from '@ephox/sugar';
 
 import Tools from 'tinymce/core/api/util/Tools';
@@ -21,13 +14,11 @@ import * as ReadOnly from '../../ReadOnly';
 import { ComposingConfigs } from '../alien/ComposingConfigs';
 import { DisablingConfigs } from '../alien/DisablingConfigs';
 import { renderFormFieldWith, renderLabel } from '../alien/FieldLabeller';
-import { RepresentingConfigs } from '../alien/RepresentingConfigs';
+import * as RepresentingConfigs from '../alien/RepresentingConfigs';
 import { formChangeEvent } from '../general/FormEvents';
 
-const defaultImageFileTypes = 'jpeg,jpg,jpe,jfi,jif,jfif,png,gif,bmp,webp';
-
 const filterByExtension = (files: FileList, providersBackstage: UiFactoryBackstageProviders) => {
-  const allowedImageFileTypes = Tools.explode(providersBackstage.getSetting('images_file_types', defaultImageFileTypes, 'string'));
+  const allowedImageFileTypes = Tools.explode(providersBackstage.getOption('images_file_types'));
   const isFileInAllowedTypes = (file: File) => Arr.exists(allowedImageFileTypes, (type) => Strings.endsWith(file.name.toLowerCase(), `.${type.toLowerCase()}`));
 
   return Arr.filter(Arr.from(files), isFileInAllowedTypes);
@@ -35,7 +26,7 @@ const filterByExtension = (files: FileList, providersBackstage: UiFactoryBacksta
 
 type DropZoneSpec = Omit<Dialog.DropZone, 'type'>;
 
-export const renderDropZone = (spec: DropZoneSpec, providersBackstage: UiFactoryBackstageProviders): SimpleSpec => {
+export const renderDropZone = (spec: DropZoneSpec, providersBackstage: UiFactoryBackstageProviders, initialData: Optional<string[]>): SimpleSpec => {
 
   // TODO: Consider moving to alloy
   const stopper: AlloyEvents.EventRunHandler<EventArgs> = (_: AlloyComponent, se: SimulatedEvent<EventArgs>): void => {
@@ -52,7 +43,7 @@ export const renderDropZone = (spec: DropZoneSpec, providersBackstage: UiFactory
   const onDrop: AlloyEvents.EventRunHandler<EventArgs> = (comp, se) => {
     if (!Disabling.isDisabled(comp)) {
       const transferEvent = se.event.raw as DragEvent;
-      handleFiles(comp, transferEvent.dataTransfer.files);
+      handleFiles(comp, transferEvent.dataTransfer?.files);
     }
   };
 
@@ -61,9 +52,11 @@ export const renderDropZone = (spec: DropZoneSpec, providersBackstage: UiFactory
     handleFiles(component, input.files);
   };
 
-  const handleFiles = (component, files: FileList) => {
-    Representing.setValue(component, filterByExtension(files, providersBackstage));
-    AlloyTriggers.emitWith(component, formChangeEvent, { name: spec.name });
+  const handleFiles = (component: AlloyComponent, files: FileList | null | undefined) => {
+    if (files) {
+      Representing.setValue(component, filterByExtension(files, providersBackstage));
+      AlloyTriggers.emitWith(component, formChangeEvent, { name: spec.name });
+    }
   };
 
   const memInput = Memento.record(
@@ -87,14 +80,14 @@ export const renderDropZone = (spec: DropZoneSpec, providersBackstage: UiFactory
     }
   );
 
-  const renderField = (s) => ({
+  const renderField = (s: SketchSpec) => ({
     uid: s.uid,
     dom: {
       tag: 'div',
       classes: [ 'tox-dropzone-container' ]
     },
     behaviours: Behaviour.derive([
-      RepresentingConfigs.memory([ ]),
+      RepresentingConfigs.memory(initialData.getOr([])),
       ComposingConfigs.self(),
       Disabling.config({}),
       Toggling.config({
@@ -119,20 +112,22 @@ export const renderDropZone = (spec: DropZoneSpec, providersBackstage: UiFactory
         components: [
           {
             dom: {
-              tag: 'p',
-              innerHtml: providersBackstage.translate('Drop an image here')
-            }
+              tag: 'p'
+            },
+            components: [
+              GuiFactory.text(providersBackstage.translate('Drop an image here'))
+            ]
           },
           Button.sketch({
             dom: {
               tag: 'button',
-              innerHtml: providersBackstage.translate('Browse for an image'),
               styles: {
                 position: 'relative'
               },
               classes: [ 'tox-button', 'tox-button--secondary' ]
             },
             components: [
+              GuiFactory.text(providersBackstage.translate('Browse for an image')),
               memInput.asSpec()
             ],
             action: (comp) => {

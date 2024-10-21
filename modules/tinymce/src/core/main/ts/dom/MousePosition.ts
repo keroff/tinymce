@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import Editor from '../api/Editor';
 import { EditorEvent } from '../api/util/EventDispatcher';
 
@@ -32,8 +25,8 @@ const getAbsolutePosition = (elm: HTMLElement): Position => {
   const win = doc.defaultView;
 
   return {
-    top: clientRect.top + win.pageYOffset - docElem.clientTop,
-    left: clientRect.left + win.pageXOffset - docElem.clientLeft
+    top: clientRect.top + (win?.scrollY ?? 0) - docElem.clientTop,
+    left: clientRect.left + (win?.scrollX ?? 0) - docElem.clientLeft
   };
 };
 

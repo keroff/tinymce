@@ -1,4 +1,5 @@
 import { after, afterEach, before, describe, it } from '@ephox/bedrock-client';
+import { Remove, Selectors } from '@ephox/sugar';
 import { assert } from 'chai';
 import 'tinymce';
 
@@ -6,9 +7,7 @@ import DOMUtils from 'tinymce/core/api/dom/DOMUtils';
 import Editor from 'tinymce/core/api/Editor';
 import EditorManager from 'tinymce/core/api/EditorManager';
 import PluginManager from 'tinymce/core/api/PluginManager';
-import Delay from 'tinymce/core/api/util/Delay';
 import Tools from 'tinymce/core/api/util/Tools';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as ViewBlock from '../module/test/ViewBlock';
 
@@ -16,7 +15,6 @@ describe('browser.tinymce.core.EditorManagerTest', () => {
   const viewBlock = ViewBlock.bddSetup();
 
   before(() => {
-    Theme();
     EditorManager._setBaseUrl('/project/tinymce/js/tinymce');
   });
 
@@ -25,7 +23,7 @@ describe('browser.tinymce.core.EditorManagerTest', () => {
   });
 
   afterEach((done) => {
-    Delay.setTimeout(() => {
+    setTimeout(() => {
       EditorManager.remove();
       done();
     }, 0);
@@ -40,9 +38,9 @@ describe('browser.tinymce.core.EditorManagerTest', () => {
         assert.equal(EditorManager.get(0), EditorManager.activeEditor);
         assert.isNull(EditorManager.get(1));
         assert.isNull(EditorManager.get('noid'));
-        assert.isNull(EditorManager.get(undefined));
+        assert.isNull(EditorManager.get(undefined as any));
         assert.equal(EditorManager.get()[0], EditorManager.activeEditor);
-        assert.equal(EditorManager.get(EditorManager.activeEditor.id), EditorManager.activeEditor);
+        assert.equal(EditorManager.get((EditorManager.activeEditor as Editor).id), EditorManager.activeEditor);
         assert.notEqual(EditorManager.get(), EditorManager.get());
 
         // Trigger save
@@ -57,7 +55,7 @@ describe('browser.tinymce.core.EditorManagerTest', () => {
 
         // Re-init on same id
         EditorManager.init({
-          selector: '#' + EditorManager.activeEditor.id,
+          selector: '#' + (EditorManager.activeEditor as Editor).id,
         });
 
         assert.lengthOf(EditorManager.get(), 1);
@@ -106,9 +104,12 @@ describe('browser.tinymce.core.EditorManagerTest', () => {
     EditorManager.init({
       selector: 'textarea',
       init_instance_callback: (editor1) => {
-        Delay.setTimeout(() => {
+        setTimeout(() => {
           // Destroy the editor by setting innerHTML common ajax pattern
           viewBlock.update('<textarea id="' + editor1.id + '"></textarea>');
+
+          // We need to remove the sink since it's added to the body
+          Selectors.one('.tox-silver-sink').each(Remove.remove);
 
           // Re-init the editor will have the same id
           EditorManager.init({
@@ -146,10 +147,13 @@ describe('browser.tinymce.core.EditorManagerTest', () => {
       }
     });
 
+    const editor = new Editor('ed1', {}, EditorManager);
+    editor.options.register('test', { processor: 'number' });
+
     assert.strictEqual(EditorManager.baseURI.path, '/base');
     assert.strictEqual(EditorManager.baseURL, 'http://www.EditorManager.com/base');
     assert.strictEqual(EditorManager.suffix, 'x');
-    assert.strictEqual(new Editor('ed1', {}, EditorManager).settings.test, 42);
+    assert.strictEqual(editor.options.get('test'), 42);
     assert.strictEqual(PluginManager.urls.testplugin, 'http://custom.ephox.com/dir/testplugin');
 
     assert.deepEqual(new Editor('ed2', {
@@ -161,7 +165,7 @@ describe('browser.tinymce.core.EditorManagerTest', () => {
       plugin_base_urls: {
         testplugin: 'http://custom.ephox.com/dir/testplugin'
       }
-    }, EditorManager).settings.external_plugins, {
+    }, EditorManager).options.get('external_plugins'), {
       plugina: '//domain/plugina2.js',
       pluginb: '//domain/pluginb.js',
       pluginc: '//domain/pluginc.js'
@@ -169,7 +173,7 @@ describe('browser.tinymce.core.EditorManagerTest', () => {
 
     assert.deepEqual(new Editor('ed3', {
       base_url: '/project/tinymce/js/tinymce'
-    }, EditorManager).settings.external_plugins, {
+    }, EditorManager).options.get('external_plugins'), {
       plugina: '//domain/plugina.js',
       pluginb: '//domain/pluginb.js'
     });

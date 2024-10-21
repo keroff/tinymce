@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr } from '@ephox/katamari';
 import { Attribute, Css, SelectorFilter, SugarElement } from '@ephox/sugar';
 
@@ -60,7 +53,7 @@ const restoreStyles = (dom: DOMUtils): void => {
   const clobberedEls = SelectorFilter.all('[' + attr + ']');
   Arr.each(clobberedEls, (element) => {
     const restore = Attribute.get(element, attr);
-    if (restore !== 'no-styles') {
+    if (restore && restore !== 'no-styles') {
       Css.setAll(element, dom.parseStyle(restore));
     } else {
       Attribute.remove(element, 'style');

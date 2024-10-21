@@ -1,16 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import DOMUtils from '../api/dom/DOMUtils';
 import * as NodeType from '../dom/NodeType';
 import * as RangeNodes from './RangeNodes';
 import { RangeLikeObject } from './RangeTypes';
 
-const walk = (dom: DOMUtils, rng: RangeLikeObject, callback: (nodes: Node[]) => void) => {
+const walk = (dom: DOMUtils, rng: RangeLikeObject, callback: (nodes: Node[]) => void): void => {
   const startOffset = rng.startOffset;
   const startContainer = RangeNodes.getNode(rng.startContainer, startOffset);
   const endOffset = rng.endOffset;
@@ -39,7 +32,7 @@ const walk = (dom: DOMUtils, rng: RangeLikeObject, callback: (nodes: Node[]) => 
     return nodes;
   };
 
-  const collectSiblings = (node: Node | undefined, name: string, endNode?: Node) => {
+  const collectSiblings = (node: Node | null, name: 'nextSibling' | 'previousSibling', endNode?: Node | null) => {
     const siblings = [];
 
     for (; node && node !== endNode; node = node[name]) {
@@ -55,7 +48,7 @@ const walk = (dom: DOMUtils, rng: RangeLikeObject, callback: (nodes: Node[]) => 
   const walkBoundary = (startNode: Node, endNode: Node, next?: boolean) => {
     const siblingName = next ? 'nextSibling' : 'previousSibling';
 
-    for (let node = startNode, parent = node.parentNode; node && node !== endNode; node = parent) {
+    for (let node: Node | null = startNode, parent = node.parentNode; node && node !== endNode; node = parent) {
       parent = node.parentNode;
       const siblings = collectSiblings(node === startNode ? node : node[siblingName], siblingName);
 
@@ -75,7 +68,7 @@ const walk = (dom: DOMUtils, rng: RangeLikeObject, callback: (nodes: Node[]) => 
   }
 
   // Find common ancestor and end points
-  const ancestor = dom.findCommonAncestor(startContainer, endContainer);
+  const ancestor = dom.findCommonAncestor(startContainer, endContainer) ?? dom.getRoot();
 
   // Process left side
   if (dom.isChildOf(startContainer, endContainer)) {

@@ -1,15 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Type } from '@ephox/katamari';
+import { Arr, Type } from '@ephox/katamari';
 import { Compare, SugarElement } from '@ephox/sugar';
 
 import { Bookmark } from '../../bookmark/BookmarkTypes';
 import CaretPosition from '../../caret/CaretPosition';
+import { GetSelectionContentArgs, SetSelectionContentArgs } from '../../content/ContentTypes';
 import * as NodeType from '../../dom/NodeType';
 import * as ScrollIntoView from '../../dom/ScrollIntoView';
 import * as EditorFocus from '../../focus/EditorFocus';
@@ -24,11 +18,11 @@ import * as SelectionBookmark from '../../selection/SelectionBookmark';
 import { hasAnyRanges, moveEndPoint } from '../../selection/SelectionUtils';
 import * as SetSelectionContent from '../../selection/SetSelectionContent';
 import Editor from '../Editor';
-import Env from '../Env';
 import AstNode from '../html/Node';
 import BookmarkManager from './BookmarkManager';
 import ControlSelection from './ControlSelection';
 import DOMUtils from './DOMUtils';
+import RangeUtils from './RangeUtils';
 import SelectorChanged from './SelectorChanged';
 import DomSerializer from './Serializer';
 
@@ -42,17 +36,13 @@ import DomSerializer from './Serializer';
  * alert(tinymce.activeEditor.selection.getNode().nodeName);
  */
 
-const isNativeIeSelection = (rng: any): boolean => !!(rng).select;
-
 const isAttachedToDom = (node: Node): boolean => {
   return !!(node && node.ownerDocument) && Compare.contains(SugarElement.fromDom(node.ownerDocument), SugarElement.fromDom(node));
 };
 
-const isValidRange = (rng: Range) => {
+const isValidRange = (rng: Range | undefined | null): rng is Range => {
   if (!rng) {
     return false;
-  } else if (isNativeIeSelection(rng)) { // Native IE range still produced by placeCaretAt
-    return true;
   } else {
     return isAttachedToDom(rng.startContainer) && isAttachedToDom(rng.endContainer);
   }
@@ -71,17 +61,18 @@ interface EditorSelection {
     (): void;
   };
   getContent: {
-    (args: { format: 'tree' } & GetSelectionContent.GetSelectionContentArgs): AstNode;
-    (args?: GetSelectionContent.GetSelectionContentArgs): string;
+    (args: { format: 'tree' } & Partial<GetSelectionContentArgs>): AstNode;
+    (args?: Partial<GetSelectionContentArgs>): string;
   };
-  setContent: (content: string, args?: SetSelectionContent.SelectionSetContentArgs) => void;
+  setContent: (content: string, args?: Partial<SetSelectionContentArgs>) => void;
   getBookmark: (type?: number, normalized?: boolean) => Bookmark;
   moveToBookmark: (bookmark: Bookmark) => void;
   select: (node: Node, content?: boolean) => Node;
   isCollapsed: () => boolean;
+  isEditable: () => boolean;
   isForward: () => boolean;
   setNode: (elm: Element) => Element;
-  getNode: () => Element;
+  getNode: () => HTMLElement;
   getSel: () => Selection | null;
   setRng: (rng: Range, forward?: boolean) => void;
   getRng: () => Range;
@@ -92,18 +83,19 @@ interface EditorSelection {
   selectorChanged: (selector: string, callback: (active: boolean, args: {
     node: Node;
     selector: String;
-    parents: Element[];
+    parents: Node[];
   }) => void) => EditorSelection;
   selectorChangedWithUnbind: (selector: string, callback: (active: boolean, args: {
     node: Node;
     selector: String;
-    parents: Element[];
+    parents: Node[];
   }) => void) => { unbind: () => void };
-  getScrollContainer: () => HTMLElement;
+  getScrollContainer: () => HTMLElement | undefined;
   scrollIntoView: (elm?: HTMLElement, alignToTop?: boolean) => void;
   placeCaretAt: (clientX: number, clientY: number) => void;
   getBoundingClientRect: () => ClientRect | DOMRect;
   destroy: () => void;
+  expand: (options?: { type: 'word' }) => void;
 }
 
 /**
@@ -155,9 +147,9 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
    * alert(tinymce.activeEditor.selection.getContent());
    *
    * // Alerts the currently selected contents as plain text
-   * alert(tinymce.activeEditor.selection.getContent({format: 'text'}));
+   * alert(tinymce.activeEditor.selection.getContent({ format: 'text' }));
    */
-  const getContent = (args?: GetSelectionContent.GetSelectionContentArgs): any => GetSelectionContent.getContent(editor, args);
+  const getContent = (args?: Partial<GetSelectionContentArgs>): any => GetSelectionContent.getContent(editor, args);
 
   /**
    * Sets the current selection to the specified content. If any contents is selected it will be replaced
@@ -171,7 +163,7 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
    * // Inserts some HTML contents at the current selection
    * tinymce.activeEditor.selection.setContent('<strong>Some contents</strong>');
    */
-  const setContent = (content: string, args?: SetSelectionContent.SelectionSetContentArgs) => SetSelectionContent.setContent(editor, content, args);
+  const setContent = (content: string, args?: Partial<SetSelectionContentArgs>) => SetSelectionContent.setContent(editor, content, args);
 
   /**
    * Returns the start element of a selection range. If the start is in a text
@@ -203,7 +195,7 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
    * @return {Object} Bookmark object, use moveToBookmark with this object to restore the selection.
    * @example
    * // Stores a bookmark of the current selection
-   * var bm = tinymce.activeEditor.selection.getBookmark();
+   * const bm = tinymce.activeEditor.selection.getBookmark();
    *
    * tinymce.activeEditor.setContent(tinymce.activeEditor.getContent() + 'Some new content');
    *
@@ -219,7 +211,7 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
    * @param {Object} bookmark Bookmark to restore selection from.
    * @example
    * // Stores a bookmark of the current selection
-   * var bm = tinymce.activeEditor.selection.getBookmark();
+   * const bm = tinymce.activeEditor.selection.getBookmark();
    *
    * tinymce.activeEditor.setContent(tinymce.activeEditor.getContent() + 'Some new content');
    *
@@ -266,6 +258,25 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
   };
 
   /**
+   * Checks if the current selection’s start and end containers are editable within their parent’s contexts.
+   *
+   * @method isEditable
+   * @return {Boolean} Will be true if the selection is editable and false if it's not editable.
+   */
+  const isEditable = (): boolean => {
+    const rng = getRng();
+    const fakeSelectedElements = editor.getBody().querySelectorAll('[data-mce-selected="1"]');
+
+    if (fakeSelectedElements.length > 0) {
+      return Arr.forall(fakeSelectedElements, (el) => dom.isEditable(el.parentElement));
+    } else if (rng.startContainer === rng.endContainer) {
+      return dom.isEditable(rng.startContainer);
+    } else {
+      return dom.isEditable(rng.startContainer) && dom.isEditable(rng.endContainer);
+    }
+  };
+
+  /**
    * Collapse the selection to start or end of range.
    *
    * @method collapse
@@ -295,9 +306,9 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
    * @see http://www.dotvoid.com/2001/03/using-the-range-object-in-mozilla/
    */
   const getRng = (): Range => {
-    let selection, rng, elm;
+    let rng: Range | undefined;
 
-    const tryCompareBoundaryPoints = (how, sourceRange, destinationRange) => {
+    const tryCompareBoundaryPoints = (how: number, sourceRange: Range, destinationRange: Range) => {
       try {
         return sourceRange.compareBoundaryPoints(how, destinationRange);
       } catch (ex) {
@@ -312,7 +323,7 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
 
     const doc = win.document;
 
-    if (editor.bookmark !== undefined && EditorFocus.hasFocus(editor) === false) {
+    if (Type.isNonNullable(editor.bookmark) && !EditorFocus.hasFocus(editor)) {
       const bookmark = SelectionBookmark.getRng(editor);
 
       if (bookmark.isSome()) {
@@ -321,11 +332,12 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
     }
 
     try {
-      if ((selection = getSel()) && !NodeType.isRestrictedNode(selection.anchorNode)) {
+      const selection = getSel();
+      if (selection && !NodeType.isRestrictedNode(selection.anchorNode)) {
         if (selection.rangeCount > 0) {
           rng = selection.getRangeAt(0);
         } else {
-          rng = selection.createRange ? selection.createRange() : doc.createRange();
+          rng = doc.createRange();
         }
 
         rng = EventProcessRanges.processRanges(editor, [ rng ])[0];
@@ -336,15 +348,13 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
 
     // No range found then create an empty one
     // This can occur when the editor is placed in a hidden container element on Gecko
-    // Or on IE when there was an exception
     if (!rng) {
-      // TODO: Is this still needed in modern browsers?
-      rng = doc.createRange ? doc.createRange() : (doc.body as any).createTextRange();
+      rng = doc.createRange();
     }
 
     // If range is at start of document then move it to start of body
-    if (rng.setStart && rng.startContainer.nodeType === 9 && rng.collapsed) {
-      elm = dom.getRoot();
+    if (NodeType.isDocument(rng.startContainer) && rng.collapsed) {
+      const elm = dom.getRoot();
       rng.setStart(elm, 0);
       rng.setEnd(elm, 0);
     }
@@ -371,30 +381,14 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
    * @param {Range} rng Range to select.
    * @param {Boolean} forward Optional boolean if the selection is forwards or backwards.
    */
-  const setRng = (rng: Range, forward?: boolean) => {
-    let node;
-
+  const setRng = (rng: Range | undefined, forward?: boolean) => {
     if (!isValidRange(rng)) {
-      return;
-    }
-
-    // Is IE specific range
-    const ieRange: any = isNativeIeSelection(rng) ? rng : null;
-    if (ieRange) {
-      explicitRange = null;
-
-      try {
-        ieRange.select();
-      } catch (ex) {
-        // Needed for some odd IE bug #1843306
-      }
-
       return;
     }
 
     const sel = getSel();
 
-    const evt = editor.fire('SetSelectionRange', { range: rng, forward });
+    const evt = editor.dispatch('SetSelectionRange', { range: rng, forward });
     rng = evt.range;
 
     if (sel) {
@@ -417,12 +411,12 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
       selectedRange = sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
     }
 
-    // WebKit egde case selecting images works better using setBaseAndExtent when the image is floated
-    if (!rng.collapsed && rng.startContainer === rng.endContainer && sel.setBaseAndExtent && !Env.ie) {
+    // WebKit edge case selecting images works better using setBaseAndExtent when the image is floated
+    if (!rng.collapsed && rng.startContainer === rng.endContainer && sel?.setBaseAndExtent) {
       if (rng.endOffset - rng.startOffset < 2) {
         if (rng.startContainer.hasChildNodes()) {
-          node = rng.startContainer.childNodes[rng.startOffset];
-          if (node && node.tagName === 'IMG') {
+          const node = rng.startContainer.childNodes[rng.startOffset];
+          if (node && node.nodeName === 'IMG') {
             sel.setBaseAndExtent(
               rng.startContainer,
               rng.startOffset,
@@ -442,7 +436,7 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
       }
     }
 
-    editor.fire('AfterSetSelectionRange', { range: rng, forward });
+    editor.dispatch('AfterSetSelectionRange', { range: rng, forward });
   };
 
   /**
@@ -453,7 +447,7 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
    * @return {Element} Returns the element that got passed in.
    * @example
    * // Inserts a DOM node at current selection/caret location
-   * tinymce.activeEditor.selection.setNode(tinymce.activeEditor.dom.create('img', {src: 'some.gif', title: 'some title'}));
+   * tinymce.activeEditor.selection.setNode(tinymce.activeEditor.dom.create('img', { src: 'some.gif', title: 'some title' }));
    */
   const setNode = (elm: Element): Element => {
     setContent(dom.getOuterHTML(elm));
@@ -469,9 +463,10 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
    * // Alerts the currently selected elements node name
    * alert(tinymce.activeEditor.selection.getNode().nodeName);
    */
-  const getNode = (): Element => ElementSelection.getNode(editor.getBody(), getRng());
+  const getNode = (): HTMLElement => ElementSelection.getNode(editor.getBody(), getRng());
 
-  const getSelectedBlocks = (startElm: Element, endElm: Element) => ElementSelection.getSelectedBlocks(dom, getRng(), startElm, endElm);
+  const getSelectedBlocks = (startElm?: Element, endElm?: Element) =>
+    ElementSelection.getSelectedBlocks(dom, getRng(), startElm, endElm);
 
   const isForward = (): boolean => {
     const sel = getSel();
@@ -485,12 +480,19 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
     }
 
     const anchorRange = dom.createRng();
-    anchorRange.setStart(anchorNode, sel.anchorOffset);
-    anchorRange.collapse(true);
-
     const focusRange = dom.createRng();
-    focusRange.setStart(focusNode, sel.focusOffset);
-    focusRange.collapse(true);
+
+    try {
+      anchorRange.setStart(anchorNode, sel.anchorOffset);
+      anchorRange.collapse(true);
+
+      focusRange.setStart(focusNode, sel.focusOffset);
+      focusRange.collapse(true);
+    } catch (e) {
+      // Safari can generate an invalid selection and error. Silently handle it and default to forward.
+      // See https://bugs.webkit.org/show_bug.cgi?id=230594.
+      return true;
+    }
 
     return anchorRange.compareBoundaryPoints(anchorRange.START_TO_START, focusRange) <= 0;
   };
@@ -518,14 +520,14 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
    *
    * @method selectorChanged
    * @param {String} selector CSS selector to check for.
-   * @param {function} callback Callback with state and args when the selector is matches or not.
+   * @param {Function} callback Callback with state and args when the selector is matches or not.
    */
-  const selectorChanged = (selector: string, callback: (active: boolean, args: { node: Node; selector: String; parents: Element[] }) => void) => {
+  const selectorChanged = (selector: string, callback: (active: boolean, args: { node: Node; selector: String; parents: Node[] }) => void) => {
     selectorChangedWithUnbind(selector, callback);
     return exports;
   };
 
-  const getScrollContainer = (): HTMLElement => {
+  const getScrollContainer = (): HTMLElement | undefined => {
     let scrollContainer;
     let node = dom.getRoot();
 
@@ -549,7 +551,8 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
     }
   };
 
-  const placeCaretAt = (clientX: number, clientY: number) => setRng(CaretRangeFromPoint.fromPoint(clientX, clientY, editor.getDoc()));
+  const placeCaretAt = (clientX: number, clientY: number) =>
+    setRng(CaretRangeFromPoint.fromPoint(clientX, clientY, editor.getDoc()));
 
   const getBoundingClientRect = (): ClientRect | DOMRect => {
     const rng = getRng();
@@ -557,17 +560,25 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
   };
 
   const destroy = () => {
-    win = selectedRange = explicitRange = null;
+    (win as any) = selectedRange = explicitRange = null;
     controlSelection.destroy();
   };
 
-  const exports: EditorSelection = {
-    bookmarkManager: null,
-    controlSelection: null,
+  /**
+   * Expands the selection range to contain the entire word when the selection is collapsed within the word.
+   *
+   * @method expand
+   * @param {Object} options Optional options provided to the expansion. Defaults to { type: 'word' }
+   */
+  const expand = (options: { type: 'word' } = { type: 'word' }) =>
+    setRng(RangeUtils(dom).expand(getRng(), options));
+
+  const exports = {
     dom,
     win,
     serializer,
     editor,
+    expand,
     collapse,
     setCursorLocation,
     getContent,
@@ -576,6 +587,7 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
     moveToBookmark,
     select,
     isCollapsed,
+    isEditable,
     isForward,
     setNode,
     getNode,
@@ -593,7 +605,7 @@ const EditorSelection = (dom: DOMUtils, win: Window, serializer: DomSerializer, 
     placeCaretAt,
     getBoundingClientRect,
     destroy
-  };
+  } as EditorSelection;
 
   const bookmarkManager = BookmarkManager(exports);
   const controlSelection = ControlSelection(exports, editor);

@@ -1,12 +1,5 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import {
-  AddEventsBehaviour, AlloyEvents, Behaviour, Button, GuiFactory, Replacing, Representing, SimpleSpec, SystemEvents, Tabstopping
+  AddEventsBehaviour, AlloyComponent, AlloyEvents, Behaviour, Button, GuiFactory, Replacing, Representing, SimpleSpec, SystemEvents, Tabstopping
 } from '@ephox/alloy';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -15,13 +8,19 @@ import { UiFactoryBackstageProviders } from '../../backstage/Backstage';
 import * as ReadOnly from '../../ReadOnly';
 import { DisablingConfigs } from '../alien/DisablingConfigs';
 
+interface WordCount {
+  readonly words: number;
+  readonly characters: number;
+}
+
 const enum WordCountMode {
   Words = 'words',
   Characters = 'characters'
 }
 
 export const renderWordCount = (editor: Editor, providersBackstage: UiFactoryBackstageProviders): SimpleSpec => {
-  const replaceCountText = (comp, count, mode) => Replacing.set(comp, [ GuiFactory.text(providersBackstage.translate([ '{0} ' + mode, count[mode] ])) ]);
+  const replaceCountText = (comp: AlloyComponent, count: WordCount, mode: WordCountMode) =>
+    Replacing.set(comp, [ GuiFactory.text(providersBackstage.translate([ '{0} ' + mode, count[mode] ])) ]);
 
   return Button.sketch({
     dom: {

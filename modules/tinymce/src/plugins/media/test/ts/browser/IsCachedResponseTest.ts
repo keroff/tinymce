@@ -5,7 +5,6 @@ import { TinyAssertions, TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/media/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as Utils from '../module/test/Utils';
 
@@ -13,7 +12,7 @@ describe('browser.tinymce.plugins.media.IsCachedResponseTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     plugins: [ 'media' ],
     toolbar: 'media',
-    media_url_resolver: (data, resolve, reject) => {
+    media_url_resolver: (data: { url: string }, resolve: (response: { html: string }) => void, reject: (msg: string) => void) => {
       if (data.url === 'test') {
         resolve({
           html: '<div>x</div>' });
@@ -22,7 +21,7 @@ describe('browser.tinymce.plugins.media.IsCachedResponseTest', () => {
       }
     },
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ], true);
+  }, [ Plugin ], true);
 
   const pWaitForAndAssertNotification = async (expected: string) => {
     const notification = await UiFinder.pWaitFor('Could not find notification', SugarBody.body(), 'div.tox-notification__body') as SugarElement<HTMLElement>;

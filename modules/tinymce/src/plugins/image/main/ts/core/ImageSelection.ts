@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Obj } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -13,7 +6,7 @@ import { SchemaMap } from 'tinymce/core/api/html/Schema';
 import { create, defaultData, ImageData, isFigure, read, write } from './ImageData';
 import * as Utils from './Utils';
 
-const normalizeCss = (editor: Editor, cssText: string): string => {
+const normalizeCss = (editor: Editor, cssText: string | undefined): string => {
   const css = editor.dom.styles.parse(cssText);
   const mergedCss = Utils.mergeMargins(css);
   const compressed = editor.dom.styles.parse(editor.dom.styles.serialize(mergedCss));
@@ -49,7 +42,7 @@ const splitTextBlock = (editor: Editor, figure: HTMLElement): HTMLElement => {
   );
 
   if (textBlock) {
-    return dom.split(textBlock, figure);
+    return dom.split(textBlock, figure) ?? figure;
   } else {
     return figure;
   }
@@ -84,7 +77,7 @@ const syncSrcAttr = (editor: Editor, image: HTMLElement): void => {
 
 const deleteImage = (editor: Editor, image: HTMLElement | null): void => {
   if (image) {
-    const elm = editor.dom.is(image.parentNode, 'figure.image') ? image.parentNode : image;
+    const elm = editor.dom.is<HTMLElement>(image.parentNode, 'figure.image') ? image.parentNode : image;
 
     editor.dom.remove(elm);
     editor.focus();
@@ -100,16 +93,18 @@ const deleteImage = (editor: Editor, image: HTMLElement | null): void => {
 const writeImageDataToSelection = (editor: Editor, data: ImageData) => {
   const image = getSelectedImage(editor);
 
-  write((css) => normalizeCss(editor, css), data, image);
-  syncSrcAttr(editor, image);
+  if (image) {
+    write((css) => normalizeCss(editor, css), data, image);
+    syncSrcAttr(editor, image);
 
-  if (isFigure(image.parentNode)) {
-    const figure = image.parentNode;
-    splitTextBlock(editor, figure);
-    editor.selection.select(image.parentNode);
-  } else {
-    editor.selection.select(image);
-    Utils.waitLoadImage(editor, data, image);
+    if (isFigure(image.parentNode)) {
+      const figure = image.parentNode;
+      splitTextBlock(editor, figure);
+      editor.selection.select(image.parentNode);
+    } else {
+      editor.selection.select(image);
+      Utils.waitLoadImage(editor, data, image);
+    }
   }
 };
 

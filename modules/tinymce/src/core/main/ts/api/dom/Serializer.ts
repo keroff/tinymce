@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { DomSerializerImpl, DomSerializerSettings } from '../../dom/DomSerializerImpl';
 import Editor from '../Editor';
 
@@ -35,32 +28,32 @@ const DomSerializer = (settings: DomSerializerSettings, editor?: Editor): DomSer
      * Adds a node filter function to the parser used by the serializer, the parser will collect the specified nodes by name
      * and then execute the callback once it has finished parsing the document.
      *
-     * @example
-     * parser.addNodeFilter('p,h1', function(nodes, name) {
-     *  for (var i = 0; i < nodes.length; i++) {
-     *   console.log(nodes[i].name);
-     *  }
-     * });
      * @method addNodeFilter
-     * @method {String} name Comma separated list of nodes to collect.
-     * @param {function} callback Callback function to execute once it has collected nodes.
+     * @param {String} name Comma separated list of nodes to collect.
+     * @param {Function} callback Callback function to execute once it has collected nodes.
+     * @example
+     * serializer.addNodeFilter('p,h1', (nodes, name) => {
+     *   for (let i = 0; i < nodes.length; i++) {
+     *     console.log(nodes[i].name);
+     *   }
+     * });
      */
     addNodeFilter: domSerializer.addNodeFilter,
 
     /**
-     * Adds a attribute filter function to the parser used by the serializer, the parser will
+     * Adds an attribute filter function to the parser used by the serializer, the parser will
      * collect nodes that has the specified attributes
      * and then execute the callback once it has finished parsing the document.
      *
-     * @example
-     * parser.addAttributeFilter('src,href', function(nodes, name) {
-     *  for (var i = 0; i < nodes.length; i++) {
-     *   console.log(nodes[i].name);
-     *  }
-     * });
      * @method addAttributeFilter
-     * @method {String} name Comma separated list of nodes to collect.
-     * @param {function} callback Callback function to execute once it has collected nodes.
+     * @param {String} name Comma separated list of attributes to collect.
+     * @param {Function} callback Callback function to execute once it has collected nodes.
+     * @example
+     * serializer.addAttributeFilter('src,href', (nodes, name) => {
+     *   for (let i = 0; i < nodes.length; i++) {
+     *     console.log(nodes[i].name);
+     *   }
+     * });
      */
     addAttributeFilter: domSerializer.addAttributeFilter,
 
@@ -112,7 +105,37 @@ const DomSerializer = (settings: DomSerializerSettings, editor?: Editor): DomSer
 
     getNodeFilters: domSerializer.getNodeFilters,
 
-    getAttributeFilters: domSerializer.getAttributeFilters
+    getAttributeFilters: domSerializer.getAttributeFilters,
+
+    /**
+     * Removes a node filter function or removes all filter functions from the parser used by the serializer for the node names provided.
+     *
+     * @method removeNodeFilter
+     * @param {String} name Comma separated list of node names to remove filters for.
+     * @param {Function} callback Optional callback function to only remove a specific callback.
+     * @example
+     * // Remove a single filter
+     * serializer.removeNodeFilter('p,h1', someCallback);
+     *
+     * // Remove all filters
+     * serializer.removeNodeFilter('p,h1');
+     */
+    removeNodeFilter: domSerializer.removeNodeFilter,
+
+    /**
+     * Removes an attribute filter function or removes all filter functions from the parser used by the serializer for the attribute names provided.
+     *
+     * @method removeAttributeFilter
+     * @param {String} name Comma separated list of attribute names to remove filters for.
+     * @param {Function} callback Optional callback function to only remove a specific callback.
+     * @example
+     * // Remove a single filter
+     * serializer.removeAttributeFilter('src,href', someCallback);
+     *
+     * // Remove all filters
+     * serializer.removeAttributeFilter('src,href');
+     */
+    removeAttributeFilter: domSerializer.removeAttributeFilter
   };
 };
 

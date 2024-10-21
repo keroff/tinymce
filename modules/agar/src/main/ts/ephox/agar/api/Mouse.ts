@@ -58,7 +58,7 @@ const cMouseMove = cMouseMoveWith({ });
 const cMouseOut = cMouseOutWith({ });
 
 const triggerOn = <T extends Element>(container: SugarElement<Node>, selector: string, action: (ele: SugarElement<T>) => void): SugarElement<T> => {
-  const ele = UiFinder.findIn(container, selector).getOrDie();
+  const ele = UiFinder.findIn<T>(container, selector).getOrDie();
   action(ele);
   return ele;
 };
@@ -106,12 +106,12 @@ const sTrueClickOn = <T>(container: SugarElement<Node>, selector: string): Step<
   sTriggerOn<T, HTMLElement>(container, selector, trueClick);
 
 // Low level exports
-const leftClickButton = Clicks.leftClickButton ;
-const middleClickButton = Clicks.middleClickButton ;
-const rightClickButton = Clicks.rightClickButton ;
-const leftClickButtons = Clicks.leftClickButtons ;
-const rightClickButtons = Clicks.rightClickButtons ;
-const middleClickButtons = Clicks.middleClickButtons ;
+const leftClickButton = Clicks.leftClickButton;
+const middleClickButton = Clicks.middleClickButton;
+const rightClickButton = Clicks.rightClickButton;
+const leftClickButtons = Clicks.leftClickButtons;
+const rightClickButtons = Clicks.rightClickButtons;
+const middleClickButtons = Clicks.middleClickButtons;
 /**
  * @deprecated Use event instead */
 const point = Clicks.point;

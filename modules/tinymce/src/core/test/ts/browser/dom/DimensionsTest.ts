@@ -18,11 +18,11 @@ describe('browser.tinymce.core.dom.DimensionsTest', () => {
   it('getClientRects', () => {
     const viewElm = setupHtml('abc<span>123</span>');
 
-    assert.lengthOf(Dimensions.getClientRects([ viewElm.firstChild ]), 1);
-    assert.lengthOf(Dimensions.getClientRects([ viewElm.lastChild ]), 1);
-    LegacyUnit.equalDom(Dimensions.getClientRects([ viewElm.firstChild ])[0].node, viewElm.firstChild);
-    assert.isAbove(Dimensions.getClientRects([ viewElm.firstChild ])[0].left, 3);
-    assert.isAbove(Dimensions.getClientRects([ viewElm.lastChild ])[0].left, 3);
+    assert.lengthOf(Dimensions.getClientRects([ viewElm.firstChild as Text ]), 1);
+    assert.lengthOf(Dimensions.getClientRects([ viewElm.lastChild as HTMLSpanElement ]), 1);
+    LegacyUnit.equalDom(Dimensions.getClientRects([ viewElm.firstChild as Text ])[0].node, viewElm.firstChild as Text);
+    assert.isAbove(Dimensions.getClientRects([ viewElm.firstChild as HTMLSpanElement ])[0].left, 3);
+    assert.isAbove(Dimensions.getClientRects([ viewElm.lastChild as Text ])[0].left, 3);
   });
 
   it('getClientRects from array', () => {
@@ -32,5 +32,14 @@ describe('browser.tinymce.core.dom.DimensionsTest', () => {
     assert.lengthOf(clientRects, 2);
     LegacyUnit.equalDom(clientRects[0].node, viewElm.childNodes[0]);
     LegacyUnit.equalDom(clientRects[1].node, viewElm.childNodes[1]);
+  });
+
+  it('TINY-8532: getClientRects with comment nodes', () => {
+    const viewElm = setupHtml('<b>a</b><!--comment--><b>b</b>');
+    const clientRects = Dimensions.getClientRects(Arr.from(viewElm.childNodes));
+
+    assert.lengthOf(clientRects, 2);
+    LegacyUnit.equalDom(clientRects[0].node, viewElm.childNodes[0]);
+    LegacyUnit.equalDom(clientRects[1].node, viewElm.childNodes[2]);
   });
 });

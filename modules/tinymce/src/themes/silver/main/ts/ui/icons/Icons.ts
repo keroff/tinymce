@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AddEventsBehaviour, AlloyEvents, Behaviour, SimpleOrSketchSpec } from '@ephox/alloy';
+import { AddEventsBehaviour, AlloyEvents, Behaviour, SimpleSpec } from '@ephox/alloy';
 import { Arr, Obj, Optional, Strings } from '@ephox/katamari';
 import { Attribute, SelectorFind } from '@ephox/sugar';
 
@@ -68,18 +61,18 @@ const getFirst = (names: string[], iconProvider: IconProvider): string => {
   return Arr.findMap(names, (name) => lookupIcon(name, icons)).getOrThunk(defaultIcon(icons));
 };
 
-const needsRtlTransform = (iconName: string) =>
+const needsRtlTransform = (iconName: string): boolean =>
   I18n.isRtl() ? Obj.has(rtlTransform, iconName) : false;
 
-const addFocusableBehaviour = () =>
+const addFocusableBehaviour = (): Behaviour.NamedConfiguredBehaviour<any, any, any> =>
   AddEventsBehaviour.config('add-focusable', [
     AlloyEvents.runOnAttached((comp) => {
-      // set focusable=false on SVGs to prevent IE 11 from focusing the toolbar when tabbing into the editor
+      // set focusable=false on SVGs to prevent focusing the toolbar when tabbing into the editor
       SelectorFind.child(comp.element, 'svg').each((svg) => Attribute.set(svg, 'focusable', 'false'));
     })
   ]);
 
-const renderIcon = (spec: IconSpec, iconName: string, icons: Record<string, string>, fallbackIcon: Optional<string>): SimpleOrSketchSpec => {
+const renderIcon = (spec: IconSpec, iconName: string, icons: Record<string, string>, fallbackIcon: Optional<string>): SimpleSpec => {
   // If RTL, add the flip icon class if the icon doesn't have a `-rtl` icon available.
   const rtlIconClasses = needsRtlTransform(iconName) ? [ 'tox-icon--flip' ] : [];
   const iconHtml = Obj.get(icons, getIconName(iconName, icons)).or(fallbackIcon).getOrThunk(defaultIcon(icons));
@@ -97,10 +90,10 @@ const renderIcon = (spec: IconSpec, iconName: string, icons: Record<string, stri
   };
 };
 
-const render = (iconName: string, spec: IconSpec, iconProvider: IconProvider, fallbackIcon: Optional<string> = Optional.none()): SimpleOrSketchSpec =>
+const render = (iconName: string, spec: IconSpec, iconProvider: IconProvider, fallbackIcon: Optional<string> = Optional.none()): SimpleSpec =>
   renderIcon(spec, iconName, iconProvider(), fallbackIcon);
 
-const renderFirst = (iconNames: string[], spec: IconSpec, iconProvider: IconProvider): SimpleOrSketchSpec => {
+const renderFirst = (iconNames: string[], spec: IconSpec, iconProvider: IconProvider): SimpleSpec => {
   const icons = iconProvider();
   const iconName = Arr.find(iconNames, (name) => Obj.has(icons, getIconName(name, icons)));
   return renderIcon(spec, iconName.getOr(defaultIconName), icons, Optional.none());

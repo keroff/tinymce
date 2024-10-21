@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Cell, Obj, Type } from '@ephox/katamari';
+import { Arr, Cell, Obj, Type } from '@ephox/katamari';
 
 /**
  * I18n class that handles translation of TinyMCE UI.
@@ -22,9 +15,14 @@ type Primitive = string | number | boolean | Record<string | number, any> | Func
 
 export type TokenisedString = [ string, ...Primitive[] ];
 
-export type Untranslated = Primitive | TokenisedString | RawString;
+export type Untranslated = Primitive | TokenisedString | RawString | null | undefined;
 
 export type TranslatedString = string;
+
+const isDuplicated = (items: string[], item: string) => {
+  const firstIndex = items.indexOf(item);
+  return firstIndex !== -1 && items.indexOf(item, firstIndex + 1) > firstIndex;
+};
 
 const isRaw = (str: any): str is RawString => Type.isObject(str) && Obj.has(str, 'raw');
 
@@ -43,7 +41,7 @@ const getData = (): Record<string, Record<string, string>> => Obj.map(data, (val
  * @method setCode
  * @param {String} newCode Current language code.
  */
-const setCode = (newCode: string) => {
+const setCode = (newCode: string): void => {
   if (newCode) {
     currentCode.set(newCode);
   }
@@ -65,15 +63,24 @@ const getCode = (): string => currentCode.get();
  * @param {String} code Language code like sv_SE.
  * @param {Object} items Name/value object where key is english and value is the translation.
  */
-const add = (code: string, items: Record<string, string>) => {
+const add = (code: string, items: Record<string, string>): void => {
   let langData = data[code];
 
   if (!langData) {
     data[code] = langData = {};
   }
 
+  const lcNames = Arr.map(Obj.keys(items), (name) => name.toLowerCase());
   Obj.each(items, (translation, name) => {
-    langData[name.toLowerCase()] = translation;
+    const lcName = name.toLowerCase();
+    if (lcName !== name && isDuplicated(lcNames, lcName)) {
+      if (!Obj.has(items, lcName)) {
+        langData[lcName] = translation;
+      }
+      langData[name] = translation;
+    } else {
+      langData[lcName] = translation;
+    }
   });
 };
 
@@ -109,8 +116,10 @@ const translate = (text: Untranslated): TranslatedString => {
 
   const getLangData = (text: Untranslated) => {
     // make sure we work on a string and return a string
-    const textstr = toString(text);
-    return Obj.get(langData, textstr.toLowerCase()).map(toString).getOr(textstr);
+    const textStr = toString(text);
+    return Obj.has(langData, textStr)
+      ? toString(langData[textStr])
+      : Obj.get(langData, textStr.toLowerCase()).map(toString).getOr(textStr);
   };
 
   const removeContext = (str: string) => str.replace(/{context:\w+}$/, '');
@@ -142,7 +151,7 @@ const translate = (text: Untranslated): TranslatedString => {
  * @method isRtl
  * @return {Boolean} True if the current language pack is rtl.
  */
-const isRtl = () => getLanguageData()
+const isRtl = (): boolean => getLanguageData()
   .bind((items) => Obj.get(items, '_dir'))
   .exists((dir) => dir === 'rtl');
 
@@ -153,7 +162,7 @@ const isRtl = () => getLanguageData()
  * @param {String} code Code to check for.
  * @return {Boolean} True if the current language pack for the specified code exists.
  */
-const hasCode = (code: string) => Obj.has(data, code);
+const hasCode = (code: string): boolean => Obj.has(data, code);
 
 interface I18n {
   getData: () => Record<string, Record<string, string>>;

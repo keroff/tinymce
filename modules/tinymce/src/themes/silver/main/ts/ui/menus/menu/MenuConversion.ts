@@ -1,15 +1,19 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Objects } from '@ephox/boulder';
 import { Menu } from '@ephox/bridge';
 import { Arr, Id, Merger, Obj, Type } from '@ephox/katamari';
 
 import { SingleMenuItemSpec } from './SingleMenuTypes';
+
+interface ExpandedMenu {
+  readonly menus: Record<string, SingleMenuItemSpec[]>;
+  readonly expansions: Record<string, string>;
+  readonly item: SingleMenuItemSpec;
+}
+
+export interface ExpandedMenus {
+  readonly menus: Record<string, SingleMenuItemSpec[]>;
+  readonly expansions: Record<string, string>;
+  readonly items: SingleMenuItemSpec[];
+}
 
 type MenuItemRegistry = Record<string, Menu.MenuItemSpec | Menu.NestedMenuItemSpec | Menu.ToggleMenuItemSpec>;
 
@@ -40,7 +44,7 @@ const unwrapReferences = (items: Array<string | SingleMenuItemSpec>, menuItems: 
     } else {
       return acc.concat([ item ]);
     }
-  }, []);
+  }, [] as SingleMenuItemSpec[]);
 
   // Remove any trailing separators
   if (realItems.length > 0 && isSeparator(realItems[realItems.length - 1])) {
@@ -50,20 +54,17 @@ const unwrapReferences = (items: Array<string | SingleMenuItemSpec>, menuItems: 
   return realItems;
 };
 
-const getFromExpandingItem = (item: Menu.NestedMenuItemSpec, menuItems: MenuItemRegistry) => {
+const getFromExpandingItem = (item: Menu.NestedMenuItemSpec & { value: string }, menuItems: MenuItemRegistry): ExpandedMenu => {
   const submenuItems = item.getSubmenuItems();
   const rest = expand(submenuItems, menuItems);
 
   const newMenus = Merger.deepMerge(
     rest.menus,
-    Objects.wrap(
-      item.value,
-      rest.items
-    )
+    { [item.value]: rest.items }
   );
   const newExpansions = Merger.deepMerge(
     rest.expansions,
-    Objects.wrap(item.value, item.value)
+    { [item.value]: item.value }
   );
 
   return {
@@ -73,39 +74,55 @@ const getFromExpandingItem = (item: Menu.NestedMenuItemSpec, menuItems: MenuItem
   };
 };
 
-const getFromItem = (item: SingleMenuItemSpec, menuItems: MenuItemRegistry) => isExpandingMenuItem(item) ? getFromExpandingItem(item, menuItems) : {
-  item,
-  menus: { },
-  expansions: { }
-};
-
-const generateValueIfRequired = (item: SingleMenuItemSpec): SingleMenuItemSpec => {
-  // Separators don't have a value, so just return the item
-  if (isSeparator(item)) {
-    return item;
-  } else {
-    // Use the value already in item if it has one.
-    const itemValue = Obj.get<any, string>(item, 'value').getOrThunk(() => Id.generate('generated-menu-item'));
-    return Merger.deepMerge({ value: itemValue }, item);
-  }
+const generateValueIfRequired = (item: Menu.NestedMenuItemSpec): Menu.NestedMenuItemSpec & { value: string } => {
+  // Use the value already in item if it has one.
+  const itemValue = Obj.get<any, string>(item, 'value').getOrThunk(() => Id.generate('generated-menu-item'));
+  return Merger.deepMerge({ value: itemValue }, item);
 };
 
 // Takes items, and consolidates them into its return value
-const expand = (items: string | Array<string | SingleMenuItemSpec>, menuItems: MenuItemRegistry) => {
+const expand = (items: string | Array<string | SingleMenuItemSpec>, menuItems: MenuItemRegistry): ExpandedMenus => {
+  // Fistly, we do all substitution using the registry for any items referenced by their
+  // string key.
   const realItems = unwrapReferences(Type.isString(items) ? items.split(' ') : items, menuItems);
+
+  // Now that we have complete bridge Item specs for all items, we need to collect the
+  // submenus, items in the primary menu, and triggering menu items all into one
+  // giant object to from the building blocks on our TieredData
   return Arr.foldr(realItems, (acc, item) => {
-    const itemWithValue = generateValueIfRequired(item);
-    const newData = getFromItem(itemWithValue, menuItems);
-    return {
-      menus: Merger.deepMerge(acc.menus, newData.menus),
-      items: [ newData.item ].concat(acc.items),
-      expansions: Merger.deepMerge(acc.expansions, newData.expansions)
-    };
+    if (isExpandingMenuItem(item)) {
+      // We generate a random value for item, but only if there isn't an existing value
+      const itemWithValue = generateValueIfRequired(item);
+
+      // The newData isn't quite in the format you might expect. The list of items
+      // for an item with nested items is just the single parent item. All of the nested
+      // items becomes part of '.menus'. Finally, the expansions is just a map from
+      // the triggering item to the first submenu. Incidentally, they are given the same
+      // value (triggering item and submenu), for convenience.
+      const newData = getFromExpandingItem(itemWithValue, menuItems);
+      return {
+        // Combine all of our current submenus and items with the new submenus created by
+        // this item with nested subitems
+        menus: Merger.deepMerge(acc.menus, newData.menus),
+        // Add our parent item into the list of items in the *current menu*.
+        items: [ newData.item, ...acc.items ],
+        // Merge together our "this item opens this submenu" objects
+        expansions: Merger.deepMerge(acc.expansions, newData.expansions)
+      };
+    } else {
+      // If we aren't creating any submenus, then all we need to do is add this item
+      // to the list of items in the current menu. So this is the same as an expanding
+      // menu item, except it doesn't add to `menus` or `expansions`.
+      return {
+        ...acc,
+        items: [ item, ...acc.items ]
+      };
+    }
   }, {
     menus: { },
     expansions: { },
     items: [ ]
-  });
+  } as ExpandedMenus);
 };
 
 export {

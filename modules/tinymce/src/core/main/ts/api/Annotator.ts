@@ -1,18 +1,11 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Obj, Optional } from '@ephox/katamari';
-import { Remove } from '@ephox/sugar';
+import { Remove, SugarElement, SugarNode } from '@ephox/sugar';
 
 import * as AnnotationChanges from '../annotate/AnnotationChanges';
 import * as AnnotationFilter from '../annotate/AnnotationFilter';
 import { create } from '../annotate/AnnotationsRegistry';
 import { findAll, identify } from '../annotate/Identification';
-import { annotateWithBookmark, Decorator, DecoratorData } from '../annotate/Wrapping';
+import { annotateWithBookmark, Decorator, DecoratorData, removeDirectAnnotation } from '../annotate/Wrapping';
 import Editor from './Editor';
 
 export type AnnotationListenerApi = AnnotationChanges.AnnotationListener;
@@ -33,6 +26,7 @@ interface Annotator {
   annotate: (name: string, data: DecoratorData) => void;
   annotationChanged: (name: string, f: AnnotationListenerApi) => void;
   remove: (name: string) => void;
+  removeAll: (name: string) => void;
   getAll: (name: string) => Record<string, Element[]>;
 }
 
@@ -40,6 +34,17 @@ const Annotator = (editor: Editor): Annotator => {
   const registry = create();
   AnnotationFilter.setup(editor, registry);
   const changes = AnnotationChanges.setup(editor, registry);
+
+  const isSpan = SugarNode.isTag('span');
+  const removeAnnotations = (elements: SugarElement<Element>[]) => {
+    Arr.each(elements, (element) => {
+      if (isSpan(element)) {
+        Remove.unwrap(element);
+      } else {
+        removeDirectAnnotation(element);
+      }
+    });
+  };
 
   return {
     /**
@@ -72,7 +77,7 @@ const Annotator = (editor: Editor): Annotator => {
      *
      * @method annotationChanged
      * @param {String} name Name of annotation to listen for
-     * @param {function} callback Calback with (state, name, and data) fired when the annotation
+     * @param {Function} callback Callback with (state, name, and data) fired when the annotation
      * at the cursor changes. If state if false, data will not be provided.
      */
     annotationChanged: (name: string, callback: AnnotationListenerApi) => {
@@ -88,8 +93,29 @@ const Annotator = (editor: Editor): Annotator => {
      */
     remove: (name: string): void => {
       identify(editor, Optional.some(name)).each(({ elements }) => {
-        Arr.each(elements, Remove.unwrap);
+        /**
+         * TINY-9399: It is important to keep the bookmarking in the callback
+         * because it adjusts selection in a way that `identify` function
+         * cannot retain the selected word.
+         */
+        const bookmark = editor.selection.getBookmark();
+        removeAnnotations(elements);
+        editor.selection.moveToBookmark(bookmark);
       });
+    },
+
+    /**
+     * Removes all annotations that match the specified name from the entire document.
+     *
+     * @method removeAll
+     * @param {String} name the name of the annotation to remove
+     */
+    removeAll: (name: string): void => {
+      const bookmark = editor.selection.getBookmark();
+      Obj.each(findAll(editor, name), (elements, _) => {
+        removeAnnotations(elements);
+      });
+      editor.selection.moveToBookmark(bookmark);
     },
 
     /**

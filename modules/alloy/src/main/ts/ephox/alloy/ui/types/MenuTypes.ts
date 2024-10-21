@@ -1,3 +1,6 @@
+import { Optional } from '@ephox/katamari';
+import { SugarElement } from '@ephox/sugar';
+
 import { AlloyBehaviourRecord } from '../../api/behaviour/Behaviour';
 import { AlloyComponent } from '../../api/component/ComponentApi';
 import { SketchBehaviours } from '../../api/component/SketchBehaviours';
@@ -19,6 +22,7 @@ export interface MenuGridMovementSpec {
 export interface MenuMatrixMovementSpec {
   mode: 'matrix';
   rowSelector: string;
+  previousSelector?: (comp: AlloyComponent) => Optional<SugarElement<HTMLElement>>;
 }
 
 export interface MenuNormalMovementSpec {
@@ -42,6 +46,7 @@ export interface MenuMatrixMovement {
   mode: 'matrix';
   config: (detail: MenuDetail, movementInfo: MenuMovement) => MatrixConfigSpec;
   rowSelector: string;
+  previousSelector: (comp: AlloyComponent) => Optional<SugarElement<HTMLElement>>;
 }
 
 export interface MenuNormalMovement {
@@ -65,6 +70,7 @@ export interface MenuDetail extends CompositeSketchDetail {
   };
 
   onHighlight: (comp: AlloyComponent, target: AlloyComponent) => void;
+  onDehighlight: (comp: AlloyComponent, target: AlloyComponent) => void;
   value: string;
   movement: MenuMovement;
 
@@ -91,10 +97,16 @@ export interface MenuSpec extends CompositeSketchSpec {
   movement?: MenuMovementSpec;
 
   onHighlight?: (comp: AlloyComponent, target: AlloyComponent) => void;
+  onDehighlight?: (comp: AlloyComponent, target: AlloyComponent) => void;
   eventOrder?: Record<string, string[]>;
 }
 
 export interface MenuSketcher extends CompositeSketch<MenuSpec> { }
+
+export interface MenuItemToggledEvent extends CustomEvent {
+  readonly item: AlloyComponent;
+  readonly state: boolean;
+}
 
 export interface MenuItemHoverEvent extends CustomEvent {
   readonly item: AlloyComponent;

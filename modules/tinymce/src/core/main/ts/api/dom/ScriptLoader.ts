@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Type } from '@ephox/katamari';
+import { Arr, Fun, Obj, Optional, Type, Unique } from '@ephox/katamari';
 
 import Tools from '../util/Tools';
 import DOMUtils from './DOMUtils';
@@ -20,24 +13,21 @@ import DOMUtils from './DOMUtils';
  * tinymce.ScriptLoader.load('somescript.js');
  *
  * // Load a script using a unique instance of the script loader
- * var scriptLoader = new tinymce.dom.ScriptLoader();
+ * const scriptLoader = new tinymce.dom.ScriptLoader();
  *
  * scriptLoader.load('somescript.js');
  *
  * // Load multiple scripts
- * var scriptLoader = new tinymce.dom.ScriptLoader();
- *
  * scriptLoader.add('somescript1.js');
  * scriptLoader.add('somescript2.js');
  * scriptLoader.add('somescript3.js');
  *
- * scriptLoader.loadQueue(function() {
- *    alert('All scripts are now loaded.');
+ * scriptLoader.loadQueue().then(() => {
+ *   alert('All scripts are now loaded.');
  * });
  */
 
 const DOM = DOMUtils.DOM;
-const each = Tools.each, grep = Tools.grep;
 
 export interface ScriptLoaderSettings {
   referrerPolicy?: ReferrerPolicy;
@@ -46,7 +36,7 @@ export interface ScriptLoaderSettings {
 export interface ScriptLoaderConstructor {
   readonly prototype: ScriptLoader;
 
-  new (): ScriptLoader;
+  new(): ScriptLoader;
 
   ScriptLoader: ScriptLoader;
 }
@@ -62,83 +52,72 @@ class ScriptLoader {
   private settings: ScriptLoaderSettings;
   private states: Record<string, number> = {};
   private queue: string[] = [];
-  private scriptLoadedCallbacks: Record<string, Array<{success: () => void; failure: () => void; scope: any}>> = {};
-  private queueLoadedCallbacks: Array<{success: () => void; failure: (urls: string[]) => void; scope: any}> = [];
-  private loading = 0;
+  private scriptLoadedCallbacks: Record<string, Array<{ resolve: () => void; reject: (reason: any) => void }>> = {};
+  private queueLoadedCallbacks: Array<() => void> = [];
+  private loading = false;
 
   public constructor(settings: ScriptLoaderSettings = {}) {
     this.settings = settings;
   }
 
-  public _setReferrerPolicy(referrerPolicy: ReferrerPolicy) {
+  public _setReferrerPolicy(referrerPolicy: ReferrerPolicy): void {
     this.settings.referrerPolicy = referrerPolicy;
   }
 
   /**
    * Loads a specific script directly without adding it to the load queue.
    *
-   * @method load
+   * @method loadScript
    * @param {String} url Absolute URL to script to add.
-   * @param {function} success Optional success callback function when the script loaded successfully.
-   * @param {function} failure Optional failure callback function when the script failed to load.
+   * @return {Promise} A promise that will resolve when the script loaded successfully or reject if it failed to load.
    */
-  public loadScript(url: string, success?: () => void, failure?: () => void) {
-    const dom = DOM;
-    let elm;
+  public loadScript(url: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const dom = DOM;
+      let elm: HTMLScriptElement | null;
 
-    const cleanup = () => {
-      dom.remove(id);
-      if (elm) {
-        elm.onerror = elm.onload = elm = null;
-      }
-    };
-
-    // Execute callback when script is loaded
-    const done = () => {
-      cleanup();
-      success();
-    };
-
-    const error = () => {
-      cleanup();
-
-      // We can't mark it as done if there is a load error since
-      // A) We don't want to produce 404 errors on the server and
-      // B) the onerror event won't fire on all browsers.
-      // done();
-
-      if (Type.isFunction(failure)) {
-        failure();
-      } else {
-        // Report the error so it's easier for people to spot loading errors
-        // eslint-disable-next-line no-console
-        if (typeof console !== 'undefined' && console.log) {
-          // eslint-disable-next-line no-console
-          console.log('Failed to load script: ' + url);
+      const cleanup = () => {
+        dom.remove(id);
+        if (elm) {
+          elm.onerror = elm.onload = elm = null;
         }
+      };
+
+      // Execute callback when script is loaded
+      const done = () => {
+        cleanup();
+        resolve();
+      };
+
+      const error = () => {
+        // We can't mark it as done if there is a load error since
+        // A) We don't want to produce 404 errors on the server and
+        // B) the onerror event won't fire on all browsers.
+        cleanup();
+        reject('Failed to load script: ' + url);
+      };
+
+      const id = dom.uniqueId();
+
+      // Create new script element
+      elm = document.createElement('script');
+      elm.id = id;
+      elm.type = 'text/javascript';
+      elm.src = Tools._addCacheSuffix(url);
+
+      if (this.settings.referrerPolicy) {
+        // Note: Don't use elm.referrerPolicy = ... here as it doesn't work on Safari
+        dom.setAttrib(elm, 'referrerpolicy', this.settings.referrerPolicy);
       }
-    };
 
-    const id = dom.uniqueId();
+      elm.onload = done;
 
-    // Create new script element
-    elm = document.createElement('script');
-    elm.id = id;
-    elm.type = 'text/javascript';
-    elm.src = Tools._addCacheSuffix(url);
+      // Add onerror event will get fired on some browsers but not all of them
+      elm.onerror = error;
 
-    if (this.settings.referrerPolicy) {
-      // Note: Don't use elm.referrerPolicy = ... here as it doesn't work on Safari
-      dom.setAttrib(elm, 'referrerpolicy', this.settings.referrerPolicy);
-    }
-
-    elm.onload = done;
-
-    // Add onerror event will get fired on some browsers but not all of them
-    elm.onerror = error;
-
-    // Add script to document
-    (document.getElementsByTagName('head')[0] || document.body).appendChild(elm);
+      // Add script to document
+      (document.getElementsByTagName('head')[0] || document.body).appendChild(elm);
+    });
   }
 
   /**
@@ -157,9 +136,9 @@ class ScriptLoader {
    * the script loader or to skip it from loading some script.
    *
    * @method markDone
-   * @param {string} url Absolute URL to the script to mark as loaded.
+   * @param {String} url Absolute URL to the script to mark as loaded.
    */
-  public markDone(url: string) {
+  public markDone(url: string): void {
     this.states[url] = LOADED;
   }
 
@@ -168,38 +147,36 @@ class ScriptLoader {
    *
    * @method add
    * @param {String} url Absolute URL to script to add.
-   * @param {function} success Optional success callback function to execute when the script loades successfully.
-   * @param {Object} scope Optional scope to execute callback in.
-   * @param {function} failure Optional failure callback function to execute when the script failed to load.
+   * @return {Promise} A promise that will resolve when the script loaded successfully or reject if it failed to load.
    */
-  public add(url: string, success?: () => void, scope?: any, failure?: () => void) {
-    const state = this.states[url];
-    this.queue.push(url);
+  public add(url: string): Promise<void> {
+    const self = this;
+    self.queue.push(url);
 
     // Add url to load queue
+    const state = self.states[url];
     if (state === undefined) {
-      this.states[url] = QUEUED;
+      self.states[url] = QUEUED;
     }
 
-    if (success) {
+    return new Promise((resolve, reject) => {
       // Store away callback for later execution
-      if (!this.scriptLoadedCallbacks[url]) {
-        this.scriptLoadedCallbacks[url] = [];
+      if (!self.scriptLoadedCallbacks[url]) {
+        self.scriptLoadedCallbacks[url] = [];
       }
 
-      this.scriptLoadedCallbacks[url].push({
-        success,
-        failure,
-        scope: scope || this
+      self.scriptLoadedCallbacks[url].push({
+        resolve,
+        reject
       });
-    }
+    });
   }
 
-  public load(url: string, success?: () => void, scope?: any, failure?: () => void) {
-    return this.add(url, success, scope, failure);
+  public load(url: string): Promise<void> {
+    return this.add(url);
   }
 
-  public remove(url: string) {
+  public remove(url: string): void {
     delete this.states[url];
     delete this.scriptLoadedCallbacks[url];
   }
@@ -208,12 +185,12 @@ class ScriptLoader {
    * Starts the loading of the queue.
    *
    * @method loadQueue
-   * @param {function} success Optional callback to execute when all queued items are loaded.
-   * @param {function} failure Optional callback to execute when queued items failed to load.
-   * @param {Object} scope Optional scope to execute the callback in.
+   * @return {Promise} A promise that is resolved when all queued items are loaded or rejected with the script urls that failed to load.
    */
-  public loadQueue(success?: () => void, scope?: any, failure?: (urls: string[]) => void) {
-    this.loadScripts(this.queue, success, scope, failure);
+  public loadQueue(): Promise<void> {
+    const queue = this.queue;
+    this.queue = [];
+    return this.loadScripts(queue);
   }
 
   /**
@@ -222,97 +199,85 @@ class ScriptLoader {
    *
    * @method loadScripts
    * @param {Array} scripts Array of queue items to load.
-   * @param {function} success Optional callback to execute when scripts is loaded successfully.
-   * @param {Object} scope Optional scope to execute callback in.
-   * @param {function} failure Optional callback to execute if scripts failed to load.
+   * @return {Promise} A promise that is resolved when all scripts are loaded or rejected with the script urls that failed to load.
    */
-  public loadScripts(scripts: string[], success?: () => void, scope?: any, failure?: (urls: string[]) => void) {
+  public loadScripts(scripts: string[]): Promise<void> {
     const self = this;
-    const failures = [];
 
-    const execCallbacks = (name, url) => {
+    const execCallbacks = (name: 'resolve' | 'reject', url: string) => {
       // Execute URL callback functions
-      each(self.scriptLoadedCallbacks[url], (callback) => {
-        if (Type.isFunction(callback[name])) {
-          callback[name].call(callback.scope);
-        }
+      Obj.get(self.scriptLoadedCallbacks, url).each((callbacks) => {
+        Arr.each(callbacks, (callback) => callback[name](url));
       });
 
-      self.scriptLoadedCallbacks[url] = undefined;
+      delete self.scriptLoadedCallbacks[url];
     };
 
-    self.queueLoadedCallbacks.push({
-      success,
-      failure,
-      scope: scope || this
-    });
-
-    const loadScripts = () => {
-      const loadingScripts = grep(scripts);
-
-      // Current scripts has been handled
-      scripts.length = 0;
-
-      // Load scripts that needs to be loaded
-      each(loadingScripts, (url) => {
-        // Script is already loaded then execute script callbacks directly
-        if (self.states[url] === LOADED) {
-          execCallbacks('success', url);
-          return;
-        }
-
-        if (self.states[url] === FAILED) {
-          execCallbacks('failure', url);
-          return;
-        }
-
-        // Is script not loading then start loading it
-        if (self.states[url] !== LOADING) {
-          self.states[url] = LOADING;
-          self.loading++;
-
-          self.loadScript(url, () => {
-            self.states[url] = LOADED;
-            self.loading--;
-
-            execCallbacks('success', url);
-
-            // Load more scripts if they where added by the recently loaded script
-            loadScripts();
-          }, () => {
-            self.states[url] = FAILED;
-            self.loading--;
-
-            failures.push(url);
-            execCallbacks('failure', url);
-
-            // Load more scripts if they where added by the recently loaded script
-            loadScripts();
-          });
-        }
-      });
-
-      // No scripts are currently loading then execute all pending queue loaded callbacks
-      if (!self.loading) {
-        // We need to clone the notifications and empty the pending callbacks so that callbacks can load more resources
-        const notifyCallbacks = self.queueLoadedCallbacks.slice(0);
-        self.queueLoadedCallbacks.length = 0;
-
-        each(notifyCallbacks, (callback) => {
-          if (failures.length === 0) {
-            if (Type.isFunction(callback.success)) {
-              callback.success.call(callback.scope);
-            }
-          } else {
-            if (Type.isFunction(callback.failure)) {
-              callback.failure.call(callback.scope, failures);
-            }
-          }
-        });
+    const processResults = (results: Array<PromiseSettledResult<void>>): Promise<void> => {
+      const failures = Arr.filter(results, (result): result is PromiseRejectedResult => result.status === 'rejected');
+      if (failures.length > 0) {
+        return Promise.reject(Arr.bind(failures, ({ reason }) => Type.isArray(reason) ? reason : [ reason ]));
+      } else {
+        return Promise.resolve();
       }
     };
 
-    loadScripts();
+    const load = (urls: string[]) => Promise.allSettled(Arr.map(urls, (url): Promise<void> => {
+      // Script is already loaded then execute script callbacks directly
+      if (self.states[url] === LOADED) {
+        execCallbacks('resolve', url);
+        return Promise.resolve();
+      } else if (self.states[url] === FAILED) {
+        execCallbacks('reject', url);
+        return Promise.reject(url);
+      } else {
+        // Script is not already loaded, so load it
+        self.states[url] = LOADING;
+
+        return self.loadScript(url).then(() => {
+          self.states[url] = LOADED;
+          execCallbacks('resolve', url);
+
+          // Immediately load additional scripts if any were added to the queue while loading this script
+          const queue = self.queue;
+          if (queue.length > 0) {
+            self.queue = [];
+            return load(queue).then(processResults);
+          } else {
+            return Promise.resolve();
+          }
+        }, () => {
+          self.states[url] = FAILED;
+          execCallbacks('reject', url);
+          return Promise.reject(url);
+        });
+      }
+    }));
+
+    const processQueue = (urls: string[]) => {
+      self.loading = true;
+      return load(urls).then((results) => {
+        self.loading = false;
+
+        // Start loading the next queued item
+        const nextQueuedItem = self.queueLoadedCallbacks.shift();
+        Optional.from(nextQueuedItem).each(Fun.call);
+
+        return processResults(results);
+      });
+    };
+
+    // Wait for any other scripts to finish loading first, otherwise load immediately
+    const uniqueScripts = Unique.stringArray(scripts);
+    if (self.loading) {
+      return new Promise((resolve, reject) => {
+        self.queueLoadedCallbacks.push(() => {
+          processQueue(uniqueScripts).then(resolve, reject);
+        });
+      });
+    } else {
+      return processQueue(uniqueScripts);
+    }
   }
 }
 

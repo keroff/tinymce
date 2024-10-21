@@ -1,15 +1,10 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Cell, Obj, Optional, Optionals, Singleton, Throttler } from '@ephox/katamari';
+import { Attribute } from '@ephox/sugar';
 
 import Editor from '../api/Editor';
 import { AnnotationsRegistry } from './AnnotationsRegistry';
-import { identify } from './Identification';
+import * as Identification from './Identification';
+import * as Markings from './Markings';
 
 export interface AnnotationChanges {
   readonly addListener: (name: string, f: AnnotationListener) => void;
@@ -24,7 +19,7 @@ export interface AnnotationListenerData {
 
 export type AnnotationListenerMap = Record<string, AnnotationListenerData>;
 
-const setup = (editor: Editor, _registry: AnnotationsRegistry): AnnotationChanges => {
+const setup = (editor: Editor, registry: AnnotationsRegistry): AnnotationChanges => {
   const changeCallbacks = Cell<AnnotationListenerMap>({ });
 
   const initData = (): AnnotationListenerData => ({
@@ -62,26 +57,38 @@ const setup = (editor: Editor, _registry: AnnotationsRegistry): AnnotationChange
     });
   };
 
+  const toggleActiveAttr = (uid: string, state: boolean) => {
+    Arr.each(Identification.findMarkers(editor, uid), (elem) => {
+      if (state) {
+        Attribute.set(elem, Markings.dataAnnotationActive(), 'true');
+      } else {
+        Attribute.remove(elem, Markings.dataAnnotationActive());
+      }
+    });
+  };
+
   // NOTE: Runs in alphabetical order.
   const onNodeChange = Throttler.last(() => {
-    const callbackMap = changeCallbacks.get();
-    const annotations = Arr.sort(Obj.keys(callbackMap));
+    const annotations = Arr.sort(registry.getNames());
     Arr.each(annotations, (name) => {
       updateCallbacks(name, (data) => {
         const prev = data.previous.get();
-        identify(editor, Optional.some(name)).fold(
+        Identification.identify(editor, Optional.some(name)).fold(
           () => {
-            if (prev.isSome()) {
+            prev.each((uid) => {
               // Changed from something to nothing.
               fireNoAnnotation(name);
               data.previous.clear();
-            }
+              toggleActiveAttr(uid, false);
+            });
           },
           ({ uid, name, elements }) => {
             // Changed from a different annotation (or nothing)
             if (!Optionals.is(prev, uid)) {
+              prev.each((uid) => toggleActiveAttr(uid, false));
               fireCallbacks(name, uid, elements);
               data.previous.set(uid);
+              toggleActiveAttr(uid, true);
             }
           }
         );

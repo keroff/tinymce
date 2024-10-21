@@ -1,4 +1,6 @@
-declare let tinymce: any;
+import { TinyMCE } from 'tinymce/core/api/PublicApi';
+
+declare let tinymce: TinyMCE;
 
 tinymce.init({
   selector: 'textarea.tinymce',
@@ -12,10 +14,6 @@ tinymce.init({
       callback('https://youtu.be/a4tNU2jgTZU');
     }
   },
-  media_scripts: [
-    { filter: 'http://media1.tinymce.com' },
-    { filter: 'http://media2.tinymce.com', width: 100, height: 200 }
-  ],
   // media_url_resolver: function (data, resolve) {
   //   setTimeout(function () {
   //     resolve({

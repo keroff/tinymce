@@ -1,10 +1,9 @@
 import { describe, it } from '@ephox/bedrock-client';
-import { LegacyUnit, TinyAssertions, TinyHooks } from '@ephox/wrap-mcagar';
+import { LegacyUnit, TinyAssertions, TinySelections, TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/lists/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.plugins.lists.RemoveTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
@@ -22,7 +21,7 @@ describe('browser.tinymce.plugins.lists.RemoveTest', () => {
         'margin-bottom,margin-left,display,position,top,left,list-style-type'
     },
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ], true);
+  }, [ Plugin ], true);
 
   it('TBA: Remove UL at single LI', () => {
     const editor = hook.editor();
@@ -145,7 +144,7 @@ describe('browser.tinymce.plugins.lists.RemoveTest', () => {
       '</ul>'
     );
 
-    LegacyUnit.setSelection(editor, 'li:last', 1);
+    LegacyUnit.setSelection(editor, 'li:last-of-type', 1);
     editor.execCommand('InsertUnorderedList');
 
     TinyAssertions.assertContent(editor,
@@ -168,7 +167,7 @@ describe('browser.tinymce.plugins.lists.RemoveTest', () => {
       '</ul>'
     );
 
-    LegacyUnit.setSelection(editor, 'li:last', 0);
+    LegacyUnit.setSelection(editor, 'li:last-of-type', 0);
     editor.execCommand('InsertUnorderedList');
 
     TinyAssertions.assertContent(editor,
@@ -326,7 +325,7 @@ describe('browser.tinymce.plugins.lists.RemoveTest', () => {
       '<div>b</div>'
     );
 
-    LegacyUnit.setSelection(editor, 'li:first', 0);
+    LegacyUnit.setSelection(editor, 'li:first-of-type', 0);
     editor.execCommand('InsertUnorderedList');
 
     TinyAssertions.assertContent(editor,
@@ -379,7 +378,7 @@ describe('browser.tinymce.plugins.lists.RemoveTest', () => {
       '</ul>'
     );
 
-    LegacyUnit.setSelection(editor, 'li li:first', 0, 'li li:last', 1);
+    LegacyUnit.setSelection(editor, 'li li:first-of-type', 0, 'li li:last-of-type', 1);
     editor.execCommand('InsertUnorderedList');
 
     TinyAssertions.assertContent(editor,
@@ -418,5 +417,15 @@ describe('browser.tinymce.plugins.lists.RemoveTest', () => {
         '<li>c</li>' +
       '</ul>'
     );
+  });
+
+  it('TINY-8068: Remove list inside a div inside a list item should only remove the nested list', () => {
+    const editor = hook.editor();
+    editor.setContent('<ul><li><div><ul><li>a</li></ul></div></li></ul>');
+
+    TinySelections.setCursor(editor, [ 0, 0, 0, 0, 0, 0 ], 0);
+    editor.execCommand('InsertUnorderedList');
+
+    TinyAssertions.assertContent(editor, '<ul><li><div><p>a</p></div></li></ul>');
   });
 });

@@ -4,7 +4,6 @@ import { Type, Unicode } from '@ephox/katamari';
 import { TinyAssertions, TinyContentActions, TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 interface TestConfig {
   readonly selector: string;
@@ -25,7 +24,7 @@ describe('browser.tinymce.core.fmt.FormatEmptyLineTest', () => {
     toolbar: 'forecolor backcolor | bold italic underline strikethrough | alignleft',
     format_empty_lines: true,
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ], true);
+  }, [], true);
 
   const tagHTML = (tag: string) => `<${tag}>a</${tag}>\n<${tag}>&nbsp;</${tag}>\n<${tag}>b</${tag}>`;
 
@@ -57,7 +56,7 @@ describe('browser.tinymce.core.fmt.FormatEmptyLineTest', () => {
   const listHTML = `<ul>\n<li>b</li>\n<li>&nbsp;</li>\n</ul>`;
 
   const testFormat = (editor: Editor, config: TestConfig) => {
-    const { selector, selectorCount, html, rawHtml, expectedHtml, expectedRawHtml } = config;
+    const { selector, selectorCount, html, expectedHtml, expectedRawHtml, rawHtml } = config;
     const expectedPresence = { [selector]: selectorCount };
     const expectedPresenceOnRemove = { [selector]: 0 };
 
@@ -100,7 +99,7 @@ describe('browser.tinymce.core.fmt.FormatEmptyLineTest', () => {
 
     testFormat(editor, {
       ...config,
-      selector: 'span[style*="text-decoration: line-through;"]',
+      selector: 's',
       apply: toggleInlineStyle('Strikethrough'),
       remove: toggleInlineStyle('Strikethrough')
     });
@@ -271,18 +270,18 @@ describe('browser.tinymce.core.fmt.FormatEmptyLineTest', () => {
 
     it('TINY-8639: Check inline format is correctly serialized (strikethrough)', () => {
       testFormat(hook.editor(), {
-        selector: 'span[style*="text-decoration: line-through;"]',
+        selector: 's',
         selectorCount: 3,
         html: '<p>a</p><p><br data-mce-bogus="1"></p><p>b</p>',
         rawHtml: true,
         expectedHtml:
-          '<p><span style="text-decoration: line-through;">a</span></p>\n' +
-          '<p><span style="text-decoration: line-through;">&nbsp;</span></p>\n' +
-          '<p><span style="text-decoration: line-through;">b</span></p>',
+          '<p><s>a</s></p>\n' +
+          '<p><s>&nbsp;</s></p>\n' +
+          '<p><s>b</s></p>',
         expectedRawHtml:
-          '<p><span style="text-decoration: line-through;" data-mce-style="text-decoration: line-through;">a</span></p>' +
-          '<p><span style="text-decoration: line-through;" data-mce-style="text-decoration: line-through;"><br data-mce-bogus="1"></span></p>' +
-          '<p><span style="text-decoration: line-through;" data-mce-style="text-decoration: line-through;">b</span></p>',
+          '<p><s>a</s></p>' +
+          '<p><s><br data-mce-bogus="1"></s></p>' +
+          '<p><s>b</s></p>',
         select: selectAll,
         apply: toggleInlineStyle('Strikethrough'),
         remove: toggleInlineStyle('Strikethrough')
@@ -291,7 +290,7 @@ describe('browser.tinymce.core.fmt.FormatEmptyLineTest', () => {
 
     it('TINY-8639: Check inline format is correctly serialized (underline)', () => {
       testFormat(hook.editor(), {
-        selector: 'span[style*="text-decoration: underline;"]',
+        selector: 'span[style="text-decoration: underline;"]',
         selectorCount: 3,
         html: '<p>a</p><p><br data-mce-bogus="1"></p><p>b</p>',
         rawHtml: true,
@@ -316,13 +315,13 @@ describe('browser.tinymce.core.fmt.FormatEmptyLineTest', () => {
         html: '<p>a</p><p><br data-mce-bogus="1"></p><p>b</p>',
         rawHtml: true,
         expectedHtml:
-          '<p><span style="text-decoration: line-through;"><strong>a</strong></span></p>\n' +
-          '<p><span style="text-decoration: line-through;"><strong>&nbsp;</strong></span></p>\n' +
-          '<p><span style="text-decoration: line-through;"><strong>b</strong></span></p>',
+          '<p><s><strong>a</strong></s></p>\n' +
+          '<p><s><strong>&nbsp;</strong></s></p>\n' +
+          '<p><s><strong>b</strong></s></p>',
         expectedRawHtml:
-          '<p><span style="text-decoration: line-through;" data-mce-style="text-decoration: line-through;"><strong>a</strong></span></p>' +
-          '<p><span style="text-decoration: line-through;" data-mce-style="text-decoration: line-through;"><strong><br data-mce-bogus="1"></strong></span></p>' +
-          '<p><span style="text-decoration: line-through;" data-mce-style="text-decoration: line-through;"><strong>b</strong></span></p>',
+          '<p><s><strong>a</strong></s></p>' +
+          '<p><s><strong><br data-mce-bogus="1"></strong></s></p>' +
+          '<p><s><strong>b</strong></s></p>',
         select: selectAll,
         apply: (editor) => {
           toggleInlineStyle('Bold')(editor);
@@ -343,10 +342,10 @@ describe('browser.tinymce.core.fmt.FormatEmptyLineTest', () => {
         rawHtml: true,
         expectedHtml:
           '<p><strong>a</strong></p>\n' +
-          '<ul>\n<li><strong>&nbsp;</strong></li>\n</ul>',
+          '<ul>\n<li style="font-weight: bold;"><strong>&nbsp;</strong></li>\n</ul>',
         expectedRawHtml:
           '<p><strong>a</strong></p>' +
-          '<ul><li><strong><br data-mce-bogus="1"></strong></li></ul>',
+          '<ul><li style="font-weight: bold;" data-mce-style="font-weight: bold;"><strong><br data-mce-bogus="1"></strong></li></ul>',
         select: selectAll,
         apply: toggleInlineStyle('Bold'),
         remove: toggleInlineStyle('Bold')
@@ -414,7 +413,7 @@ describe('browser.tinymce.core.fmt.FormatEmptyLineTest', () => {
 
     it('TINY-8639: should not be padded when in an non-empty line', () => {
       const editor = hook.editor();
-      editor.setContent('<p>te<strong></strong>s<span style="text-decoration: line-through;"></span>t<span style="text-decoration: underline;"></span>ing</p>');
+      editor.setContent('<p>te<strong></strong>s<s></s>t<span style="text-decoration: underline;"></span>ing</p>');
       TinyAssertions.assertRawContent(editor, '<p>testing</p>');
       TinyAssertions.assertContent(editor, '<p>testing</p>');
     });

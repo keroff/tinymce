@@ -1,11 +1,11 @@
-import { UiFinder, Waiter } from '@ephox/agar';
-import { describe, it } from '@ephox/bedrock-client';
-import { SugarBody } from '@ephox/sugar';
-import { TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
+import { Mouse, UiFinder } from '@ephox/agar';
+import { context, describe, it } from '@ephox/bedrock-client';
+import { TinyAssertions, TinyDom, TinyHooks, TinySelections, TinyState } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/quickbars/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
+
+import { pAssertToolbarNotVisible, pAssertToolbarVisible } from '../module/test/Utils';
 
 describe('browser.tinymce.plugins.quickbars.ContentEditableTest', () => {
   const hook = TinyHooks.bddSetup<Editor>({
@@ -14,14 +14,7 @@ describe('browser.tinymce.plugins.quickbars.ContentEditableTest', () => {
     toolbar: false,
     menubar: false,
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme, Plugin ], true);
-
-  const pAssertToolbarVisible = () => Waiter.pTryUntil('toolbar should exist', () => UiFinder.exists(SugarBody.body(), '.tox-toolbar'));
-
-  const pAssertToolbarNotVisible = async () => {
-    await Waiter.pWait(50);
-    UiFinder.notExists(SugarBody.body(), '.tox-pop__dialog .tox-toolbar');
-  };
+  }, [ Plugin ], true);
 
   it('TBA: Text selection toolbar is not shown with contenteditable=false', async () => {
     const editor = hook.editor();
@@ -57,5 +50,72 @@ describe('browser.tinymce.plugins.quickbars.ContentEditableTest', () => {
     await pAssertToolbarVisible();
     TinySelections.select(editor, 'p span', []);
     await pAssertToolbarNotVisible();
+  });
+
+  it('TINY-9190: Toolbar is not shown in the fake caret', async () => {
+    const editor = hook.editor();
+    editor.setContent('<p contenteditable="false">CEF element</p>');
+    // Selection is in the fake caret
+    TinyAssertions.assertCursor(editor, [ 0 ], 0);
+    TinyAssertions.assertContentPresence(editor, { 'p[data-mce-bogus="all"]': 1, 'p[data-mce-caret="before"]': 1 });
+    await pAssertToolbarNotVisible();
+  });
+
+  it('TINY-9305: Toolbar is not shown when dragging', async () => {
+    const editor = hook.editor();
+    const emptyP = '<p>&nbsp;</p>';
+    editor.setContent(emptyP + emptyP + emptyP + '<p id="cefElement" contenteditable="false">CEF element</p>' + emptyP + emptyP + emptyP);
+    const elem = UiFinder.findIn(TinyDom.body(editor), '#cefElement').getOrDie();
+    Mouse.mouseDown(elem);
+    Mouse.mouseMoveTo(elem, 10, -75);
+    await pAssertToolbarNotVisible();
+  });
+
+  it('TINY-9305: Dragging CEF elements outside the editor should not prevent successive triggers of the quickbars', async () => {
+    const editor = hook.editor();
+    const emptyP = '<p>&nbsp;</p>';
+    editor.setContent(emptyP + emptyP + emptyP + '<p id="cefElement" contenteditable="false">CEF element</p>' + emptyP + emptyP + emptyP);
+    const elem = UiFinder.findIn(TinyDom.body(editor), '#cefElement').getOrDie();
+    Mouse.mouseDown(elem);
+    Mouse.mouseMoveTo(elem, -1000, -1000);
+    Mouse.mouseUp(elem);
+    TinySelections.setSelection(editor, [ 0 ], 0, [ 0 ], 0);
+    await pAssertToolbarVisible();
+  });
+
+  context('Noneditable root', () => {
+    it('TINY-9460: Text selection toolbar is not shown on text in noneditable root', async () => {
+      await TinyState.withNoneditableRootEditorAsync(hook.editor(), async (editor) => {
+        editor.setContent('<p>abc</p>');
+        TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 1);
+        await pAssertToolbarNotVisible();
+      });
+    });
+
+    it('TINY-9460: Text selection toolbar is shown on editable text in noneditable root', async () => {
+      await TinyState.withNoneditableRootEditorAsync(hook.editor(), async (editor) => {
+        editor.setContent('<p contenteditable="true">abc</p>');
+        TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 1);
+        await pAssertToolbarVisible();
+        TinySelections.setCursor(editor, [ 0, 0 ], 0, true);
+        await pAssertToolbarNotVisible();
+      });
+    });
+
+    it('TINY-9460: Image selection toolbar is not shown images in noneditable root', async () => {
+      await TinyState.withNoneditableRootEditorAsync(hook.editor(), async (editor) => {
+        editor.setContent('<p><img src="about:blank"></p>');
+        TinySelections.setSelection(editor, [ 0 ], 0, [ 0 ], 1);
+        await pAssertToolbarNotVisible();
+      });
+    });
+
+    it('TINY-9460: Image selection toolbar is shown editable images in noneditable root', async () => {
+      await TinyState.withNoneditableRootEditorAsync(hook.editor(), async (editor) => {
+        editor.setContent('<p contenteditable="true"><img src="about:blank"></p>');
+        TinySelections.setSelection(editor, [ 0 ], 0, [ 0 ], 1);
+        await pAssertToolbarVisible();
+      });
+    });
   });
 });

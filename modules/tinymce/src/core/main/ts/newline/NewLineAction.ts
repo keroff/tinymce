@@ -1,72 +1,93 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Adt, Arr, Optional } from '@ephox/katamari';
+import { Adt, Arr, Optional, Type } from '@ephox/katamari';
+import { SugarElement, Traverse, SugarNode, ContentEditable } from '@ephox/sugar';
 
 import Editor from '../api/Editor';
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
+import { EditorEvent } from '../api/util/EventDispatcher';
 import * as LazyEvaluator from '../util/LazyEvaluator';
 import * as ContextSelectors from './ContextSelectors';
 import * as NewLineUtils from './NewLineUtils';
 
-const newLineAction = Adt.generate([
+export interface NewLineActionAdt {
+  fold: <T> (
+    br: VoidFunction,
+    block: VoidFunction,
+    none: VoidFunction,
+  ) => T;
+  match: <T> (branches: {
+    br: VoidFunction;
+    block: VoidFunction;
+    none: VoidFunction;
+  }) => T;
+  log: (label: string) => void;
+}
+
+const newLineAction: {
+  br: () => NewLineActionAdt;
+  block: () => NewLineActionAdt;
+  none: () => NewLineActionAdt;
+} = Adt.generate([
   { br: [ ] },
   { block: [ ] },
   { none: [ ] }
 ]);
 
-const shouldBlockNewLine = (editor: Editor, _shiftKey) => {
+const shouldBlockNewLine = (editor: Editor, _shiftKey: boolean) => {
   return ContextSelectors.shouldBlockNewLine(editor);
 };
 
-const isBrMode = (requiredState) => {
-  return (editor: Editor, _shiftKey) => {
-    const brMode = Settings.getForcedRootBlock(editor) === '';
-    return brMode === requiredState;
-  };
-};
-
-const inListBlock = (requiredState) => {
-  return (editor: Editor, _shiftKey) => {
+const inListBlock = (requiredState: boolean) => {
+  return (editor: Editor, _shiftKey: boolean) => {
     return NewLineUtils.isListItemParentBlock(editor) === requiredState;
   };
 };
 
-const inBlock = (blockName: string, requiredState: boolean) => (editor: Editor, _shiftKey) => {
+const inBlock = (blockName: string, requiredState: boolean) => (editor: Editor, _shiftKey: boolean) => {
   const state = NewLineUtils.getParentBlockName(editor) === blockName.toUpperCase();
   return state === requiredState;
+};
+
+const inCefBlock = (editor: Editor) => {
+  const editableRoot = NewLineUtils.getEditableRoot(editor.dom, editor.selection.getStart());
+  return Type.isNullable(editableRoot);
 };
 
 const inPreBlock = (requiredState: boolean) => inBlock('pre', requiredState);
 const inSummaryBlock = () => inBlock('summary', true);
 
-const shouldPutBrInPre = (requiredState) => {
-  return (editor: Editor, _shiftKey) => {
-    return Settings.shouldPutBrInPre(editor) === requiredState;
+const shouldPutBrInPre = (requiredState: boolean) => {
+  return (editor: Editor, _shiftKey: boolean) => {
+    return Options.shouldPutBrInPre(editor) === requiredState;
   };
 };
 
-const inBrContext = (editor: Editor, _shiftKey) => {
+const inBrContext = (editor: Editor, _shiftKey: boolean) => {
   return ContextSelectors.shouldInsertBr(editor);
 };
 
-const hasShiftKey = (_editor: Editor, shiftKey) => {
+const hasShiftKey = (_editor: Editor, shiftKey: boolean) => {
   return shiftKey;
 };
 
 const canInsertIntoEditableRoot = (editor: Editor) => {
-  const forcedRootBlock = Settings.getForcedRootBlock(editor);
+  const forcedRootBlock = Options.getForcedRootBlock(editor);
   const rootEditable = NewLineUtils.getEditableRoot(editor.dom, editor.selection.getStart());
 
-  return rootEditable && editor.schema.isValidChild(rootEditable.nodeName, forcedRootBlock ? forcedRootBlock : 'P');
+  return Type.isNonNullable(rootEditable) && editor.schema.isValidChild(rootEditable.nodeName, forcedRootBlock);
 };
 
-const match = (predicates, action) => {
-  return (editor: Editor, shiftKey) => {
+const isInRootWithEmptyOrCEF = (editor: Editor) => {
+  const rng = editor.selection.getRng();
+  const start = SugarElement.fromDom(rng.startContainer);
+
+  const child = Traverse.child(start, rng.startOffset);
+  const isCefOpt = child.map((element) => SugarNode.isHTMLElement(element) && !ContentEditable.isEditable(element));
+
+  return rng.collapsed && isCefOpt.getOr(true);
+};
+
+const match = (predicates: Array<(editor: Editor, shiftKey: boolean) => boolean>, action: NewLineActionAdt) => {
+  return (editor: Editor, shiftKey: boolean) => {
     const isMatch = Arr.foldl(predicates, (res, p) => {
       return res && p(editor, shiftKey);
     }, true);
@@ -75,21 +96,23 @@ const match = (predicates, action) => {
   };
 };
 
-const getAction = (editor: Editor, evt?) => {
+const getAction = (editor: Editor, evt?: EditorEvent<KeyboardEvent>): NewLineActionAdt => {
   return LazyEvaluator.evaluateUntil([
     match([ shouldBlockNewLine ], newLineAction.none()),
+    // If the pre block is cef, do not try to insert a new line (or delete contents)
+    match([ inPreBlock(true), inCefBlock ], newLineAction.none()),
     match([ inSummaryBlock() ], newLineAction.br()),
     match([ inPreBlock(true), shouldPutBrInPre(false), hasShiftKey ], newLineAction.br()),
     match([ inPreBlock(true), shouldPutBrInPre(false) ], newLineAction.block()),
     match([ inPreBlock(true), shouldPutBrInPre(true), hasShiftKey ], newLineAction.block()),
     match([ inPreBlock(true), shouldPutBrInPre(true) ], newLineAction.br()),
+    // TODO: TINY-9127 investigate if the list handling (and pre) is correct here.
     match([ inListBlock(true), hasShiftKey ], newLineAction.br()),
     match([ inListBlock(true) ], newLineAction.block()),
-    match([ isBrMode(true), hasShiftKey, canInsertIntoEditableRoot ], newLineAction.block()),
-    match([ isBrMode(true) ], newLineAction.br()),
     match([ inBrContext ], newLineAction.br()),
-    match([ isBrMode(false), hasShiftKey ], newLineAction.br()),
-    match([ canInsertIntoEditableRoot ], newLineAction.block())
+    match([ hasShiftKey ], newLineAction.br()),
+    match([ canInsertIntoEditableRoot ], newLineAction.block()),
+    match([ isInRootWithEmptyOrCEF ], newLineAction.block())
   ], [ editor, !!(evt && evt.shiftKey) ]).getOr(newLineAction.none());
 };
 

@@ -6,7 +6,6 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/visualblocks/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.plugins.visualblocks.PreviewFormatsTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
@@ -21,11 +20,11 @@ describe('browser.tinymce.plugins.visualblocks.PreviewFormatsTest', () => {
         border: 13px solid black;
       }
     `
-  }, [ Plugin, Theme ]);
+  }, [ Plugin ]);
 
   const pWaitForVisualBlocks = (editor: Editor, waitUntilEnabled: boolean = true) =>
     Waiter.pTryUntil('Wait for background css to be applied to first element', () => {
-      const p = TinyDom.fromDom(editor.getBody().firstChild);
+      const p = SugarElement.fromDom(editor.getBody().firstElementChild as HTMLElement);
       const background = Css.get(p, 'background-image');
       if (waitUntilEnabled) {
         assert.include(background, 'url(', 'Paragraph should have a url background');
@@ -45,7 +44,7 @@ describe('browser.tinymce.plugins.visualblocks.PreviewFormatsTest', () => {
     const editor = hook.editor();
     editor.setContent('<h1>something</h1>');
     const h1 = editor.dom.select('h1')[0];
-    assertBorderWidth(h1, '2px');  // content style is overriden so that all h1s have a 1px border
+    assertBorderWidth(h1, '2px');  // content style is overridden so that all h1s have a 1px border
 
     editor.execCommand('mceVisualBlocks');
     await pWaitForVisualBlocks(editor);

@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Disabling, ItemTypes, Toggling } from '@ephox/alloy';
+import { AlloyComponent, Disabling, ItemTypes, Toggling } from '@ephox/alloy';
 import { Menu } from '@ephox/bridge';
 import { Merger, Optional } from '@ephox/katamari';
 
@@ -23,13 +16,13 @@ const renderToggleMenuItem = (
   providersBackstage: UiFactoryBackstageProviders,
   renderIcons: boolean = true
 ): ItemTypes.ItemSpec => {
-  const getApi = (component): Menu.ToggleMenuItemInstanceApi => ({
+  const getApi = (component: AlloyComponent): Menu.ToggleMenuItemInstanceApi => ({
     setActive: (state) => {
       Toggling.set(component, state);
     },
     isActive: () => Toggling.isOn(component),
-    isDisabled: () => Disabling.isDisabled(component),
-    setDisabled: (state: boolean) => Disabling.set(component, state)
+    isEnabled: () => !Disabling.isDisabled(component),
+    setEnabled: (state: boolean) => Disabling.set(component, !state)
   });
 
   // BespokeSelects use meta to pass through styling information. Bespokes should only
@@ -49,7 +42,7 @@ const renderToggleMenuItem = (
   return Merger.deepMerge(
     renderCommonItem({
       data: buildData(spec),
-      disabled: spec.disabled,
+      enabled: spec.enabled,
       getApi,
       onAction: spec.onAction,
       onSetup: spec.onSetup,

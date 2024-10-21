@@ -1,7 +1,6 @@
 import { Assert, UnitTest } from '@ephox/bedrock-client';
 import { Testable } from '@ephox/dispute';
 import { Arr } from '@ephox/katamari';
-import { PlatformDetection } from '@ephox/sand';
 import fc from 'fast-check';
 
 import * as Insert from 'ephox/sugar/api/dom/Insert';
@@ -100,14 +99,8 @@ UnitTest.test('isDocument in iframe', () => {
 });
 
 UnitTest.test('isSupported platform test', () => {
-  const browser = PlatformDetection.detect().browser;
-  if (browser.isIE()) {
-    Assert.eq('IE does not support root node', false, SugarShadowDom.isSupported());
-  } else if (browser.isEdge()) {
-    // could be yes or no
-  } else {
-    Assert.eq('This browser should support root node', true, SugarShadowDom.isSupported());
-  }
+  // as of TinyMCE 6 all browsers support it
+  Assert.eq('This browser should support root node', true, SugarShadowDom.isSupported());
 });
 
 UnitTest.test('stylecontainer is shadow root for shadow root', () => {

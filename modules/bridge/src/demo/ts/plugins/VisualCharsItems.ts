@@ -3,16 +3,16 @@ import { Fun } from '@ephox/katamari';
 import { getDemoRegistry } from '../buttons/DemoRegistry';
 
 const editor = {
-  on: (_s, _f) => { },
+  on: (_s: string, _f: Function) => { },
   isDirty: Fun.always
 };
 
 export const registerVisualCharsItems = (): void => {
   getDemoRegistry().addToggleButton('visualchars', {
     type: 'togglebutton',
-    disabled: false,
+    enabled: true,
     onSetup: (buttonApi) => {
-      editor.on('VisualChars', (e) => {
+      editor.on('VisualChars', (e: any) => {
         buttonApi.setActive(e);
       });
       return Fun.noop;

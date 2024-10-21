@@ -6,7 +6,6 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/table/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 const findAll = (selector: string) => UiFinder.findAllIn(SugarBody.body(), selector);
 
@@ -40,7 +39,7 @@ describe('browser.tinymce.plugins.table.InlineEditorInsideTableTest', () => {
     plugins: 'table',
     menubar: 'table',
     statusbar: false
-  }, setupElement, [ Plugin, Theme ]);
+  }, setupElement, [ Plugin ]);
 
   beforeEach(() => {
     const editor = hook.editor();
@@ -70,7 +69,7 @@ describe('browser.tinymce.plugins.table.InlineEditorInsideTableTest', () => {
     it('TINY-6625: mceTableApplyCellStyle', () => {
       const editor = hook.editor();
       editor.execCommand('mceTableApplyCellStyle', false, { 'background-color': 'pink' });
-      const td = editor.getBody().parentElement;
+      const td = editor.getBody().parentElement as HTMLTableCellElement;
       assert.notEqual(td.style.backgroundColor, 'pink');
     });
 

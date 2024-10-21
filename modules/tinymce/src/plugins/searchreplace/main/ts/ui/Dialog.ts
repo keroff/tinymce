@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Cell, Singleton } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -29,10 +22,8 @@ const open = (editor: Editor, currentSearchState: Cell<Actions.SearchState>): vo
   const selectedText = Tools.trim(editor.selection.getContent({ format: 'text' }));
 
   const updateButtonStates = (api: Dialog.DialogInstanceApi<DialogData>): void => {
-    const updateNext = Actions.hasNext(editor, currentSearchState) ? api.enable : api.disable;
-    updateNext('next');
-    const updatePrev = Actions.hasPrev(editor, currentSearchState) ? api.enable : api.disable;
-    updatePrev('prev');
+    api.setEnabled('next', Actions.hasNext(editor, currentSearchState));
+    api.setEnabled('prev', Actions.hasPrev(editor, currentSearchState));
   };
 
   const updateSearchState = (api: Dialog.DialogInstanceApi<DialogData>): void => {
@@ -49,14 +40,12 @@ const open = (editor: Editor, currentSearchState: Cell<Actions.SearchState>): vo
 
   const disableAll = (api: Dialog.DialogInstanceApi<DialogData>, disable: boolean): void => {
     const buttons = [ 'replace', 'replaceall', 'prev', 'next' ];
-    const toggle = disable ? api.disable : api.enable;
+    const toggle = (name: string) => api.setEnabled(name, !disable);
     Arr.each(buttons, toggle);
   };
 
-  const notFoundAlert = (api: Dialog.DialogInstanceApi<DialogData>): void => {
-    editor.windowManager.alert('Could not find the specified string.', () => {
-      api.focus('findtext');
-    });
+  const toggleNotFoundAlert = (isVisible: boolean, api: Dialog.DialogInstanceApi<DialogData>): void => {
+    api.redial(getDialogSpec(isVisible, api.getData()));
   };
 
   // Temporarily workaround for iOS/iPadOS dialog placement to hide the keyboard
@@ -92,7 +81,7 @@ const open = (editor: Editor, currentSearchState: Cell<Actions.SearchState>): vo
       // Find new matches
       const count = Actions.find(editor, currentSearchState, data.findtext, data.matchcase, data.wholewords, data.inselection);
       if (count <= 0) {
-        notFoundAlert(api);
+        toggleNotFoundAlert(true, api);
       }
       disableAll(api, count === 0);
     }
@@ -110,47 +99,60 @@ const open = (editor: Editor, currentSearchState: Cell<Actions.SearchState>): vo
     inselection: initialState.inSelection
   };
 
-  const spec: Dialog.DialogSpec<DialogData> = {
+  const getPanelItems = (error: boolean): Dialog.BodyComponentSpec[] => {
+    const items: Dialog.BodyComponentSpec[] = [
+      {
+        type: 'bar',
+        items: [
+          {
+            type: 'input',
+            name: 'findtext',
+            placeholder: 'Find',
+            maximized: true,
+            inputMode: 'search'
+          },
+          {
+            type: 'button',
+            name: 'prev',
+            text: 'Previous',
+            icon: 'action-prev',
+            enabled: false,
+            borderless: true
+          },
+          {
+            type: 'button',
+            name: 'next',
+            text: 'Next',
+            icon: 'action-next',
+            enabled: false,
+            borderless: true
+          }
+        ]
+      },
+      {
+        type: 'input',
+        name: 'replacetext',
+        placeholder: 'Replace with',
+        inputMode: 'search'
+      },
+    ];
+    if (error) {
+      items.push({
+        type: 'alertbanner',
+        level: 'error',
+        text: 'Could not find the specified string.',
+        icon: 'warning',
+      });
+    }
+    return items;
+  };
+
+  const getDialogSpec = (showNoMatchesAlertBanner: boolean, initialData: DialogData): Dialog.DialogSpec<DialogData> => ({
     title: 'Find and Replace',
     size: 'normal',
     body: {
       type: 'panel',
-      items: [
-        {
-          type: 'bar',
-          items: [
-            {
-              type: 'input',
-              name: 'findtext',
-              placeholder: 'Find',
-              maximized: true,
-              inputMode: 'search'
-            },
-            {
-              type: 'button',
-              name: 'prev',
-              text: 'Previous',
-              icon: 'action-prev',
-              disabled: true,
-              borderless: true
-            },
-            {
-              type: 'button',
-              name: 'next',
-              text: 'Next',
-              icon: 'action-next',
-              disabled: true,
-              borderless: true
-            }
-          ]
-        },
-        {
-          type: 'input',
-          name: 'replacetext',
-          placeholder: 'Replace with',
-          inputMode: 'search'
-        }
-      ]
+      items: getPanelItems(showNoMatchesAlertBanner)
     },
     buttons: [
       {
@@ -186,17 +188,20 @@ const open = (editor: Editor, currentSearchState: Cell<Actions.SearchState>): vo
         type: 'custom',
         name: 'replace',
         text: 'Replace',
-        disabled: true
+        enabled: false
       },
       {
         type: 'custom',
         name: 'replaceall',
         text: 'Replace all',
-        disabled: true
+        enabled: false,
       }
     ],
     initialData,
     onChange: (api, details) => {
+      if (showNoMatchesAlertBanner) {
+        toggleNotFoundAlert(false, api);
+      }
       if (details.name === 'findtext' && currentSearchState.get().count > 0) {
         reset(api);
       }
@@ -229,6 +234,7 @@ const open = (editor: Editor, currentSearchState: Cell<Actions.SearchState>): vo
         case 'matchcase':
         case 'wholewords':
         case 'inselection':
+          toggleNotFoundAlert(false, api);
           updateSearchState(api);
           reset(api);
           break;
@@ -247,9 +253,9 @@ const open = (editor: Editor, currentSearchState: Cell<Actions.SearchState>): vo
       Actions.done(editor, currentSearchState);
       editor.undoManager.add();
     }
-  };
+  });
 
-  dialogApi.set(editor.windowManager.open(spec, { inline: 'toolbar' }));
+  dialogApi.set(editor.windowManager.open(getDialogSpec(false, initialData), { inline: 'toolbar' }));
 };
 
 export {

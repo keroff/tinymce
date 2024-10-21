@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Fun, Optional } from '@ephox/katamari';
 import { Css, SugarElement } from '@ephox/sugar';
 
@@ -30,7 +23,7 @@ const isEmptyText = (pos: CaretPosition): boolean => {
 };
 
 const matchesElementPosition = (before: boolean, predicate: (node: Node) => boolean) => (pos: CaretPosition): boolean =>
-  Optional.from(getChildNodeAtRelativeOffset(before ? 0 : -1, pos)).filter(predicate).isSome();
+  getChildNodeAtRelativeOffset(before ? 0 : -1, pos).filter(predicate).isSome();
 
 const isImageBlock = (node: Node): boolean =>
   NodeType.isImg(node) && Css.get(SugarElement.fromDom(node), 'display') === 'block';

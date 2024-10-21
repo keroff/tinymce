@@ -1,16 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import * as Uploader from '../../file/Uploader';
 import { UploadStatus } from '../../file/UploadStatus';
 import Editor from '../Editor';
 import { BlobInfo } from '../file/BlobCache';
 import { NotificationApi } from '../NotificationManager';
-import * as Settings from '../Settings';
+import * as Options from '../Options';
 
 export type UploadResult = Uploader.UploadResult;
 
@@ -25,18 +18,16 @@ export const openNotification = (editor: Editor) => (): NotificationApi => edito
   progressBar: true
 });
 
-export const createUploader = (editor: Editor, uploadStatus: UploadStatus) =>
+export const createUploader = (editor: Editor, uploadStatus: UploadStatus): Uploader.Uploader =>
   Uploader.Uploader(uploadStatus, {
-    url: Settings.getImageUploadUrl(editor),
-    basePath: Settings.getImageUploadBasePath(editor),
-    credentials: Settings.getImagesUploadCredentials(editor),
-    handler: Settings.getImagesUploadHandler(editor)
+    url: Options.getImageUploadUrl(editor),
+    basePath: Options.getImageUploadBasePath(editor),
+    credentials: Options.getImagesUploadCredentials(editor),
+    handler: Options.getImagesUploadHandler(editor)
   });
 
 /**
  * This class handles uploading images to a back-end server.
- *
- * @summary <strong>Added in TinyMCE 5.7.</strong>
  *
  * @class tinymce.util.ImageUploader
  */
@@ -50,7 +41,7 @@ const ImageUploader = (editor: Editor): ImageUploader => {
      *
      * @method upload
      * @param {Array} blobInfos  A BlobInfo array containing the image data to upload. A BlobInfo can be created by calling `editor.editorUpload.blobCache.create()`.
-     * @param {boolean} showNotification (Optional) When set to true, a notification with a progress bar will be shown during image uploads.
+     * @param {Boolean} showNotification (Optional) When set to true, a notification with a progress bar will be shown during image uploads.
      */
     upload: (blobInfos: BlobInfo[], showNotification: boolean = true) =>
       uploader.upload(blobInfos, showNotification ? openNotification(editor) : undefined)

@@ -19,7 +19,7 @@ const anyToHex = (color: string): Hex =>
       // all valid colors after this point
       canvasContext.clearRect(0, 0, canvas.width, canvas.height);
       // invalid colors will be shown as white - the first assignment will pass and the second may be ignored
-      canvasContext.fillStyle = '#FFFFFF'; // lgtm[js/useless-assignment-to-property]
+      canvasContext.fillStyle = '#FFFFFF';
       canvasContext.fillStyle = color;
       canvasContext.fillRect(0, 0, 1, 1);
 
@@ -32,8 +32,15 @@ const anyToHex = (color: string): Hex =>
       return HexColour.fromRgba(RgbaColour.rgbaColour(r, g, b, a));
     });
 
+const rgbaToHexString = (color: string): string =>
+  RgbaColour.fromString(color)
+    .map(HexColour.fromRgba)
+    .map((h) => '#' + h.value)
+    .getOr(color);
+
 export {
   anyToHex,
+  rgbaToHexString,
   hexToHsv,
   hsvToHex
 };

@@ -15,6 +15,7 @@ import { tieredMenu as TieredMenu } from 'ephox/alloy/api/ui/TieredMenu';
 import { Typeahead } from 'ephox/alloy/api/ui/Typeahead';
 import { DatasetRepresentingState } from 'ephox/alloy/behaviour/representing/RepresentingTypes';
 import * as DropdownAssertions from 'ephox/alloy/test/dropdown/DropdownAssertions';
+import { TestItem } from 'ephox/alloy/test/dropdown/TestDropdownMenu';
 import * as TestDropdownMenu from 'ephox/alloy/test/dropdown/TestDropdownMenu';
 import * as NavigationUtils from 'ephox/alloy/test/NavigationUtils';
 import * as Sinks from 'ephox/alloy/test/Sinks';
@@ -50,15 +51,15 @@ UnitTest.asynctest('Browser Test: .ui.typeahead.TypeaheadTest', (success, failur
 
             fetch: (input) => {
               const text = Value.get(input.element).toLowerCase();
-              const future = Future.pure([
+              const future = Future.pure<TestItem[]>([
                 { type: 'item', data: { value: text + '1', meta: { text: Strings.capitalize(text) + '1' }}},
                 { type: 'item', data: { value: text + '2', meta: { text: Strings.capitalize(text) + '2' }}}
               ]);
 
               return future.map((f) => {
                 // TODO: Test this.
-                const items = text === 'no-data' ? [
-                  { type: 'separator', text: 'No data', data: { value: '', meta: { text: 'No data' }}}
+                const items: TestItem[] = text === 'no-data' ? [
+                  { type: 'separator', text: 'No data' }
                 ] : f;
 
                 const menu = TestDropdownMenu.renderMenu({
@@ -143,6 +144,8 @@ UnitTest.asynctest('Browser Test: .ui.typeahead.TypeaheadTest', (success, failur
       UiControls.sSetValue(typeahead.element, 'new-value'),
       Keyboard.sKeydown(doc, Keys.down(), {}),
 
+      steps.sAssertAriaActiveDescendant('aria-activedescendant is not set', ''),
+
       steps.sAssertFocusOnTypeahead('After pressing Down after Enter'),
       steps.sWaitForMenu('After pressing Down after Enter'),
       NavigationUtils.highlights(gui.element, Keys.down(), {}, [
@@ -150,7 +153,9 @@ UnitTest.asynctest('Browser Test: .ui.typeahead.TypeaheadTest', (success, failur
         item('new-value1')
       ]),
 
-      Keyboard.sKeydown(doc, Keys.escape(), { }),
+      steps.sAssertAriaActiveDescendant('aria-activedescendant is set when an item is highligted', 'new-value1'),
+
+      Keyboard.sKeyup(doc, Keys.escape(), { }),
       steps.sAssertValue('After pressing ESC', 'New-value1'),
       steps.sAssertFocusOnTypeahead('After pressing ESC'),
       steps.sWaitForNoMenu('After pressing ESC'),
@@ -163,6 +168,8 @@ UnitTest.asynctest('Browser Test: .ui.typeahead.TypeaheadTest', (success, failur
         item('new-value12'),
         item('new-value11')
       ]),
+
+      steps.sAssertAriaActiveDescendant('aria-activedescendant is updated when a new item is highligted', 'new-value11'),
 
       Mouse.sClickOn(gui.element, '.item[data-value="new-value12"]'),
       steps.sWaitForNoMenu('After clicking on item'),
@@ -224,6 +231,8 @@ UnitTest.asynctest('Browser Test: .ui.typeahead.TypeaheadTest', (success, failur
         Focus.focus(component.element);
       }),
       steps.sWaitForNoMenu('Blurring should dismiss popup'),
+
+      steps.sAssertAriaActiveDescendant('aria-activedescendant is removed when the popup is closed', ''),
 
       Step.sync(() => {
         Representing.setValue(typeahead, {

@@ -1,9 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
+import { Type } from '@ephox/katamari';
 
 import Editor from '../api/Editor';
 import * as Events from '../api/Events';
@@ -11,7 +6,7 @@ import { ParserArgs } from '../api/html/DomParser';
 import Tools from '../api/util/Tools';
 
 const preProcess = (editor: Editor, node: Element, args: ParserArgs): Node => {
-  let oldDoc: Document;
+  let oldDoc: Document | undefined;
   const dom = editor.dom;
 
   let clonedNode = node.cloneNode(true) as Element;
@@ -50,11 +45,11 @@ const preProcess = (editor: Editor, node: Element, args: ParserArgs): Node => {
   return clonedNode;
 };
 
-const shouldFireEvent = (editor: Editor, args: ParserArgs) => {
-  return editor && editor.hasEventListeners('PreProcess') && !args.no_events;
+const shouldFireEvent = (editor: Editor | undefined, args: ParserArgs): editor is Editor => {
+  return Type.isNonNullable(editor) && editor.hasEventListeners('PreProcess') && !args.no_events;
 };
 
-const process = (editor: Editor, node: Element, args: ParserArgs): Node => {
+const process = (editor: Editor | undefined, node: Element, args: ParserArgs): Node => {
   return shouldFireEvent(editor, args) ? preProcess(editor, node, args) : node;
 };
 

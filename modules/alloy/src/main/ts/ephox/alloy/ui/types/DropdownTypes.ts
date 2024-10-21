@@ -39,6 +39,7 @@ export interface DropdownDetail extends CommonDropdownDetail<TieredData>, Compos
 
 export interface DropdownApis {
   open: (comp: AlloyComponent) => void;
+  refetch: (comp: AlloyComponent) => Future<void>;
   expand: (comp: AlloyComponent) => void;
   isOpen: (comp: AlloyComponent) => boolean;
   close: (comp: AlloyComponent) => void;
@@ -57,7 +58,7 @@ export interface DropdownSpec extends CompositeSketchSpec, HasLayoutAnchorSpec {
   sandboxClasses?: string[];
   sandboxBehaviours?: AlloyBehaviourRecord;
   getHotspot?: (comp: AlloyComponent) => Optional<AlloyComponent>;
-  getAnchorOverrides?: () => () => AnchorOverrides;
+  getAnchorOverrides?: () => AnchorOverrides;
 
   toggleClass: string;
   lazySink?: LazySink;

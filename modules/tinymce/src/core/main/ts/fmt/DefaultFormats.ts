@@ -1,16 +1,12 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import DOMUtils from '../api/dom/DOMUtils';
+import Editor from '../api/Editor';
 import Tools from '../api/util/Tools';
 import * as NodeType from '../dom/NodeType';
-import { Formats, FormatVars } from './FormatTypes';
+import { Format, Formats, FormatVars } from './FormatTypes';
 
-const get = (dom: DOMUtils) => {
+const get = (editor: Editor): Formats => {
+  const dom = editor.dom;
+  const schemaType = editor.schema.type;
+
   const formats: Formats = {
     valigntop: [
       { selector: 'td,th', styles: { verticalAlign: 'top' }}
@@ -33,33 +29,51 @@ const get = (dom: DOMUtils) => {
         preview: 'font-family font-size'
       },
       {
-        selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li',
+        selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li,pre',
         styles: {
           textAlign: 'left'
         },
         inherit: false,
-        preview: false,
-        defaultBlock: 'div'
+        preview: false
       },
       {
-        selector: 'img,table,audio,video',
+        selector: 'img,audio,video',
         collapsed: false,
         styles: {
           float: 'left'
         },
         preview: 'font-family font-size'
+      },
+      {
+        selector: 'table',
+        collapsed: false,
+        styles: {
+          marginLeft: '0px',
+          marginRight: 'auto',
+        },
+        onformat: (table: Node) => {
+          // Remove conflicting float style
+          dom.setStyle(table as HTMLTableElement, 'float', null);
+        },
+        preview: 'font-family font-size'
+      },
+      {
+        selector: '.mce-preview-object,[data-ephox-embed-iri]',
+        ceFalseOverride: true,
+        styles: {
+          float: 'left'
+        }
       }
     ],
 
     aligncenter: [
       {
-        selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li',
+        selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li,pre',
         styles: {
           textAlign: 'center'
         },
         inherit: false,
-        preview: 'font-family font-size',
-        defaultBlock: 'div'
+        preview: 'font-family font-size'
       },
       {
         selector: 'figure.image',
@@ -86,6 +100,25 @@ const get = (dom: DOMUtils) => {
           marginRight: 'auto'
         },
         preview: 'font-family font-size'
+      },
+      {
+        selector: '.mce-preview-object',
+        ceFalseOverride: true,
+        styles: {
+          display: 'table', // Needs to be `table` to properly render while editing
+          marginLeft: 'auto',
+          marginRight: 'auto'
+        },
+        preview: false
+      },
+      {
+        selector: '[data-ephox-embed-iri]',
+        ceFalseOverride: true,
+        styles: {
+          marginLeft: 'auto',
+          marginRight: 'auto'
+        },
+        preview: false
       }
     ],
 
@@ -98,32 +131,51 @@ const get = (dom: DOMUtils) => {
         preview: 'font-family font-size'
       },
       {
-        selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li',
+        selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li,pre',
         styles: {
           textAlign: 'right'
         },
         inherit: false,
-        preview: 'font-family font-size',
-        defaultBlock: 'div'
+        preview: 'font-family font-size'
       },
       {
-        selector: 'img,table,audio,video',
+        selector: 'img,audio,video',
         collapsed: false,
         styles: {
           float: 'right'
         },
         preview: 'font-family font-size'
+      },
+      {
+        selector: 'table',
+        collapsed: false,
+        styles: {
+          marginRight: '0px',
+          marginLeft: 'auto',
+        },
+        onformat: (table: Node) => {
+          // Remove conflicting float style
+          dom.setStyle(table as HTMLTableElement, 'float', null);
+        },
+        preview: 'font-family font-size'
+      },
+      {
+        selector: '.mce-preview-object,[data-ephox-embed-iri]',
+        ceFalseOverride: true,
+        styles: {
+          float: 'right'
+        },
+        preview: false
       }
     ],
 
     alignjustify: [
       {
-        selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li',
+        selector: 'figure,p,h1,h2,h3,h4,h5,h6,td,th,tr,div,ul,ol,li,pre',
         styles: {
           textAlign: 'justify'
         },
         inherit: false,
-        defaultBlock: 'div',
         preview: 'font-family font-size'
       }
     ],
@@ -145,17 +197,18 @@ const get = (dom: DOMUtils) => {
       { inline: 'u', remove: 'all', preserve_attributes: [ 'class', 'style' ] }
     ],
 
-    strikethrough: [
-      { inline: 'span', styles: { textDecoration: 'line-through' }, exact: true },
-      { inline: 'strike', remove: 'all', preserve_attributes: [ 'class', 'style' ] },
-      { inline: 's', remove: 'all', preserve_attributes: [ 'class', 'style' ] }
-    ],
+    strikethrough: (() => {
+      const span: Format = { inline: 'span', styles: { textDecoration: 'line-through' }, exact: true };
+      const strike: Format = { inline: 'strike', remove: 'all', preserve_attributes: [ 'class', 'style' ] };
+      const s: Format = { inline: 's', remove: 'all', preserve_attributes: [ 'class', 'style' ] };
+      return schemaType !== 'html4' ? [ s, span, strike ] : [ span, s, strike ];
+    })(),
 
     forecolor: { inline: 'span', styles: { color: '%value' }, links: true, remove_similar: true, clear_child_styles: true },
     hilitecolor: { inline: 'span', styles: { backgroundColor: '%value' }, links: true, remove_similar: true, clear_child_styles: true },
     fontname: { inline: 'span', toggle: false, styles: { fontFamily: '%value' }, clear_child_styles: true },
     fontsize: { inline: 'span', toggle: false, styles: { fontSize: '%value' }, clear_child_styles: true },
-    lineheight: { selector: 'h1,h2,h3,h4,h5,h6,p,li,td,th,div', defaultBlock: 'p', styles: { lineHeight: '%value' }},
+    lineheight: { selector: 'h1,h2,h3,h4,h5,h6,p,li,td,th,div', styles: { lineHeight: '%value' }},
     fontsize_class: { inline: 'span', attributes: { class: '%value' }},
     blockquote: { block: 'blockquote', wrapper: true, remove: 'all' },
     subscript: { inline: 'sub' },
@@ -164,13 +217,13 @@ const get = (dom: DOMUtils) => {
 
     link: {
       inline: 'a', selector: 'a', remove: 'all', split: true, deep: true,
-      onmatch: (node, _fmt, _itemName) => {
+      onmatch: (node: Node, _fmt: Format, _itemName: string) => {
         return NodeType.isElement(node) && node.hasAttribute('href');
       },
 
-      onformat: (elm, _fmt, vars?: FormatVars) => {
+      onformat: (elm: Node, _fmt: Format, vars?: FormatVars) => {
         Tools.each(vars, (value, key) => {
-          dom.setAttrib(elm, key, value);
+          dom.setAttrib(elm as HTMLAnchorElement, key, value);
         });
       }
     },

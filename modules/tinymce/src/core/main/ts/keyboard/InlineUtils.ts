@@ -1,50 +1,42 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Arr, Fun, Optional } from '@ephox/katamari';
+import { Arr, Fun, Optional, Type } from '@ephox/katamari';
 import { Selectors, SugarElement } from '@ephox/sugar';
 
 import DOMUtils from '../api/dom/DOMUtils';
 import Editor from '../api/Editor';
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import * as CaretContainer from '../caret/CaretContainer';
 import CaretPosition from '../caret/CaretPosition';
 import * as CaretUtils from '../caret/CaretUtils';
+import * as TransparentElements from '../content/TransparentElements';
 import * as NodeType from '../dom/NodeType';
 import * as Bidi from '../text/Bidi';
 
-const isInlineTarget = (editor: Editor, elm: Node): boolean =>
-  Selectors.is(SugarElement.fromDom(elm), Settings.getInlineBoundarySelector(editor));
+const isInlineTarget = (editor: Editor, elm: Node): elm is Element =>
+  Selectors.is(SugarElement.fromDom(elm), Options.getInlineBoundarySelector(editor))
+  && !TransparentElements.isTransparentBlock(editor.schema, elm)
+  && editor.dom.isEditable(elm);
 
-const isRtl = (element: Node) =>
-  DOMUtils.DOM.getStyle(element, 'direction', true) === 'rtl' || Bidi.hasStrongRtl(element.textContent);
+const isRtl = (element: Element): boolean =>
+  DOMUtils.DOM.getStyle(element, 'direction', true) === 'rtl' || Bidi.hasStrongRtl(element.textContent ?? '');
 
-const findInlineParents = (isInlineTarget: (node: Node) => boolean, rootNode: Node, pos: CaretPosition) =>
+const findInlineParents = (isInlineTarget: (elem: Element) => boolean, rootNode: Node, pos: CaretPosition): Node[] =>
   Arr.filter(DOMUtils.DOM.getParents(pos.container(), '*', rootNode), isInlineTarget);
 
-const findRootInline = (isInlineTarget: (node: Node) => boolean, rootNode: Node, pos: CaretPosition) => {
+const findRootInline = (isInlineTarget: (elem: Element) => boolean, rootNode: Node, pos: CaretPosition): Optional<Node> => {
   const parents = findInlineParents(isInlineTarget, rootNode, pos);
   return Optional.from(parents[parents.length - 1]);
 };
 
-const hasSameParentBlock = (rootNode: Node, node1: Node, node2: Node) => {
+const hasSameParentBlock = (rootNode: Node, node1: Node, node2: Node): boolean => {
   const block1 = CaretUtils.getParentBlock(node1, rootNode);
   const block2 = CaretUtils.getParentBlock(node2, rootNode);
-  return block1 && block1 === block2;
+  return Type.isNonNullable(block1) && block1 === block2;
 };
 
-const isAtZwsp = (pos: CaretPosition) =>
+const isAtZwsp = (pos: CaretPosition): boolean =>
   CaretContainer.isBeforeInline(pos) || CaretContainer.isAfterInline(pos);
 
 const normalizePosition = (forward: boolean, pos: CaretPosition): CaretPosition => {
-  if (!pos) {
-    return pos;
-  }
-
   const container = pos.container(), offset = pos.offset();
 
   if (forward) {

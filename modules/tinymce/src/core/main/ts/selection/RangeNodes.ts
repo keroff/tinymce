@@ -1,19 +1,12 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Num } from '@ephox/katamari';
 
 import * as NodeType from '../dom/NodeType';
 
-const getSelectedNode = (range: Range): Node => {
+const getSelectedNode = (range: Range): Node | null => {
   const startContainer = range.startContainer,
     startOffset = range.startOffset;
 
-  if (startContainer.hasChildNodes() && range.endOffset === startOffset + 1) {
+  if (startContainer === range.endContainer && startContainer.hasChildNodes() && range.endOffset === startOffset + 1) {
     return startContainer.childNodes[startOffset];
   }
 

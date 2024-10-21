@@ -1,6 +1,7 @@
 import { FieldSchema, StructureSchema, ValueType } from '@ephox/boulder';
-import { Result, Fun, Optional } from '@ephox/katamari';
+import { Result, Optional } from '@ephox/katamari';
 
+import * as ComponentSchema from '../../core/ComponentSchema';
 import { ChoiceMenuItemSpec } from './ChoiceMenuItem';
 
 export interface FancyActionArgsMap {
@@ -22,9 +23,11 @@ export interface InsertTableMenuItemSpec extends BaseFancyMenuItemSpec<'insertta
 
 export interface ColorSwatchMenuItemSpec extends BaseFancyMenuItemSpec<'colorswatch'> {
   fancytype: 'colorswatch';
+  select?: (value: string) => boolean;
   initData?: {
     allowCustomColors?: boolean;
-    colors: ChoiceMenuItemSpec[];
+    colors?: ChoiceMenuItemSpec[];
+    storageKey?: string;
   };
 }
 
@@ -44,18 +47,20 @@ export interface InsertTableMenuItem extends BaseFancyMenuItem<'inserttable'> {
 
 export interface ColorSwatchMenuItem extends BaseFancyMenuItem<'colorswatch'> {
   fancytype: 'colorswatch';
+  select: Optional<(value: string) => boolean>;
   initData: {
     allowCustomColors: boolean;
     colors: Optional<ChoiceMenuItemSpec[]>;
+    storageKey: string;
   };
 }
 
 export type FancyMenuItem = InsertTableMenuItem | ColorSwatchMenuItem;
 
 const baseFields = [
-  FieldSchema.requiredString('type'),
+  ComponentSchema.type,
   FieldSchema.requiredString('fancytype'),
-  FieldSchema.defaultedFunction('onAction', Fun.noop)
+  ComponentSchema.defaultedOnAction
 ];
 
 const insertTableFields = [
@@ -63,8 +68,10 @@ const insertTableFields = [
 ].concat(baseFields);
 
 const colorSwatchFields = [
+  FieldSchema.optionFunction('select'),
   FieldSchema.defaultedObjOf('initData', {}, [
     FieldSchema.defaultedBoolean('allowCustomColors', true),
+    FieldSchema.defaultedString('storageKey', 'default'),
     // Note: We don't validate the colors as they are instead validated by choiceschema when rendering
     FieldSchema.optionArrayOf('colors', ValueType.anyValue())
   ])

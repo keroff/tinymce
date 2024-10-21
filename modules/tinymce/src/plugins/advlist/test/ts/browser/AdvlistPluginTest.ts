@@ -5,7 +5,6 @@ import { assert } from 'chai';
 import Editor from 'tinymce/core/api/Editor';
 import AdvListPlugin from 'tinymce/plugins/advlist/Plugin';
 import ListsPlugin from 'tinymce/plugins/lists/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 interface Definition {
   readonly inputContent: string;
@@ -28,7 +27,7 @@ describe('browser.tinymce.plugins.advlist.AdvlistPluginTest', () => {
     },
     disable_nodechange: true,
     base_url: '/project/tinymce/js/tinymce'
-  }, [ AdvListPlugin, ListsPlugin, Theme ]);
+  }, [ AdvListPlugin, ListsPlugin ]);
 
   const listStyleTest = (title: string, definition: Definition) => {
     it(title, () => {
@@ -41,7 +40,7 @@ describe('browser.tinymce.plugins.advlist.AdvlistPluginTest', () => {
       const expectedElm = editor.dom.select(definition.expectedSelection[0])[0];
 
       TinyAssertions.assertContent(editor, definition.expectedContent);
-      LegacyUnit.equalDom(rng.startContainer.parentNode, expectedElm, 'Selection elements should be equal');
+      LegacyUnit.equalDom(rng.startContainer.parentNode as Node, expectedElm, 'Selection elements should be equal');
       assert.equal(rng.startOffset, definition.expectedSelection[1], 'Selection offset should be equal');
     });
   };

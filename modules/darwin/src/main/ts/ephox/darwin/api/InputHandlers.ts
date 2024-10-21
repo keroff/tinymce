@@ -1,5 +1,5 @@
 import { Arr, Fun, Optional } from '@ephox/katamari';
-import { EventArgs, Situ, SugarElement } from '@ephox/sugar';
+import { ContentEditable, EventArgs, PredicateFind, Situ, SugarElement, SugarNode } from '@ephox/sugar';
 
 import * as KeySelection from '../keyboard/KeySelection';
 import * as VerticalMovement from '../keyboard/VerticalMovement';
@@ -17,7 +17,7 @@ interface RC {
 }
 
 export type MouseHandler = MouseSelection;
-export type ExternalHandler = (start: SugarElement<Node>, finish: SugarElement<Node>) => void;
+export type ExternalHandler = (start: SugarElement<HTMLTableCellElement>, finish: SugarElement<HTMLTableCellElement>) => void;
 
 export interface KeyboardHandler {
   readonly keydown: (event: EventArgs<KeyboardEvent>, start: SugarElement<Node>, soffset: number, finish: SugarElement<Node>, foffset: number, direction: typeof SelectionKeys.ltr) => Optional<Response>;
@@ -26,7 +26,7 @@ export interface KeyboardHandler {
 
 const rc = (rows: number, cols: number): RC => ({ rows, cols });
 
-const mouse = (win: Window, container: SugarElement, isRoot: (e: SugarElement) => boolean, annotations: SelectionAnnotation): MouseHandler => {
+const mouse = (win: Window, container: SugarElement<Node>, isRoot: (e: SugarElement<Node>) => boolean, annotations: SelectionAnnotation): MouseHandler => {
   const bridge = WindowBridge(win);
 
   const handlers = MouseSelection(bridge, container, isRoot, annotations);
@@ -39,7 +39,10 @@ const mouse = (win: Window, container: SugarElement, isRoot: (e: SugarElement) =
   };
 };
 
-const keyboard = (win: Window, container: SugarElement, isRoot: (e: SugarElement) => boolean, annotations: SelectionAnnotation): KeyboardHandler => {
+const isEditableNode = (node: SugarElement<Node>) => PredicateFind.closest(node, SugarNode.isHTMLElement).exists(ContentEditable.isEditable);
+const isEditableSelection = (start: SugarElement<Node>, finish: SugarElement<Node>) => isEditableNode(start) || isEditableNode(finish);
+
+const keyboard = (win: Window, container: SugarElement<Node>, isRoot: (e: SugarElement<Node>) => boolean, annotations: SelectionAnnotation): KeyboardHandler => {
   const bridge = WindowBridge(win);
 
   const clearToNavigate = () => {
@@ -47,19 +50,21 @@ const keyboard = (win: Window, container: SugarElement, isRoot: (e: SugarElement
     return Optional.none<Response>();
   };
 
-  const keydown = (event: EventArgs<KeyboardEvent>, start: SugarElement, soffset: number, finish: SugarElement, foffset: number, direction: typeof SelectionKeys.ltr) => {
+  const keydown = (event: EventArgs<KeyboardEvent>, start: SugarElement<Node>, soffset: number, finish: SugarElement<Node>, foffset: number, direction: typeof SelectionKeys.ltr) => {
     const realEvent = event.raw;
     const keycode = realEvent.which;
     const shiftKey = realEvent.shiftKey === true;
 
-    const handler = CellSelection.retrieve(container, annotations.selectedSelector).fold(() => {
+    const handler = CellSelection.retrieve<HTMLTableCellElement>(container, annotations.selectedSelector).fold(() => {
       // Make sure any possible lingering annotations are cleared
       if (SelectionKeys.isNavigation(keycode) && !shiftKey) {
         annotations.clearBeforeUpdate(container);
       }
 
       // Shift down should predict the movement and set the selection.
-      if (SelectionKeys.isDown(keycode) && shiftKey) {
+      if (SelectionKeys.isNavigation(keycode) && shiftKey && !isEditableSelection(start, finish)) {
+        return Optional.none;
+      } else if (SelectionKeys.isDown(keycode) && shiftKey) {
         return Fun.curry(VerticalMovement.select, bridge, container, isRoot, KeyDirection.down, finish, start, annotations.selectRange);
       } else if (SelectionKeys.isUp(keycode) && shiftKey) { // Shift up should predict the movement and set the selection.
         return Fun.curry(VerticalMovement.select, bridge, container, isRoot, KeyDirection.up, finish, start, annotations.selectRange);
@@ -94,7 +99,9 @@ const keyboard = (win: Window, container: SugarElement, isRoot: (e: SugarElement
         };
       };
 
-      if (SelectionKeys.isDown(keycode) && shiftKey) {
+      if (SelectionKeys.isNavigation(keycode) && shiftKey && !isEditableSelection(start, finish)) {
+        return Optional.none;
+      } else if (SelectionKeys.isDown(keycode) && shiftKey) {
         return update([ rc(+1, 0) ]);
       } else if (SelectionKeys.isUp(keycode) && shiftKey) {
         return update([ rc(-1, 0) ]);
@@ -112,7 +119,7 @@ const keyboard = (win: Window, container: SugarElement, isRoot: (e: SugarElement
     return handler();
   };
 
-  const keyup = (event: EventArgs<KeyboardEvent>, start: SugarElement, soffset: number, finish: SugarElement, foffset: number) => {
+  const keyup = (event: EventArgs<KeyboardEvent>, start: SugarElement<Node>, soffset: number, finish: SugarElement<Node>, foffset: number) => {
     return CellSelection.retrieve(container, annotations.selectedSelector).fold<Optional<Response>>(() => {
       const realEvent = event.raw;
       const keycode = realEvent.which;
@@ -120,7 +127,7 @@ const keyboard = (win: Window, container: SugarElement, isRoot: (e: SugarElement
       if (!shiftKey) {
         return Optional.none<Response>();
       }
-      if (SelectionKeys.isNavigation(keycode)) {
+      if (SelectionKeys.isNavigation(keycode) && isEditableSelection(start, finish)) {
         return KeySelection.sync(container, isRoot, start, soffset, finish, foffset, annotations.selectRange);
       } else {
         return Optional.none<Response>();
@@ -134,10 +141,10 @@ const keyboard = (win: Window, container: SugarElement, isRoot: (e: SugarElement
   };
 };
 
-const external = (win: Window, container: SugarElement, isRoot: (e: SugarElement) => boolean, annotations: SelectionAnnotation): ExternalHandler => {
+const external = (win: Window, container: SugarElement<Node>, isRoot: (e: SugarElement<Node>) => boolean, annotations: SelectionAnnotation): ExternalHandler => {
   const bridge = WindowBridge(win);
 
-  return (start: SugarElement, finish: SugarElement) => {
+  return (start: SugarElement<HTMLTableCellElement>, finish: SugarElement<HTMLTableCellElement>) => {
     annotations.clearBeforeUpdate(container);
     CellSelection.identify(start, finish, isRoot).each((cellSel) => {
       const boxes = cellSel.boxes.getOr([]);

@@ -7,10 +7,8 @@ import { TinyDom, TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-m
 
 import Editor from 'tinymce/core/api/Editor';
 import ImagePlugin from 'tinymce/plugins/image/Plugin';
-import ImageToolsPlugin from 'tinymce/plugins/imagetools/Plugin';
 import LinkPlugin from 'tinymce/plugins/link/Plugin';
 import TablePlugin from 'tinymce/plugins/table/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import { pWaitForAndCloseDialog } from '../../../module/ContextMenuUtils';
 
@@ -19,7 +17,7 @@ describe('browser.tinymce.themes.silver.editor.contextmenu.MobileContextMenuTest
 
   before(function () {
     const browser = detection.browser;
-    const runTests = browser.isChrome() || browser.isFirefox() || browser.isSafari();
+    const runTests = browser.isChromium() || browser.isFirefox() || browser.isSafari();
     if (!runTests) {
       this.skip();
     }
@@ -38,18 +36,18 @@ describe('browser.tinymce.themes.silver.editor.contextmenu.MobileContextMenuTest
   });
 
   const hook = TinyHooks.bddSetupLight<Editor>({
-    plugins: 'image imagetools link table',
+    plugins: 'image link table',
     toolbar: 'image editimage link table',
     indent: false,
     base_url: '/project/tinymce/js/tinymce',
     image_caption: true
-  }, [ ImagePlugin, ImageToolsPlugin, LinkPlugin, TablePlugin, Theme ], true);
+  }, [ ImagePlugin, LinkPlugin, TablePlugin ], true);
 
   const pOpenContextMenu = async (editor: Editor, target: string) => {
     const targetElem = UiFinder.findIn(TinyDom.body(editor), target).getOrDie();
     Touch.touchStart(targetElem);
     await Waiter.pWait(500);
-    editor.fire('selectionchange');
+    editor.dispatch('selectionchange');
     Touch.touchEnd(targetElem);
     await Waiter.pWait(100);
     await TinyUiActions.pWaitForPopup(editor, '.tox-silver-sink .tox-collection--horizontal [role="menuitem"]');
@@ -57,9 +55,7 @@ describe('browser.tinymce.themes.silver.editor.contextmenu.MobileContextMenuTest
 
   const pressDownArrowKey = () => Keyboard.activeKeydown(SugarDocument.getDocument(), Keys.down());
   const pressEnterKey = () => Keyboard.activeKeydown(SugarDocument.getDocument(), Keys.enter());
-  const pressEscKey = () => Keyboard.activeKeydown(SugarDocument.getDocument(), Keys.escape());
-
-  const repeatDownArrowKey = (index: number) => Arr.range(index, pressDownArrowKey);
+  const pressEscKey = () => Keyboard.activeKeyup(SugarDocument.getDocument(), Keys.escape());
 
   const tableHtml = '<table style="width: 100%;">' +
   '<tbody>' +
@@ -171,7 +167,6 @@ describe('browser.tinymce.themes.silver.editor.contextmenu.MobileContextMenuTest
     assertMenuItems([
       selectors.link,
       selectors.image,
-      selectors.editimage,
       selectors.cell,
       selectors.row,
       selectors.column,
@@ -179,12 +174,6 @@ describe('browser.tinymce.themes.silver.editor.contextmenu.MobileContextMenuTest
       selectors.deletetable
     ]);
     FocusTools.setFocus(SugarBody.body(), selectors.image);
-    pressEnterKey();
-    await pWaitForAndCloseDialog(editor);
-    await pOpenContextMenu(editor, 'img');
-    // Navigate to the "Image tools" menu item
-    FocusTools.setFocus(SugarBody.body(), selectors.link);
-    repeatDownArrowKey(2);
     pressEnterKey();
     await pWaitForAndCloseDialog(editor);
   });

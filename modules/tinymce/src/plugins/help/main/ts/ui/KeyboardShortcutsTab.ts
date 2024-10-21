@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr } from '@ephox/katamari';
 
 import { Dialog } from 'tinymce/core/api/ui/Ui';
@@ -17,7 +10,7 @@ export interface ShortcutActionPairType {
   action: string;
 }
 
-const tab = (): Dialog.TabSpec => {
+const tab = (): Dialog.TabSpec & { name: string } => {
   const shortcutList = Arr.map(KeyboardShortcuts.shortcuts, (shortcut: ShortcutActionPairType) => {
     const shortcutText = Arr.map(shortcut.shortcuts, ConvertShortcut.convertText).join(' or ');
     return [ shortcut.action, shortcutText ];

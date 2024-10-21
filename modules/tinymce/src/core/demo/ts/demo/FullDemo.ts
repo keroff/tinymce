@@ -2,13 +2,13 @@
 import { Merger } from '@ephox/katamari';
 import { SugarElement } from '@ephox/sugar';
 
-import { RawEditorSettings, TinyMCE } from 'tinymce/core/api/PublicApi';
+import { Editor, RawEditorOptions, TinyMCE } from 'tinymce/core/api/PublicApi';
 
 declare let tinymce: TinyMCE;
 
-export default () => {
+export default (): void => {
 
-  const makeSidebar = (ed, name: string, background: string, width: number) => {
+  const makeSidebar = (ed: Editor, name: string, background: string, width: number) => {
     ed.ui.registry.addSidebar(name, {
       icon: 'comment',
       tooltip: 'Tooltip for ' + name,
@@ -29,7 +29,37 @@ export default () => {
     });
   };
 
-  const settings: RawEditorSettings = {
+  const makeCodeView = (editor: Editor) => {
+    editor.ui.registry.addView('code', {
+      buttons: [
+        {
+          type: 'button',
+          text: 'Cancel',
+          buttonType: 'secondary',
+          onAction: () => {
+            editor.execCommand('ToggleView', false, 'code');
+            console.log('close');
+          }
+        },
+        {
+          type: 'button',
+          text: 'Save code',
+          buttonType: 'primary',
+          onAction: () => {
+            console.log('save');
+          }
+        },
+      ],
+      onShow: (api) => {
+        api.getContainer().innerHTML = '<div style="height: 100%"><textarea class="tox-view__pane_panel" style="width: 100%; height: 100%">Hello world!</textarea></div>';
+      },
+      onHide: (api) => {
+        console.log('Deactivate code', api.getContainer());
+      }
+    });
+  };
+
+  const settings: RawEditorOptions = {
     skin_url: '../../../../js/tinymce/skins/ui/oxide',
     content_css: '../../../../js/tinymce/skins/content/default/content.css',
     content_langs: [
@@ -53,6 +83,7 @@ export default () => {
       { title: 'Some class', value: 'class-name' }
     ],
     importcss_append: true,
+    // init_content_sync: true,
     height: 400,
     image_advtab: true,
     file_picker_callback: (callback, _value, meta) => {
@@ -76,23 +107,6 @@ export default () => {
         callback('movie.mp4', { embed: '<p>test</p>' });
       }
     },
-    spellchecker_callback(method, text, success, _failure) {
-      const words = text.match(this.getWordCharPattern());
-
-      if (method === 'spellcheck') {
-        const suggestions = {};
-
-        for (let i = 0; i < words.length; i++) {
-          suggestions[words[i]] = [ 'First', 'Second' ];
-        }
-
-        success(suggestions);
-      }
-
-      if (method === 'addToDictionary') {
-        success();
-      }
-    },
     templates: [
       { title: 'Some title 1', description: 'Some desc 1', content: 'My content' },
       { title: 'Some title 2', description: 'Some desc 2', content: '<div class="mceTmpl"><span class="cdate">cdate</span><span class="mdate">mdate</span>My content2</div>' }
@@ -101,35 +115,31 @@ export default () => {
     template_mdate_format: '[MDATE: %m/%d/%Y : %H:%M:%S]',
     image_caption: true,
     theme: 'silver',
-    mobile: {
-      plugins: [
-        'autosave lists'
-      ]
-    },
     setup: (ed) => {
       makeSidebar(ed, 'sidebar1', 'green', 200);
+      makeSidebar(ed, 'sidebar2', 'green', 200);
+      makeCodeView(ed);
     },
     plugins: [
-      'autosave advlist autolink link image lists charmap print preview hr anchor pagebreak spellchecker toc',
-      'searchreplace wordcount visualblocks visualchars code fullscreen fullpage insertdatetime media nonbreaking',
-      'save table directionality emoticons template paste textcolor importcss colorpicker textpattern',
-      'codesample help noneditable print'
+      'autosave', 'advlist', 'autolink', 'link', 'image', 'lists', 'charmap', 'preview', 'anchor', 'pagebreak',
+      'searchreplace', 'wordcount', 'visualblocks', 'visualchars', 'code', 'fullscreen', 'insertdatetime', 'media', 'nonbreaking',
+      'save', 'table', 'directionality', 'emoticons', 'template', 'importcss', 'codesample', 'help', 'accordion'
     ],
     // rtl_ui: true,
     add_unload_trigger: false,
     autosave_ask_before_unload: false,
-    toolbar: 'undo redo sidebar1 | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | align lineheight fontsizeselect fontselect formatselect styleselect insertfile | styleselect | ' +
-    'bullist numlist outdent indent | link image | print preview media fullpage | forecolor backcolor emoticons table codesample code language | ltr rtl',
-    contextmenu: 'link linkchecker image imagetools table lists spellchecker configurepermanentpen',
+    toolbar: 'undo redo sidebar1 | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | align lineheight fontsize fontfamily blocks styles insertfile | styles | ' +
+    'bullist numlist outdent indent | link image | print preview media | forecolor backcolor emoticons table codesample code language | ltr rtl',
+    contextmenu: 'link linkchecker image table lists configurepermanentpen',
 
     // Multiple toolbar array
-    // toolbar: ['undo redo sidebar1 align fontsizeselect insertfile | fontselect formatselect styleselect insertfile | styleselect | bold italic',
-    // 'alignleft aligncenter alignright alignjustify | print preview media fullpage | forecolor backcolor emoticons table codesample code | ltr rtl',
+    // toolbar: ['undo redo sidebar1 align fontsize insertfile | fontfamily blocks styles insertfile | styles | bold italic',
+    // 'alignleft aligncenter alignright alignjustify | print preview media | forecolor backcolor emoticons table codesample code | ltr rtl',
     // 'bullist numlist outdent indent | link image'],
 
     // Toolbar<n>
-    // toolbar1: 'undo redo sidebar1 align fontsizeselect insertfile | fontselect formatselect styleselect insertfile | styleselect | bold italic',
-    // toolbar2: 'alignleft aligncenter alignright alignjustify | print preview media fullpage | forecolor backcolor emoticons table codesample code | ltr rtl',
+    // toolbar1: 'undo redo sidebar1 align fontsize insertfile | fontfamily blocks styles insertfile | styles | bold italic',
+    // toolbar2: 'alignleft aligncenter alignright alignjustify | print preview media | forecolor backcolor emoticons table codesample code | ltr rtl',
     // toolbar3: 'bullist numlist outdent indent | link image',
 
     // Toolbar with group names
@@ -138,7 +148,7 @@ export default () => {
     //     name: 'history', items: [ 'undo', 'redo' ]
     //   },
     //   {
-    //     name: 'styles', items: [ 'styleselect' ]
+    //     name: 'styles', items: [ 'styles' ]
     //   },
     //   {
     //     name: 'formatting', items: [ 'bold', 'italic']

@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import Editor from 'tinymce/core/api/Editor';
 import { Menu } from 'tinymce/core/api/ui/Ui';
 
@@ -15,7 +8,7 @@ const onSetupVisualAidState = (editor: Editor) =>
     api.setActive(editor.hasVisual);
   });
 
-const registerMenuItems = (editor: Editor) => {
+const registerMenuItems = (editor: Editor): void => {
   editor.ui.registry.addToggleMenuItem('visualaid', {
     text: 'Visual aids',
     onSetup: onSetupVisualAidState(editor),
@@ -23,7 +16,7 @@ const registerMenuItems = (editor: Editor) => {
   });
 };
 
-const registerToolbarButton = (editor: Editor) => {
+const registerToolbarButton = (editor: Editor): void => {
   editor.ui.registry.addButton('visualaid', {
     tooltip: 'Visual aids',
     text: 'Visual aids',
@@ -31,7 +24,7 @@ const registerToolbarButton = (editor: Editor) => {
   });
 };
 
-const register = (editor: Editor) => {
+const register = (editor: Editor): void => {
   registerToolbarButton(editor);
   registerMenuItems(editor);
 };

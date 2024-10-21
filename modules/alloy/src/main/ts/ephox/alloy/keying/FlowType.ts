@@ -21,12 +21,14 @@ const schema = [
   FieldSchema.defaulted('execute', KeyingTypes.defaultExecute),
   Fields.onKeyboardHandler('onEscape'),
   FieldSchema.defaulted('executeOnMove', false),
-  FieldSchema.defaulted('allowVertical', true)
+  FieldSchema.defaulted('allowVertical', true),
+  FieldSchema.defaulted('allowHorizontal', true),
+  FieldSchema.defaulted('cycles', true)
 ];
 
 // TODO: Remove dupe.
 // TODO: Probably use this for not just execution.
-const findCurrent = (component: AlloyComponent, flowConfig: FlowConfig): Optional<SugarElement> =>
+const findCurrent = (component: AlloyComponent, flowConfig: FlowConfig): Optional<SugarElement<HTMLElement>> =>
   flowConfig.focusManager.get(component).bind((elem) => SelectorFind.closest(elem, flowConfig.selector));
 
 const execute = (component: AlloyComponent, simulatedEvent: NativeSimulatedEvent, flowConfig: FlowConfig): Optional<boolean> =>
@@ -34,17 +36,17 @@ const execute = (component: AlloyComponent, simulatedEvent: NativeSimulatedEvent
 
 const focusIn = (component: AlloyComponent, flowConfig: FlowConfig, _state: Stateless): void => {
   flowConfig.getInitial(component).orThunk(
-    () => SelectorFind.descendant(component.element, flowConfig.selector)
+    () => SelectorFind.descendant<HTMLElement>(component.element, flowConfig.selector)
   ).each((first) => {
     flowConfig.focusManager.set(component, first);
   });
 };
 
-const moveLeft = (element: SugarElement, focused: SugarElement, info: FlowConfig): Optional<SugarElement> =>
-  DomNavigation.horizontal(element, info.selector, focused, -1);
+const moveLeft = (element: SugarElement<HTMLElement>, focused: SugarElement<HTMLElement>, info: FlowConfig): Optional<SugarElement<HTMLElement>> =>
+  (info.cycles ? DomNavigation.horizontal : DomNavigation.horizontalWithoutCycles)(element, info.selector, focused, -1);
 
-const moveRight = (element: SugarElement, focused: SugarElement, info: FlowConfig): Optional<SugarElement> =>
-  DomNavigation.horizontal(element, info.selector, focused, +1);
+const moveRight = (element: SugarElement<HTMLElement>, focused: SugarElement<HTMLElement>, info: FlowConfig): Optional<SugarElement<HTMLElement>> =>
+  (info.cycles ? DomNavigation.horizontal : DomNavigation.horizontalWithoutCycles)(element, info.selector, focused, +1);
 
 const doMove = (movement: KeyRuleHandler<FlowConfig, Stateless>): KeyRuleHandler<FlowConfig, Stateless> =>
   (component, simulatedEvent, flowConfig, flowState) =>
@@ -64,19 +66,19 @@ const getKeydownRules = (
   flowConfig: FlowConfig,
   _flowState: Stateless
 ): Array<KeyRules.KeyRule<FlowConfig, Stateless>> => {
-  const westMovers = Keys.LEFT.concat(flowConfig.allowVertical ? Keys.UP : [ ]);
-  const eastMovers = Keys.RIGHT.concat(flowConfig.allowVertical ? Keys.DOWN : [ ]);
+  const westMovers = [ ...flowConfig.allowHorizontal ? Keys.LEFT : [] ].concat(flowConfig.allowVertical ? Keys.UP : [ ]);
+  const eastMovers = [ ...flowConfig.allowHorizontal ? Keys.RIGHT : [] ].concat(flowConfig.allowVertical ? Keys.DOWN : [ ]);
   return [
     KeyRules.rule(KeyMatch.inSet(westMovers), doMove(DomMovement.west(moveLeft, moveRight))),
     KeyRules.rule(KeyMatch.inSet(eastMovers), doMove(DomMovement.east(moveLeft, moveRight))),
     KeyRules.rule(KeyMatch.inSet(Keys.ENTER), execute),
-    KeyRules.rule(KeyMatch.inSet(Keys.SPACE), execute),
-    KeyRules.rule(KeyMatch.inSet(Keys.ESCAPE), doEscape)
+    KeyRules.rule(KeyMatch.inSet(Keys.SPACE), execute)
   ];
 };
 
 const getKeyupRules: () => Array<KeyRules.KeyRule<FlowConfig, Stateless>> = Fun.constant([
-  KeyRules.rule(KeyMatch.inSet(Keys.SPACE), KeyingTypes.stopEventForFirefox)
+  KeyRules.rule(KeyMatch.inSet(Keys.SPACE), KeyingTypes.stopEventForFirefox),
+  KeyRules.rule(KeyMatch.inSet(Keys.ESCAPE), doEscape)
 ]);
 
 export default KeyingType.typical(schema, NoState.init, getKeydownRules, getKeyupRules, () => Optional.some(focusIn));

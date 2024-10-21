@@ -1,29 +1,20 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
+import { Arr, Fun, Obj, Optionals, Strings, Type } from '@ephox/katamari';
+import { Attribute, Class, ContentEditable, Css, Html, Insert, Remove, Selectors, SugarElement, SugarNode, Traverse, WindowVisualViewport } from '@ephox/sugar';
 
-import { Arr, Fun, Obj, Type } from '@ephox/katamari';
-import { SugarElement, WindowVisualViewport } from '@ephox/sugar';
-
+import * as TransparentElements from '../../content/TransparentElements';
 import * as NodeType from '../../dom/NodeType';
 import * as Position from '../../dom/Position';
 import * as StyleSheetLoaderRegistry from '../../dom/StyleSheetLoaderRegistry';
 import * as TrimNode from '../../dom/TrimNode';
-import { isWhitespaceText } from '../../text/Whitespace';
-import Env from '../Env';
+import { isWhitespaceText, isZwsp } from '../../text/Whitespace';
 import { GeomRect } from '../geom/Rect';
 import Entities from '../html/Entities';
 import Schema from '../html/Schema';
 import Styles, { StyleMap } from '../html/Styles';
-import { URLConverter } from '../SettingsTypes';
+import { URLConverter } from '../OptionTypes';
 import { MappedEvent } from '../util/EventDispatcher';
 import Tools from '../util/Tools';
-import DomQuery, { DomQueryConstructor } from './DomQuery';
 import EventUtils, { EventUtilsCallback } from './EventUtils';
-import Sizzle from './Sizzle';
 import StyleSheetLoader from './StyleSheetLoader';
 import DomTreeWalker from './TreeWalker';
 
@@ -42,115 +33,25 @@ import DomTreeWalker from './TreeWalker';
 // Shorten names
 const each = Tools.each;
 const grep = Tools.grep;
-const isIE = Env.ie;
-const simpleSelectorRe = /^([a-z0-9],?)+$/i;
 
-interface AttrHooks {
-  style: {
-    set ($elm: DomQuery, value: string | {} | null): void;
-    get ($elm: DomQuery): string;
-  };
-  href?: {
-    set ($elm: DomQuery, value: string | null, name: string): void;
-    get ($elm: DomQuery, name: string): string;
-  };
-  src?: {
-    set ($elm: DomQuery, value: string | null, name: string): void;
-    get ($elm: DomQuery, name: string): string;
-  };
-  [key: string]: {
-    set ($elm: DomQuery, value: string | {} | null, name: string): void;
-    get: ($elm: DomQuery, name: string) => string;
-  };
+const internalStyleName = 'data-mce-style';
+const numericalCssMap = Tools.makeMap('fill-opacity font-weight line-height opacity orphans widows z-index zoom', ' ');
+
+interface AttrHook {
+  set (elm: Element, value: string | boolean | number | null, name: string): void;
+  get (elm: Element, name: string): string | undefined;
 }
 
-const setupAttrHooks = (styles: Styles, settings: Partial<DOMUtilsSettings>, getContext): AttrHooks => {
-  const keepValues: boolean = settings.keep_values;
-  const keepUrlHook = {
-    set: ($elm, value: string | null, name: string) => {
-      if (settings.url_converter && value !== null) {
-        value = settings.url_converter.call(settings.url_converter_scope || getContext(), value, name, $elm[0]);
-      }
+interface AttrHooks {
+  style: AttrHook;
+  [key: string]: AttrHook;
+}
 
-      $elm.attr('data-mce-' + name, value).attr(name, value);
-    },
-
-    get: ($elm, name: string) => {
-      return $elm.attr('data-mce-' + name) || $elm.attr(name);
-    }
-  };
-
-  const attrHooks: AttrHooks = {
-    style: {
-      set: ($elm, value: string | {} | null) => {
-        if (value !== null && typeof value === 'object') {
-          $elm.css(value);
-          return;
-        }
-
-        if (keepValues) {
-          $elm.attr('data-mce-style', value as string);
-        }
-
-        // If setting a style then delegate to the css api, otherwise
-        // this will cause issues when using a content security policy
-        if (value !== null && typeof value === 'string') {
-          $elm.removeAttr('style');
-          $elm.css(styles.parse(value));
-        } else {
-          $elm.attr('style', value as null);
-        }
-      },
-
-      get: ($elm) => {
-        let value = $elm.attr('data-mce-style') || $elm.attr('style');
-
-        value = styles.serialize(styles.parse(value), $elm[0].nodeName);
-
-        return value;
-      }
-    }
-  };
-
-  if (keepValues) {
-    attrHooks.href = attrHooks.src = keepUrlHook;
-  }
-
-  return attrHooks;
-};
-
-const updateInternalStyleAttr = (styles: Styles, $elm) => {
-  const rawValue = $elm.attr('style');
-
-  let value = styles.serialize(styles.parse(rawValue), $elm[0].nodeName);
-
-  if (!value) {
-    value = null;
-  }
-
-  $elm.attr('data-mce-style', value);
-};
-
-const findNodeIndex = (node: Node, normalized?: boolean) => {
-  let idx = 0, lastNodeType, nodeType;
-
-  if (node) {
-    for (lastNodeType = node.nodeType, node = node.previousSibling; node; node = node.previousSibling) {
-      nodeType = node.nodeType;
-
-      // Normalize text nodes
-      if (normalized && nodeType === 3) {
-        if (nodeType === lastNodeType || !node.nodeValue.length) {
-          continue;
-        }
-      }
-      idx++;
-      lastNodeType = nodeType;
-    }
-  }
-
-  return idx;
-};
+export interface SetAttribEvent {
+  attrElm: HTMLElement;
+  attrName: string;
+  attrValue: string | boolean | number | null;
+}
 
 export interface DOMUtilsSettings {
   schema: Schema;
@@ -158,19 +59,19 @@ export interface DOMUtilsSettings {
   url_converter_scope: any;
   ownEvents: boolean;
   keep_values: boolean;
-  hex_colors: boolean;
   update_styles: boolean;
-  root_element: HTMLElement;
-  collect: Function;
-  onSetAttrib: Function;
+  root_element: HTMLElement | null;
+  collect: boolean;
+  onSetAttrib: (event: SetAttribEvent) => void;
   contentCssCors: boolean;
   referrerPolicy: ReferrerPolicy;
 }
 
 export type Target = Node | Window;
-export type RunArguments<T extends Node = Node> = string | T | Array<string | T>;
+export type RunArguments<T extends Node = Node> = string | T | Array<string | T> | null;
 export type BoundEvent = [ Target, string, EventUtilsCallback<any>, any ];
 type Callback<K extends string> = EventUtilsCallback<MappedEvent<HTMLElementEventMap, K>>;
+type RunResult<T, R> = T extends Array<any> ? R[] : false | R;
 
 interface DOMUtils {
   doc: Document;
@@ -184,14 +85,12 @@ interface DOMUtils {
   styles: Styles;
   schema: Schema;
   events: EventUtils;
-  root: Node;
-  $: DomQueryConstructor;
+  root: Node | null;
 
-  $$: {
-    <T extends Node>(elm: T | T[] | DomQuery<T>): DomQuery<T>;
-    (elm: string): DomQuery<Node>;
+  isBlock: {
+    (node: Node | null): node is HTMLElement;
+    (node: string): boolean;
   };
-  isBlock: (node: string | Node) => boolean;
   clone: (node: Node, deep: boolean) => Node;
   getRoot: () => HTMLElement;
   getViewPort: (argWin?: Window) => GeomRect;
@@ -201,42 +100,52 @@ interface DOMUtils {
     h: number;
   };
   getParent: {
-    <K extends keyof HTMLElementTagNameMap>(node: string | Node, selector: K, root?: Node): HTMLElementTagNameMap[K] | null;
-    <T extends HTMLElement>(node: string | Node, selector: (node: HTMLElement) => node is T, root?: Node): T | null;
-    <T extends Element = Element>(node: string | Node, selector?: string | ((node: HTMLElement) => boolean | void), root?: Node): T | null;
+    <K extends keyof HTMLElementTagNameMap>(node: string | Node | null, selector: K, root?: Node): HTMLElementTagNameMap[K] | null;
+    <T extends Element>(node: string | Node | null, selector: string | ((node: Node) => node is T), root?: Node): T | null;
+    (node: string | Node | null, selector?: string | ((node: Node) => boolean | void), root?: Node): Node | null;
   };
   getParents: {
-    <K extends keyof HTMLElementTagNameMap>(elm: string | Node, selector: K, root?: Node, collect?: boolean): Array<HTMLElementTagNameMap[K]>;
-    <T extends HTMLElement>(node: string | Node, selector: (node: HTMLElement) => node is T, root?: Node): T[];
-    <T extends Element = Element>(elm: string | Node, selector?: string | ((node: HTMLElement) => boolean | void), root?: Node, collect?: boolean): T[];
+    <K extends keyof HTMLElementTagNameMap>(elm: string | HTMLElementTagNameMap[K] | null, selector: K, root?: Node, collect?: boolean): Array<HTMLElementTagNameMap[K]>;
+    <T extends Element>(node: string | Node | null, selector: string | ((node: Node) => node is T), root?: Node, collect?: boolean): T[];
+    (elm: string | Node | null, selector?: string | ((node: Node) => boolean | void), root?: Node, collect?: boolean): Node[];
   };
-  get: (elm: string | Node) => HTMLElement | null;
-  getNext: (node: Node, selector: string | ((node: Node) => boolean)) => Node | null;
-  getPrev: (node: Node, selector: string | ((node: Node) => boolean)) => Node | null;
+  get: {
+    <T extends Node>(elm: T): T;
+    (elm: string): HTMLElement | null;
+  };
+  getNext: (node: Node | null, selector: string | ((node: Node) => boolean)) => Node | null;
+  getPrev: (node: Node | null, selector: string | ((node: Node) => boolean)) => Node | null;
   select: {
     <K extends keyof HTMLElementTagNameMap>(selector: K, scope?: string | Node): Array<HTMLElementTagNameMap[K]>;
     <T extends HTMLElement = HTMLElement>(selector: string, scope?: string | Node): T[];
   };
-  is: (elm: Node | Node[], selector: string) => boolean;
-  add: (parentElm: RunArguments, name: string | Node, attrs?: Record<string, string | boolean | number>, html?: string | Node, create?: boolean) => HTMLElement;
+  is: {
+    <T extends Element>(elm: Node | Node[] | null, selector: string): elm is T;
+    (elm: Node | Node[] | null, selector: string): boolean;
+  };
+  add: (parentElm: RunArguments, name: string | Element, attrs?: Record<string, string | boolean | number | null>, html?: string | Node | null, create?: boolean) => HTMLElement;
   create: {
-    <K extends keyof HTMLElementTagNameMap>(name: K, attrs?: Record<string, string | boolean | number>, html?: string | Node): HTMLElementTagNameMap[K];
-    (name: string, attrs?: Record<string, string | boolean | number>, html?: string | Node): HTMLElement;
+    <K extends keyof HTMLElementTagNameMap>(name: K, attrs?: Record<string, string | boolean | number | null>, html?: string | Node | null): HTMLElementTagNameMap[K];
+    (name: string, attrs?: Record<string, string | boolean | number | null>, html?: string | Node | null): HTMLElement;
   };
-  createHTML: (name: string, attrs?: Record<string, string>, html?: string) => string;
+  createHTML: (name: string, attrs?: Record<string, string | null>, html?: string) => string;
   createFragment: (html?: string) => DocumentFragment;
-  remove: <T extends Node>(node: string | T | T[] | DomQuery<T>, keepChildren?: boolean) => T | T[];
-  setStyle: {
-    (elm: string | Node | Node[], name: string, value: string | number | null): void;
-    (elm: string | Node | Node[], styles: StyleMap): void;
+  remove: {
+    <T extends Node>(node: T | T[], keepChildren?: boolean): typeof node extends Array<any> ? T[] : T;
+    <T extends Node>(node: string, keepChildren?: boolean): T | false;
   };
-  getStyle: (elm: string | Node, name: string, computed?: boolean) => string;
-  setStyles: (elm: string | Node | Node[], stylesArg: StyleMap) => void;
+  getStyle: {
+    (elm: Element, name: string, computed: true): string;
+    (elm: string | Element | null, name: string, computed?: boolean): string | undefined;
+  };
+  setStyle: (elm: string | Element | Element[], name: string, value: string | number | null) => void;
+  setStyles: (elm: string | Element | Element[], stylesArg: StyleMap) => void;
   removeAllAttribs: (e: RunArguments<Element>) => void;
-  setAttrib: (elm: string | Node | Node[], name: string, value: string | boolean | number | null) => void;
-  setAttribs: (elm: string | Node | Node[], attrs: Record<string, string | boolean | number | null>) => void;
-  getAttrib: (elm: string | Node, name: string, defaultVal?: string) => string;
-  getPos: (elm: string | Node, rootElm?: Node) => {
+  setAttrib: (elm: RunArguments<Element>, name: string, value: string | boolean | number | null) => void;
+  setAttribs: (elm: RunArguments<Element>, attrs: Record<string, string | boolean | number | null>) => void;
+  getAttrib: (elm: string | Element | null, name: string, defaultVal?: string) => string;
+  getAttribs: (elm: string | Element) => NamedNodeMap | Attr[];
+  getPos: (elm: string | Element, rootElm?: Node) => {
     x: number;
     y: number;
   };
@@ -244,22 +153,22 @@ interface DOMUtils {
   serializeStyle: (stylesArg: StyleMap, name?: string) => string;
   addStyle: (cssText: string) => void;
   loadCSS: (url: string) => void;
-  addClass: (elm: string | Node | Node[], cls: string) => void;
-  removeClass: (elm: string | Node | Node[], cls: string) => void;
-  hasClass: (elm: string | Node, cls: string) => boolean;
-  toggleClass: (elm: string | Node | Node[], cls: string, state?: boolean) => void;
+  hasClass: (elm: string | Element, cls: string) => boolean;
+  addClass: (elm: RunArguments<Element>, cls: string) => void;
+  removeClass: (elm: RunArguments<Element>, cls: string) => void;
+  toggleClass: (elm: RunArguments<Element>, cls: string, state?: boolean) => void;
   show: (elm: string | Node | Node[]) => void;
   hide: (elm: string | Node | Node[]) => void;
   isHidden: (elm: string | Node) => boolean;
   uniqueId: (prefix?: string) => string;
-  setHTML: (elm: string | Node | Node[], html: string) => void;
+  setHTML: (elm: RunArguments<Element>, html: string) => void;
   getOuterHTML: (elm: string | Node) => string;
   setOuterHTML: (elm: string | Node | Node[], html: string) => void;
   decode: (text: string) => string;
   encode: (text: string) => string;
   insertAfter: {
     <T extends Node>(node: T | T[], reference: string | Node): T;
-    <T extends Node>(node: RunArguments<T>, reference: string | Node): false | T;
+    <T extends Node>(node: RunArguments<T>, reference: string | Node): RunResult<typeof node, T>;
   };
   replace: {
     <T extends Node>(newElm: Node, oldElm: T | T[], keepChildren?: boolean): T;
@@ -269,17 +178,15 @@ interface DOMUtils {
     <K extends keyof HTMLElementTagNameMap>(elm: Element, name: K): HTMLElementTagNameMap[K];
     (elm: Element, name: string): Element;
   };
-  findCommonAncestor: (a: Node, b: Node) => Node;
-  toHex: (rgbVal: string) => string;
-  run <R, T extends Node>(this: DOMUtils, elm: T | T[], func: (node: T) => R, scope?: any): R;
-  run <R, T extends Node>(this: DOMUtils, elm: RunArguments<T>, func: (node: T) => R, scope?: any): false | R;
-  getAttribs: (elm: string | Node) => NamedNodeMap | Attr[];
-  isEmpty: (node: Node, elements?: Record<string, any>) => boolean;
+  findCommonAncestor: (a: Node, b: Node) => Node | null;
+  run <R, T extends Node>(this: DOMUtils, elm: T | T[], func: (node: T) => R, scope?: any): typeof elm extends Array<any> ? R[] : R;
+  run <R, T extends Node>(this: DOMUtils, elm: RunArguments<T>, func: (node: T) => R, scope?: any): RunResult<typeof elm, R>;
+  isEmpty: (node: Node, elements?: Record<string, any>, options?: ({ includeZwsp?: boolean })) => boolean;
   createRng: () => Range;
   nodeIndex: (node: Node, normalized?: boolean) => number;
   split: {
-    <T extends Node>(parentElm: Node, splitElm: Node, replacementElm: T): T;
-    <T extends Node>(parentElm: Node, splitElm: T): T;
+    <T extends Node>(parentElm: Node, splitElm: Node, replacementElm: T): T | undefined;
+    <T extends Node>(parentElm: Node, splitElm: T): T | undefined;
   };
   bind: {
     <K extends string>(target: Target, name: K, func: Callback<K>, scope?: any): Callback<K>;
@@ -290,12 +197,122 @@ interface DOMUtils {
     <K extends string>(target: Target[], name?: K, func?: EventUtilsCallback<MappedEvent<HTMLElementEventMap, K>>): EventUtils[];
   };
   fire: (target: Node | Window, name: string, evt?: {}) => EventUtils;
+  dispatch: (target: Node | Window, name: string, evt?: {}) => EventUtils;
   getContentEditable: (node: Node) => string | null;
   getContentEditableParent: (node: Node) => string | null;
+  isEditable: (node: Node | null | undefined) => boolean;
   destroy: () => void;
   isChildOf: (node: Node, parent: Node) => boolean;
   dumpRng: (r: Range) => string;
 }
+
+const legacySetAttribute = (elm: SugarElement<Element>, name: string, value: string | number | boolean | null) => {
+  if (Type.isNullable(value) || value === '') {
+    Attribute.remove(elm, name);
+  } else {
+    Attribute.set(elm, name, value);
+  }
+};
+
+// Convert camel cased names back to hyphenated names
+const camelCaseToHyphens = (name: string): string =>
+  name.replace(/[A-Z]/g, (v) => '-' + v.toLowerCase());
+
+const findNodeIndex = (node: Node | null, normalized?: boolean) => {
+  let idx = 0;
+
+  if (node) {
+    for (let lastNodeType = node.nodeType, tempNode = node.previousSibling; tempNode; tempNode = tempNode.previousSibling) {
+      const nodeType = tempNode.nodeType;
+
+      // Normalize text nodes
+      if (normalized && NodeType.isText(tempNode)) {
+        if (nodeType === lastNodeType || !tempNode.data.length) {
+          continue;
+        }
+      }
+      idx++;
+      lastNodeType = nodeType;
+    }
+  }
+
+  return idx;
+};
+
+const updateInternalStyleAttr = (styles: Styles, elm: SugarElement<Element>) => {
+  const rawValue = Attribute.get(elm, 'style');
+  const value = styles.serialize(styles.parse(rawValue), SugarNode.name(elm));
+  legacySetAttribute(elm, internalStyleName, value);
+};
+
+const convertStyleToString = (cssValue: string | number, cssName: string): string => {
+  if (Type.isNumber(cssValue)) {
+    return Obj.has(numericalCssMap, cssName) ? cssValue + '' : cssValue + 'px';
+  } else {
+    return cssValue;
+  }
+};
+
+const applyStyle = ($elm: SugarElement<Node>, cssName: string, cssValue: string | number | null) => {
+  const normalizedName = camelCaseToHyphens(cssName);
+  if (Type.isNullable(cssValue) || cssValue === '') {
+    Css.remove($elm, normalizedName);
+  } else {
+    Css.set($elm, normalizedName, convertStyleToString(cssValue, normalizedName));
+  }
+};
+
+const setupAttrHooks = (styles: Styles, settings: Partial<DOMUtilsSettings>, getContext: () => any): AttrHooks => {
+  const keepValues = settings.keep_values;
+  const keepUrlHook: AttrHook = {
+    set: (elm, value, name) => {
+      const sugarElm = SugarElement.fromDom(elm);
+      if (Type.isFunction(settings.url_converter) && Type.isNonNullable(value)) {
+        value = settings.url_converter.call(settings.url_converter_scope || getContext(), String(value), name, elm);
+      }
+
+      const internalName = 'data-mce-' + name;
+      legacySetAttribute(sugarElm, internalName, value);
+      legacySetAttribute(sugarElm, name, value);
+    },
+
+    get: (elm, name) => {
+      const sugarElm = SugarElement.fromDom(elm);
+      return Attribute.get(sugarElm, 'data-mce-' + name) || Attribute.get(sugarElm, name);
+    }
+  };
+
+  const attrHooks: AttrHooks = {
+    style: {
+      set: (elm, value) => {
+        const sugarElm = SugarElement.fromDom(elm);
+
+        if (keepValues) {
+          legacySetAttribute(sugarElm, internalStyleName, value);
+        }
+
+        Attribute.remove(sugarElm, 'style');
+        // If setting a style then delegate to the css api, otherwise
+        // this will cause issues when using a content security policy
+        if (Type.isString(value)) {
+          Css.setAll(sugarElm, styles.parse(value));
+        }
+      },
+
+      get: (elm) => {
+        const sugarElm = SugarElement.fromDom(elm);
+        const value = Attribute.get(sugarElm, internalStyleName) || Attribute.get(sugarElm, 'style');
+        return styles.serialize(styles.parse(value), SugarNode.name(sugarElm));
+      }
+    }
+  };
+
+  if (keepValues) {
+    attrHooks.href = attrHooks.src = keepUrlHook;
+  }
+
+  return attrHooks;
+};
 
 /**
  * Constructs a new DOMUtils instance. Consult the TinyMCE Documentation for more details on settings etc for this class.
@@ -307,8 +324,7 @@ interface DOMUtils {
  * @param {settings} settings Optional settings collection.
  */
 const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMUtils => {
-  const addedStyles = {};
-
+  const addedStyles: Record<string, boolean> = {};
   const win = window;
   const files: Record<string, boolean> = {};
   let counter = 0;
@@ -318,7 +334,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     contentCssCors: settings.contentCssCors,
     referrerPolicy: settings.referrerPolicy
   });
-  const boundEvents = [];
+  const boundEvents: Array<[ Target, string, Callback<any>, any ]> = [];
   const schema = settings.schema ? settings.schema : Schema({});
   const styles = Styles({
     url_converter: settings.url_converter,
@@ -328,13 +344,6 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
   const events = settings.ownEvents ? new EventUtils() : EventUtils.Event;
   const blockElementsMap = schema.getBlockElements();
 
-  const $ = DomQuery.overrideDefaults(() => {
-    return {
-      context: doc,
-      element: self.getRoot()
-    };
-  });
-
   /**
    * Returns true/false if the specified element is a block element or not.
    *
@@ -342,104 +351,74 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
    * @param {Node/String} node Element/Node to check.
    * @return {Boolean} True/False state if the node is a block element or not.
    */
-  const isBlock = (node: string | Node) => {
-    if (typeof node === 'string') {
-      return !!blockElementsMap[node];
-    } else if (node) {
-      // This function is called in module pattern style since it might be executed with the wrong this scope
-      const type = node.nodeType;
-
-      // If it's a node then check the type and use the nodeName
-      if (type) {
-        return !!(type === 1 && blockElementsMap[node.nodeName]);
-      }
+  const isBlock = (node: string | Node | null) => {
+    if (Type.isString(node)) {
+      return Obj.has(blockElementsMap, node);
+    } else {
+      return NodeType.isElement(node) && (Obj.has(blockElementsMap, node.nodeName) || TransparentElements.isTransparentBlock(schema, node));
     }
-
-    return false;
   };
 
-  const get = (elm: string | Node): HTMLElement | null =>
+  const get = <T extends Node | null | undefined>(elm: string | T): HTMLElement | T | null =>
     elm && doc && Type.isString(elm)
       ? doc.getElementById(elm)
-      : elm as HTMLElement;
+      : elm as T;
 
-  const $$ = <T extends Node>(elm: string | T | T[] | DomQuery<T>): DomQuery<T | Node> => $(typeof elm === 'string' ? get(elm) : elm);
+  const _get = <T extends Node>(elm: string | T | null | undefined): SugarElement<T | HTMLElement> | null => {
+    const value = get(elm);
+    return Type.isNonNullable(value) ? SugarElement.fromDom(value) : null;
+  };
 
-  const getAttrib = (elm: string | Node, name: string, defaultVal?: string): string => {
-    let hook, value;
+  const getAttrib = (elm: string | Element | null, name: string, defaultVal: string = ''): string => {
+    let value: string | undefined;
 
-    const $elm = $$(elm);
+    const $elm = _get(elm);
 
-    if ($elm.length) {
-      hook = attrHooks[name];
+    if (Type.isNonNullable($elm) && SugarNode.isElement($elm)) {
+      const hook = attrHooks[name];
 
       if (hook && hook.get) {
-        value = hook.get($elm, name);
+        value = hook.get($elm.dom, name);
       } else {
-        value = $elm.attr(name);
+        value = Attribute.get($elm, name);
       }
     }
 
-    if (typeof value === 'undefined') {
-      value = defaultVal || '';
-    }
-
-    return value;
+    return Type.isNonNullable(value) ? value : defaultVal;
   };
 
-  const getAttribs = (elm: string | Node): NamedNodeMap | Attr[] => {
+  const getAttribs = (elm: string | Element): NamedNodeMap | Attr[] => {
     const node = get(elm);
-
-    if (!node) {
-      return [];
-    }
-
-    return node.attributes;
+    return Type.isNullable(node) ? [] : node.attributes;
   };
 
-  const setAttrib = (elm: string | Node | Node[], name: string, value: string | boolean | number) => {
-    if (value === '') {
-      value = null;
-    }
+  const setAttrib = (elm: RunArguments<Element>, name: string, value: string | boolean | number | null) => {
+    run(elm, (e) => {
+      if (NodeType.isElement(e)) {
+        const $elm = SugarElement.fromDom(e);
+        const val = value === '' ? null : value;
 
-    const $elm = $$(elm);
-    const originalValue = $elm.attr(name);
+        const originalValue = Attribute.get($elm, name);
+        const hook = attrHooks[name];
+        if (hook && hook.set) {
+          hook.set($elm.dom, val, name);
+        } else {
+          legacySetAttribute($elm, name, val);
+        }
 
-    if (!$elm.length) {
-      return;
-    }
-
-    const hook = attrHooks[name];
-    if (hook && hook.set) {
-      hook.set($elm, value, name);
-    } else {
-      $elm.attr(name, value);
-    }
-
-    if (originalValue !== value && settings.onSetAttrib) {
-      settings.onSetAttrib({
-        attrElm: $elm,
-        attrName: name,
-        attrValue: value
-      });
-    }
+        if (originalValue !== val && settings.onSetAttrib) {
+          settings.onSetAttrib({
+            attrElm: $elm.dom,
+            attrName: name,
+            attrValue: val
+          });
+        }
+      }
+    });
   };
 
   const clone = (node: Node, deep: boolean) => {
-    // TODO: Add feature detection here in the future
-    if (!isIE || node.nodeType !== 1 || deep) {
-      return node.cloneNode(deep);
-    } else {
-      // Make a HTML5 safe shallow copy
-      const clone = doc.createElement(node.nodeName);
-
-      // Copy attribs
-      each(getAttribs(node), (attr: Attr) => {
-        setAttrib(clone, attr.nodeName, getAttrib(node, attr.nodeName));
-      });
-
-      return clone;
-    }
+    return node.cloneNode(deep);
   };
 
   const getRoot = (): HTMLElement => settings.root_element || doc.body;
@@ -456,71 +435,83 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     };
   };
 
-  const getPos = (elm: string | Node, rootElm?: Node) => Position.getPos(doc.body, get(elm), rootElm);
+  const getPos = (elm: string | Element | null, rootElm?: Node) => Position.getPos(doc.body, get(elm), rootElm);
 
-  const setStyle = (elm: string | Node | Node[], name: string | StyleMap, value?: string | number) => {
-    const $elm = Type.isString(name) ? $$(elm).css(name, value) : $$(elm).css(name);
+  const setStyle = (elm: string | Element | Element[], name: string, value: string | number | null) => {
+    run(elm, (e) => {
+      const $elm = SugarElement.fromDom(e);
+      applyStyle($elm, name, value);
 
-    if (settings.update_styles) {
-      updateInternalStyleAttr(styles, $elm);
-    }
+      if (settings.update_styles) {
+        updateInternalStyleAttr(styles, $elm);
+      }
+    });
   };
 
-  const setStyles = (elm: string | Node | Node[], stylesArg: StyleMap) => {
-    const $elm = $$(elm).css(stylesArg);
+  const setStyles = (elm: string | Element | Element[], stylesArg: StyleMap) => {
+    run(elm, (e) => {
+      const $elm = SugarElement.fromDom(e);
+      Obj.each(stylesArg, (v, n) => {
+        applyStyle($elm, n, v);
+      });
 
-    if (settings.update_styles) {
-      updateInternalStyleAttr(styles, $elm);
-    }
+      if (settings.update_styles) {
+        updateInternalStyleAttr(styles, $elm);
+      }
+    });
   };
 
-  const getStyle = (elm: string | Node, name: string, computed?: boolean): string => {
-    const $elm = $$(elm);
+  const getStyle = (elm: string | Element | null, name: string, computed?: boolean): string | undefined => {
+    const $elm = get(elm);
+
+    if (Type.isNullable($elm) || !NodeType.isElement($elm)) {
+      return undefined;
+    }
 
     if (computed) {
-      return $elm.css(name);
+      return Css.get(SugarElement.fromDom($elm), camelCaseToHyphens(name));
+    } else {
+      // Camelcase it, if needed
+      name = name.replace(/-(\D)/g, (a, b) => b.toUpperCase());
+
+      if (name === 'float') {
+        name = 'cssFloat';
+      }
+
+      return $elm.style ? ($elm.style as Record<string, any>)[name] : undefined;
     }
-
-    // Camelcase it, if needed
-    name = name.replace(/-(\D)/g, (a, b) => {
-      return b.toUpperCase();
-    });
-
-    if (name === 'float') {
-      name = Env.browser.isIE() ? 'styleFloat' : 'cssFloat';
-    }
-
-    // TODO Add a type guard here instead of casting as any
-    return $elm[0] && ($elm[0] as any).style ? ($elm[0] as any).style[name] : undefined;
   };
 
-  const getSize = (elm: HTMLElement | string): {w: number; h: number} => {
-    let w, h;
+  const getSize = (elm: HTMLElement | string | null): { w: number; h: number } => {
+    const $elm = get(elm);
 
-    elm = get(elm);
-    w = getStyle(elm, 'width');
-    h = getStyle(elm, 'height');
+    if (!$elm) {
+      return { w: 0, h: 0 };
+    }
+
+    let w = getStyle($elm, 'width');
+    let h = getStyle($elm, 'height');
 
     // Non pixel value, then force offset/clientWidth
-    if (w.indexOf('px') === -1) {
-      w = 0;
+    if (!w || w.indexOf('px') === -1) {
+      w = '0';
     }
 
     // Non pixel value, then force offset/clientWidth
-    if (h.indexOf('px') === -1) {
-      h = 0;
+    if (!h || h.indexOf('px') === -1) {
+      h = '0';
     }
 
     return {
-      w: parseInt(w, 10) || elm.offsetWidth || elm.clientWidth,
-      h: parseInt(h, 10) || elm.offsetHeight || elm.clientHeight
+      w: parseInt(w, 10) || $elm.offsetWidth || $elm.clientWidth,
+      h: parseInt(h, 10) || $elm.offsetHeight || $elm.clientHeight
     };
   };
 
   const getRect = (elm: string | HTMLElement): GeomRect => {
-    elm = get(elm);
-    const pos = getPos(elm);
-    const size = getSize(elm);
+    const $elm = get(elm);
+    const pos = getPos($elm);
+    const size = getSize($elm);
 
     return {
       x: pos.x, y: pos.y,
@@ -528,78 +519,44 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     };
   };
 
-  const is = (elm: Node | Node[], selector: string) => {
-    let i;
-
+  const is = <T extends Element>(elm: Node | Node[] | null, selector: string): elm is T => {
     if (!elm) {
       return false;
     }
 
-    // If it isn't an array then try to do some simple selectors instead of Sizzle for to boost performance
-    if (!Array.isArray(elm)) {
-      // Simple all selector
-      if (selector === '*') {
-        return elm.nodeType === 1;
-      }
+    const elms = Type.isArray(elm) ? elm : [ elm ];
 
-      // Simple selector just elements
-      if (simpleSelectorRe.test(selector)) {
-        const selectors = selector.toLowerCase().split(/,/);
-        const elmName = elm.nodeName.toLowerCase();
-
-        for (i = selectors.length - 1; i >= 0; i--) {
-          if (selectors[i] === elmName) {
-            return true;
-          }
-        }
-
-        return false;
-      }
-
-      // Is non element
-      if (elm.nodeType && elm.nodeType !== 1) {
-        return false;
-      }
-    }
-
-    const elms = !Array.isArray(elm) ? [ elm ] : elm;
-
-    /* eslint new-cap:0 */
-    return Sizzle(selector, elms[0].ownerDocument || elms[0], null, elms).length > 0;
+    return Arr.exists(elms, (e) => {
+      return Selectors.is<T>(SugarElement.fromDom(e), selector);
+    });
   };
 
-  const getParents = (elm: string | Node, selector?: string | ((node: HTMLElement) => boolean | void), root?: Node, collect?: boolean): Element[] => {
-    const result = [];
-    let selectorVal;
+  const getParents = (elm: string | Node | null, selector?: string | ((node: Node) => boolean | void), root?: Node, collect?: boolean): Node[] | null => {
+    const result: Node[] = [];
 
-    let node: HTMLElement = get(elm);
+    let node = get(elm);
     collect = collect === undefined;
 
     // Default root on inline mode
-    root = root || (getRoot().nodeName !== 'BODY' ? getRoot().parentNode : null);
+    const resolvedRoot = root || (getRoot().nodeName !== 'BODY' ? getRoot().parentNode : null);
 
     // Wrap node name as func
-    if (Tools.is(selector, 'string')) {
-      selectorVal = selector;
-
+    if (Type.isString(selector)) {
       if (selector === '*') {
-        selector = (node) => {
-          return node.nodeType === 1;
-        };
+        selector = NodeType.isElement;
       } else {
-        selector = (node) => {
-          return is(node, selectorVal);
-        };
+        const selectorVal = selector;
+        selector = (node) => is(node, selectorVal);
       }
     }
 
     while (node) {
       // TODO: Remove nullable check once TINY-6599 is complete
-      if (node === root || Type.isNullable(node.nodeType) || NodeType.isDocument(node) || NodeType.isDocumentFragment(node)) {
+      if (node === resolvedRoot || Type.isNullable(node.nodeType) || NodeType.isDocument(node) || NodeType.isDocumentFragment(node)) {
         break;
       }
 
-      if (!selector || (typeof selector === 'function' && selector(node))) {
+      if (!selector || selector(node)) {
         if (collect) {
           result.push(node);
         } else {
@@ -607,32 +564,32 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
         }
       }
 
-      node = node.parentNode as HTMLElement;
+      node = node.parentNode;
     }
 
     return collect ? result : null;
   };
 
-  const getParent = (node: string | Node, selector?: string | ((node: HTMLElement) => boolean | void), root?: Node): Element => {
+  const getParent = (node: string | Node | null, selector?: string | ((node: Node) => boolean | void), root?: Node): Node | null => {
     const parents = getParents(node, selector, root, false);
     return parents && parents.length > 0 ? parents[0] : null;
   };
 
-  const _findSib = (node: Node, selector: string | ((node: Node) => boolean), name: string) => {
+  const _findSib = (node: Node | null, selector: string | ((node: Node) => boolean), name: 'previousSibling' | 'nextSibling') => {
     let func = selector;
 
     if (node) {
       // If expression make a function of it using is
-      if (typeof selector === 'string') {
+      if (Type.isString(selector)) {
         func = (node) => {
           return is(node, selector);
         };
       }
 
       // Loop all siblings
-      for (node = node[name]; node; node = node[name]) {
-        if (typeof func === 'function' && func(node)) {
-          return node;
+      for (let tempNode = node[name]; tempNode; tempNode = tempNode[name]) {
+        if (Type.isFunction(func) && func(tempNode)) {
+          return tempNode;
         }
       }
     }
@@ -640,85 +597,65 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     return null;
   };
 
-  const getNext = (node: Node, selector: string | ((node: Node) => boolean)) => _findSib(node, selector, 'nextSibling');
+  const getNext = (node: Node | null, selector: string | ((node: Node) => boolean)) => _findSib(node, selector, 'nextSibling');
 
-  const getPrev = (node: Node, selector: string | ((node: Node) => boolean)) => _findSib(node, selector, 'previousSibling');
+  const getPrev = (node: Node | null, selector: string | ((node: Node) => boolean)) => _findSib(node, selector, 'previousSibling');
 
-  const select = (selector: string, scope?: Node | string) => Sizzle(selector, get(scope) || settings.root_element || doc, []);
+  const isParentNode = (node: Node): node is ParentNode =>
+    Type.isFunction((node as any).querySelectorAll);
 
-  const run = function <R, T extends Node> (elm: RunArguments<T>, func: (node: T) => R, scope?): false | R {
-    let result;
-    const node = typeof elm === 'string' ? get(elm) : elm;
+  const select = (selector: string, scope?: Node | string): Element[] => {
+    const elm = get(scope) ?? settings.root_element ?? doc;
+    return isParentNode(elm) ? Arr.from(elm.querySelectorAll(selector)) : [];
+  };
 
-    if (!node) {
-      return false;
-    }
+  const run = function <R, T extends Node> (this: any, elm: RunArguments<T>, func: (node: T, i?: number) => R, scope?: any): RunResult<typeof elm, R> {
+    const context = scope ?? this;
 
-    if (Tools.isArray(node) && (node.length || node.length === 0)) {
-      result = [];
+    if (Type.isArray(elm)) {
+      const result: R[] = [];
 
-      each(node, (elm, i) => {
-        if (elm) {
-          result.push(func.call(scope, typeof elm === 'string' ? get(elm) : elm, i));
+      each(elm, (e, i) => {
+        const node = get(e);
+        if (node) {
+          result.push(func.call(context, node as T, i));
         }
       });
 
       return result;
+    } else {
+      const node = get(elm);
+      return !node ? false : func.call(context, node as T);
     }
-
-    const context = scope ? scope : this;
-
-    return func.call(context, node);
   };
 
-  const setAttribs = (elm: string | Node | Node[], attrs: Record<string, string | boolean | number>) => {
-    $$(elm).each((i, node) => {
-      each(attrs, (value, name) => {
-        setAttrib(node, name, value);
+  const setAttribs = (elm: RunArguments<Element>, attrs: Record<string, string | boolean | number | null>) => {
+    run(elm, ($elm) => {
+      Obj.each(attrs, (value, name) => {
+        setAttrib($elm, name, value);
       });
     });
   };
 
-  const setHTML = (elm: string | Node | Node[], html: string) => {
-    const $elm = $$(elm);
-
-    if (isIE) {
-      $elm.each((i, target: Element) => {
-        if ((target as any).canHaveHTML === false) {
-          return;
-        }
-
-        // Remove all child nodes, IE keeps empty text nodes in DOM
-        while (target.firstChild) {
-          target.removeChild(target.firstChild);
-        }
-
-        try {
-          // IE will remove comments from the beginning
-          // unless you padd the contents with something
-          target.innerHTML = '<br>' + html;
-          target.removeChild(target.firstChild);
-        } catch (ex) {
-          // IE sometimes produces an unknown runtime error on innerHTML if it's a div inside a p
-          DomQuery('<div></div>').html('<br>' + html).contents().slice(1).appendTo(target);
-        }
-
-        return html;
-      });
-    } else {
-      $elm.html(html);
-    }
+  const setHTML = (elm: RunArguments<Element>, html: string) => {
+    run(elm, (e) => {
+      const $elm = SugarElement.fromDom(e);
+      Html.set($elm, html);
+    });
   };
 
-  const add = (parentElm: RunArguments, name: string | Node, attrs?: Record<string, string | boolean | number>, html?: string | Node, create?: boolean): HTMLElement =>
+  const add = (parentElm: RunArguments, name: string | Element, attrs?: Record<string, string | boolean | number | null>, html?: string | Node | null, create?: boolean): HTMLElement =>
     run(parentElm, (parentElm) => {
-      const newElm = typeof name === 'string' ? doc.createElement(name) : name;
-      setAttribs(newElm, attrs);
+      const newElm = Type.isString(name) ? doc.createElement(name) : name;
+
+      if (Type.isNonNullable(attrs)) {
+        setAttribs(newElm, attrs);
+      }
 
       if (html) {
-        if (typeof html !== 'string' && html.nodeType) {
+        if (!Type.isString(html) && html.nodeType) {
           newElm.appendChild(html);
-        } else if (typeof html === 'string') {
+        } else if (Type.isString(html)) {
           setHTML(newElm, html);
         }
       }
@@ -726,33 +663,29 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
       return !create ? parentElm.appendChild(newElm) : newElm;
     }) as HTMLElement;
 
-  const create = (name: string, attrs?: Record<string, string | boolean | number>, html?: string | Node): HTMLElement => add(doc.createElement(name), name, attrs, html, true);
+  const create = (name: string, attrs?: Record<string, string | boolean | number | null>, html?: string | Node | null): HTMLElement =>
+    add(doc.createElement(name), name, attrs, html, true);
 
   const decode = Entities.decode;
   const encode = Entities.encodeAllRaw;
 
-  const createHTML = (name: string, attrs?: Record<string, string>, html?: string): string => {
-    let outHtml = '', key;
+  const createHTML = (name: string, attrs?: Record<string, string | null>, html: string = ''): string => {
+    let outHtml = '<' + name;
 
-    outHtml += '<' + name;
-
-    for (key in attrs) {
+    for (const key in attrs) {
       if (Obj.hasNonNullableKey(attrs, key)) {
         outHtml += ' ' + key + '="' + encode(attrs[key]) + '"';
       }
     }
 
-    // A call to tinymce.is doesn't work for some odd reason on IE9 possible bug inside their JS runtime
-    if (typeof html !== 'undefined') {
+    if (Strings.isEmpty(html) && Obj.has(schema.getVoidElements(), name)) {
+      return outHtml + ' />';
+    } else {
       return outHtml + '>' + html + '</' + name + '>';
     }
-
-    return outHtml + ' />';
   };
 
   const createFragment = (html?: string): DocumentFragment => {
-    let node;
-
     const container = doc.createElement('div');
     const frag = doc.createDocumentFragment();
 
@@ -764,6 +697,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
       container.innerHTML = html;
     }
 
+    let node: Node | null;
     while ((node = container.firstChild)) {
       frag.appendChild(node);
     }
@@ -774,33 +708,31 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     return frag;
   };
 
-  const remove = <T extends Node>(node: string | T | T[] | DomQuery<T>, keepChildren?: boolean): T | T[] => {
-    const $node = $$(node) as DomQuery<T>;
+  const remove = <T extends Node>(node: string | T | T[], keepChildren?: boolean): RunResult<typeof node, T> => {
+    return run(node, (n) => {
+      const $node = SugarElement.fromDom(n);
 
-    if (keepChildren) {
-      $node.each(function () {
-        let child;
-
-        while ((child = this.firstChild)) {
-          if (child.nodeType === 3 && child.data.length === 0) {
-            this.removeChild(child);
+      if (keepChildren) {
+        // Unwrap but don't keep any empty text nodes
+        Arr.each(Traverse.children($node), (child) => {
+          if (SugarNode.isText(child) && child.dom.length === 0) {
+            Remove.remove(child);
           } else {
-            this.parentNode.insertBefore(child, this);
+            Insert.before($node, child);
           }
-        }
-      }).remove();
-    } else {
-      $node.remove();
-    }
+        });
+      }
 
-    return $node.length > 1 ? $node.toArray() : $node[0];
+      Remove.remove($node);
+
+      return $node.dom;
+    });
   };
 
   const removeAllAttribs = (e: RunArguments<Element>) => run(e, (e) => {
-    let i;
     const attrs = e.attributes;
-    for (i = attrs.length - 1; i >= 0; i--) {
-      e.removeAttributeNode(attrs.item(i));
+    for (let i = attrs.length - 1; i >= 0; i--) {
+      e.removeAttributeNode(attrs.item(i) as Attr);
     }
   });
 
@@ -809,8 +741,6 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
   const serializeStyle = (stylesArg: StyleMap, name?: string) => styles.serialize(stylesArg, name);
 
   const addStyle = (cssText: string) => {
-    let head, styleElm;
-
     // Prevent inline from loading the same styles twice
     if (self !== DOMUtils.DOM && doc === document) {
       if (addedStyles[cssText]) {
@@ -821,13 +751,13 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     }
 
     // Create style element if needed
-    styleElm = doc.getElementById('mceDefaultStyles');
+    let styleElm = doc.getElementById('mceDefaultStyles') as HTMLStyleElement | null;
     if (!styleElm) {
       styleElm = doc.createElement('style');
       styleElm.id = 'mceDefaultStyles';
       styleElm.type = 'text/css';
 
-      head = doc.getElementsByTagName('head')[0];
+      const head = doc.head;
       if (head.firstChild) {
         head.insertBefore(styleElm, head.firstChild);
       } else {
@@ -836,8 +766,8 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     }
 
     // Append style data to old or new style element
-    if (styleElm.styleSheet) {
-      styleElm.styleSheet.cssText += cssText;
+    if ((styleElm as any).styleSheet) {
+      (styleElm as any).styleSheet.cssText += cssText;
     } else {
       styleElm.appendChild(doc.createTextNode(cssText));
     }
@@ -850,118 +780,133 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
 
     Arr.each(urls.split(','), (url) => {
       files[url] = true;
-      styleSheetLoader.load(url, Fun.noop);
+      styleSheetLoader.load(url).catch(Fun.noop);
     });
   };
 
-  const toggleClass = (elm: string | Node | Node[], cls: string, state?: boolean) => {
-    $$(elm).toggleClass(cls, state).each(function () {
-      if (this.className === '') {
-        DomQuery(this).attr('class', null);
+  const toggleClass = (elm: RunArguments<Element>, cls: string, state?: boolean) => {
+    run(elm, (e) => {
+      if (NodeType.isElement(e)) {
+        const $elm = SugarElement.fromDom(e);
+        // TINY-4520: DomQuery used to handle specifying multiple classes and the
+        // formatter relies on it due to the changes made for TINY-7227
+        const classes = cls.split(' ');
+        Arr.each(classes, (c) => {
+          if (Type.isNonNullable(state)) {
+            const fn = state ? Class.add : Class.remove;
+            fn($elm, c);
+          } else {
+            Class.toggle($elm, c);
+          }
+        });
       }
     });
   };
 
-  const addClass = (elm: string | Node | Node[], cls: string) => {
-    $$(elm).addClass(cls);
+  const addClass = (elm: RunArguments<Element>, cls: string) => {
+    toggleClass(elm, cls, true);
   };
 
-  const removeClass = (elm: string | Node, cls: string) => {
+  const removeClass = (elm: RunArguments<Element>, cls: string) => {
     toggleClass(elm, cls, false);
   };
 
-  const hasClass = (elm: string | Node, cls: string) => $$(elm).hasClass(cls);
+  const hasClass = (elm: string | Element, cls: string) => {
+    const $elm = _get(elm);
+    // TINY-4520: DomQuery used to handle specifying multiple classes and the
+    // formatter relies on it due to the changes made for TINY-7227
+    const classes = cls.split(' ');
+    return Type.isNonNullable($elm) && Arr.forall(classes, (c) => Class.has($elm, c));
+  };
 
   const show = (elm: string | Node | Node[]) => {
-    $$(elm).show();
+    run(elm, (e) => Css.remove(SugarElement.fromDom(e), 'display'));
   };
 
   const hide = (elm: string | Node | Node[]) => {
-    $$(elm).hide();
+    run(elm, (e) => Css.set(SugarElement.fromDom(e), 'display', 'none'));
   };
 
-  const isHidden = (elm: string | Node) => $$(elm).css('display') === 'none';
+  const isHidden = (elm: string | Node): boolean => {
+    const $elm = _get(elm);
+    return Type.isNonNullable($elm) && Optionals.is(Css.getRaw($elm, 'display'), 'none');
+  };
 
   const uniqueId = (prefix?: string) => (!prefix ? 'mce_' : prefix) + (counter++);
 
   const getOuterHTML = (elm: string | Node): string => {
-    const node = typeof elm === 'string' ? get(elm) : elm;
+    const $elm = _get(elm);
 
-    return NodeType.isElement(node) ? node.outerHTML : DomQuery('<div></div>').append(DomQuery(node).clone()).html();
+    if (Type.isNonNullable($elm)) {
+      return NodeType.isElement($elm.dom) ? $elm.dom.outerHTML : Html.getOuter($elm);
+    } else {
+      return '';
+    }
   };
 
   const setOuterHTML = (elm: string | Node | Node[], html: string) => {
-    $$(elm).each(function () {
-      try {
-        // Older FF doesn't have outerHTML 3.6 is still used by some organizations
-        if ('outerHTML' in this) {
-          this.outerHTML = html;
-          return;
-        }
-      } catch (ex) {
-        // Ignore
+    run(elm, ($elm) => {
+      if (NodeType.isElement($elm)) {
+        $elm.outerHTML = html;
       }
-
-      // OuterHTML for IE it sometimes produces an "unknown runtime error"
-      remove(DomQuery(this).html(html), true);
     });
   };
 
-  const insertAfter = <T extends Node>(node: RunArguments<T>, reference: string | Node): false | T => {
+  const insertAfter = <T extends Node>(node: RunArguments<T>, reference: string | Node): RunResult<typeof node, T> => {
     const referenceNode = get(reference);
 
     return run(node, (node) => {
-      const parent = referenceNode.parentNode;
-      const nextSibling = referenceNode.nextSibling;
+      const parent = referenceNode?.parentNode;
+      const nextSibling = referenceNode?.nextSibling;
 
-      if (nextSibling) {
-        parent.insertBefore(node, nextSibling);
-      } else {
-        parent.appendChild(node);
+      if (parent) {
+        if (nextSibling) {
+          parent.insertBefore(node, nextSibling);
+        } else {
+          parent.appendChild(node);
+        }
       }
 
       return node;
     });
   };
 
-  const replace = <T extends Node>(newElm: Node, oldElm: RunArguments<T>, keepChildren?: boolean) => run<T, T>(oldElm, (oldElm) => {
-    if (Tools.is(oldElm, 'array')) {
-      newElm = newElm.cloneNode(true);
-    }
+  const replace = <T extends Node>(newElm: Node, oldElm: RunArguments<T>, keepChildren?: boolean) => run<T, T>(oldElm, (elm) => {
+    const replacee = Type.isArray(oldElm) ? newElm.cloneNode(true) : newElm;
 
     if (keepChildren) {
-      each(grep(oldElm.childNodes), (node) => {
-        newElm.appendChild(node);
+      each(grep(elm.childNodes), (node) => {
+        replacee.appendChild(node);
       });
     }
 
-    return oldElm.parentNode.replaceChild(newElm, oldElm);
+    elm.parentNode?.replaceChild(replacee, elm);
+    return elm;
   }) as T;
 
   const rename = <K extends keyof HTMLElementTagNameMap>(elm: Element, name: K): HTMLElementTagNameMap[K] => {
-    let newElm;
-
     if (elm.nodeName !== name.toUpperCase()) {
       // Rename block element
-      newElm = create(name);
+      const newElm = create(name) as HTMLElementTagNameMap[K];
 
       // Copy attribs to new block
-      each(getAttribs(elm), (attrNode: Attr) => {
+      each(getAttribs(elm), (attrNode) => {
         setAttrib(newElm, attrNode.nodeName, getAttrib(elm, attrNode.nodeName));
       });
 
       // Replace block
       replace(newElm, elm, true);
+      return newElm;
+    } else {
+      return elm as HTMLElementTagNameMap[K];
     }
-
-    return newElm || elm;
   };
 
   const findCommonAncestor = (a: Node, b: Node) => {
-    let ps = a, pe;
+    let ps: Node | null = a;
 
     while (ps) {
-      pe = b;
+      let pe: Node | null = b;
 
       while (pe && ps !== pe) {
         pe = pe.parentNode;
@@ -976,12 +921,10 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
 
     if (!ps && a.ownerDocument) {
       return a.ownerDocument.documentElement;
+    } else {
+      return ps;
     }
-
-    return ps;
   };
-
-  const toHex = (rgbVal: string) => styles.toHex(Tools.trim(rgbVal));
 
   // Check if element has a data-bookmark attribute, name attribute or is a named anchor
   const isNonEmptyElement = (node: Node) => {
@@ -994,38 +937,37 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     return false;
   };
 
-  const isEmpty = (node: Node, elements?: Record<string, any>) => {
-    let type: number, name: string, brCount = 0;
+  const isEmpty = (node: Node, elements?: Record<string, any>, options?: ({ includeZwsp?: boolean })) => {
+    let brCount = 0;
 
     // Keep elements with data-bookmark attributes, name attributes or are named anchors
     if (isNonEmptyElement(node)) {
       return false;
     }
 
-    node = node.firstChild;
-    if (node) {
-      const walker = new DomTreeWalker(node, node.parentNode);
-      const whitespace = schema ? schema.getWhiteSpaceElements() : {};
-      elements = elements || (schema ? schema.getNonEmptyElements() : null);
+    const firstChild = node.firstChild;
+    if (firstChild) {
+      const walker = new DomTreeWalker(firstChild, node);
+      const whitespaceElements = schema ? schema.getWhitespaceElements() : {};
+      const nonEmptyElements = elements || (schema ? schema.getNonEmptyElements() : null);
 
+      let tempNode: Node | null | undefined = firstChild;
       do {
-        type = node.nodeType;
-
-        if (NodeType.isElement(node)) {
+        if (NodeType.isElement(tempNode)) {
           // Ignore bogus elements
-          const bogusVal = node.getAttribute('data-mce-bogus');
+          const bogusVal = tempNode.getAttribute('data-mce-bogus');
           if (bogusVal) {
-            node = walker.next(bogusVal === 'all');
+            tempNode = walker.next(bogusVal === 'all');
             continue;
           }
 
           // Keep empty elements like <img />
-          name = node.nodeName.toLowerCase();
-          if (elements && elements[name]) {
+          const name = tempNode.nodeName.toLowerCase();
+          if (nonEmptyElements && nonEmptyElements[name]) {
             // Ignore single BR elements in blocks like <p><br /></p> or <p><span><br /></span></p>
             if (name === 'br') {
               brCount++;
-              node = walker.next();
+              tempNode = walker.next();
               continue;
             }
 
@@ -1033,28 +975,28 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
           }
 
           // Keep elements with data-bookmark attributes, name attributes or are named anchors
-          if (isNonEmptyElement(node)) {
+          if (isNonEmptyElement(tempNode)) {
             return false;
           }
         }
 
         // Keep comment nodes
-        if (type === 8) {
+        if (NodeType.isComment(tempNode)) {
           return false;
         }
 
         // Keep non whitespace text nodes
-        if (type === 3 && !isWhitespaceText(node.nodeValue)) {
+        if (NodeType.isText(tempNode) && !isWhitespaceText(tempNode.data) && (!options?.includeZwsp || !isZwsp(tempNode.data))) {
           return false;
         }
 
         // Keep whitespace preserve elements
-        if (type === 3 && node.parentNode && whitespace[node.parentNode.nodeName] && isWhitespaceText(node.nodeValue)) {
+        if (NodeType.isText(tempNode) && tempNode.parentNode && whitespaceElements[tempNode.parentNode.nodeName] && isWhitespaceText(tempNode.data)) {
           return false;
         }
 
-        node = walker.next();
-      } while (node);
+        tempNode = walker.next();
+      } while (tempNode);
     }
 
     return brCount <= 1;
@@ -1062,26 +1004,25 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
 
   const createRng = () => doc.createRange();
 
-  const split = <T extends Node>(parentElm: Node, splitElm: T, replacementElm?: T): T => {
+  const split = <T extends Node>(parentElm: Node, splitElm: T, replacementElm?: T): T | undefined => {
     let range = createRng();
     let beforeFragment: DocumentFragment;
     let afterFragment: DocumentFragment;
-    let parentNode: Node;
 
-    if (parentElm && splitElm) {
+    if (parentElm && splitElm && parentElm.parentNode && splitElm.parentNode) {
+      const parentNode = parentElm.parentNode;
       // Get before chunk
-      range.setStart(parentElm.parentNode, findNodeIndex(parentElm));
+      range.setStart(parentNode, findNodeIndex(parentElm));
       range.setEnd(splitElm.parentNode, findNodeIndex(splitElm));
       beforeFragment = range.extractContents();
 
       // Get after chunk
       range = createRng();
       range.setStart(splitElm.parentNode, findNodeIndex(splitElm) + 1);
-      range.setEnd(parentElm.parentNode, findNodeIndex(parentElm) + 1);
+      range.setEnd(parentNode, findNodeIndex(parentElm) + 1);
       afterFragment = range.extractContents();
 
       // Insert before chunk
-      parentNode = parentElm.parentNode;
       parentNode.insertBefore(TrimNode.trimNode(self, beforeFragment), parentElm);
 
       // Insert middle chunk
@@ -1097,11 +1038,13 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
       remove(parentElm);
 
       return replacementElm || splitElm;
+    } else {
+      return undefined;
     }
   };
 
   const bind = <K extends string>(target: Target | Target[], name: K, func: Callback<K>, scope?: any): Callback<K> | Callback<K>[] => {
-    if (Tools.isArray<Target>(target)) {
+    if (Type.isArray(target)) {
       let i = target.length;
       const rv: Callback<K>[] = [];
 
@@ -1110,19 +1053,18 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
       }
 
       return rv;
-    }
+    } else {
+      // Collect all window/document events bound by editor instance
+      if (settings.collect && (target === doc || target === win)) {
+        boundEvents.push([ target, name, func, scope ]);
+      }
 
-    // Collect all window/document events bound by editor instance
-    if (settings.collect && (target === doc || target === win)) {
-      boundEvents.push([ target, name, func, scope ]);
+      return events.bind(target, name, func, scope || self);
     }
-
-    const output: Callback<K> = events.bind(target, name, func, scope || self);
-    return output as (typeof target) extends [] ? Callback<K>[] : Callback<K>;
   };
 
   const unbind = <K extends string>(target: Target | Target[], name: K, func: EventUtilsCallback<MappedEvent<HTMLElementEventMap, K>>): EventUtils | EventUtils[] => {
-    if (Tools.isArray<Target>(target)) {
+    if (Type.isArray(target)) {
       let i = target.length;
       const rv = [] as EventUtils[];
 
@@ -1137,10 +1079,10 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
         let i = boundEvents.length;
 
         while (i--) {
-          const item = boundEvents[i];
+          const [ boundTarget, boundName, boundFunc ] = boundEvents[i];
 
-          if (target === item[0] && (!name || name === item[1]) && (!func || func === item[2])) {
-            events.unbind(item[0], item[1], item[2]);
+          if (target === boundTarget && (!name || name === boundName) && (!func || func === boundFunc)) {
+            events.unbind(boundTarget, boundName, boundFunc);
           }
         }
       }
@@ -1148,7 +1090,8 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     }
   };
 
-  const fire = (target: Target, name: string, evt?) => events.fire(target, name, evt);
+  const dispatch = (target: Target, name: string, evt?: {}) => events.dispatch(target, name, evt);
+  const fire = (target: Target, name: string, evt?: {}) => events.dispatch(target, name, evt);
 
   const getContentEditable = (node: Node) => {
     if (node && NodeType.isElement(node)) {
@@ -1167,10 +1110,10 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
 
   const getContentEditableParent = (node: Node) => {
     const root = getRoot();
-    let state = null;
+    let state: string | null = null;
 
-    for (; node && node !== root; node = node.parentNode) {
-      state = getContentEditable(node);
+    for (let tempNode: Node | null = node; tempNode && tempNode !== root; tempNode = tempNode.parentNode) {
+      state = getContentEditable(tempNode);
 
       if (state !== null) {
         break;
@@ -1180,14 +1123,23 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     return state;
   };
 
+  const isEditable = (node: Node | null | undefined) => {
+    if (Type.isNonNullable(node)) {
+      const scope = NodeType.isElement(node) ? node : node.parentElement;
+      return Type.isNonNullable(scope) && ContentEditable.isEditable(SugarElement.fromDom(scope));
+    } else {
+      return false;
+    }
+  };
+
   const destroy = () => {
     // Unbind all events bound to window/document by editor instance
     if (boundEvents.length > 0) {
       let i = boundEvents.length;
 
       while (i--) {
-        const item = boundEvents[i];
-        events.unbind(item[0], item[1], item[2]);
+        const [ boundTarget, boundName, boundFunc ] = boundEvents[i];
+        events.unbind(boundTarget, boundName, boundFunc);
       }
     }
 
@@ -1196,30 +1148,10 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
       styleSheetLoader.unload(url);
       delete files[url];
     });
-
-    // Restore sizzle document to window.document
-    // Since the current document might be removed producing "Permission denied" on IE see #6325
-    if (Sizzle.setDocument) {
-      Sizzle.setDocument();
-    }
   };
 
   const isChildOf = (node: Node, parent: Node) => {
-    // IE only supports the native `contains` functions on HTMLElements, but not Nodes or Elements
-    // so we have to use the slow walking path for IE unfortunately.
-    if (!isIE) {
-      return node === parent || parent.contains(node);
-    } else {
-      while (node) {
-        if (parent === node) {
-          return true;
-        }
-
-        node = node.parentNode;
-      }
-
-      return false;
-    }
+    return node === parent || parent.contains(node);
   };
 
   const dumpRng = (r: Range) => (
@@ -1241,25 +1173,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     styles,
     schema,
     events,
-    isBlock,
-
-    /**
-     * <em>Deprecated in TinyMCE 5.10 and has been marked for removal in TinyMCE 6.0.</em>
-     *
-     * @deprecated
-     * @property $
-     * @type tinymce.dom.DomQuery
-     */
-    $,
-
-    /**
-     * <em>Deprecated in TinyMCE 5.10 and has been marked for removal in TinyMCE 6.0.</em>
-     *
-     * @deprecated
-     * @property $$
-     * @type tinymce.dom.DomQuery
-     */
-    $$,
+    isBlock: isBlock as DOMUtils['isBlock'],
 
     root: null,
 
@@ -1288,7 +1202,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      *
      * @method getRect
      * @param {Element/String} elm Element object or element ID to get rectangle from.
-     * @return {object} Rectangle for specified element object with x, y, w, h fields.
+     * @return {Object} Rectangle for specified element object with x, y, w, h fields.
      */
     getRect,
 
@@ -1297,7 +1211,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      *
      * @method getSize
      * @param {Element/String} elm Element object or element ID to get rectangle from.
-     * @return {object} Rectangle for specified element object with w, h fields.
+     * @return {Object} Rectangle for specified element object with w, h fields.
      */
     getSize,
 
@@ -1309,7 +1223,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      *
      * @method getParent
      * @param {Node/String} node DOM node to search parents on or ID string.
-     * @param {function} selector Selection function or CSS selector to execute on each node.
+     * @param {Function} selector Selection function or CSS selector to execute on each node.
      * @param {Node} root Optional root element, never go beyond this point.
      * @return {Node} DOM Node or null if it wasn't found.
      */
@@ -1321,11 +1235,11 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      *
      * @method getParents
      * @param {Node/String} node DOM node to search parents on or ID string.
-     * @param {function} selector Selection function to execute on each node or CSS pattern.
+     * @param {Function} selector Selection function to execute on each node or CSS pattern.
      * @param {Node} root Optional root element, never go beyond this point.
      * @return {Array} Array of nodes or null if it wasn't found.
      */
-    getParents,
+    getParents: getParents as DOMUtils['getParents'],
 
     /**
      * Returns the specified element by ID or the input element if it isn't a string.
@@ -1359,9 +1273,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     // #ifndef jquery
 
     /**
-     * Returns a list of the elements specified by the given CSS selector. For example "div#a1 p.test".
-     * This function is optimized for the most common patterns needed in TinyMCE but it also performs well enough
-     * on more complex patterns.
+     * Returns a list of the elements specified by the given CSS selector. For example: `div#a1 p.test`
      *
      * @method select
      * @param {String} selector Target CSS selector.
@@ -1400,7 +1312,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      * were passed in.
      * @example
      * // Adds a new paragraph to the end of the active editor
-     * tinymce.activeEditor.dom.add(tinymce.activeEditor.getBody(), 'p', {title: 'my title'}, 'Some content');
+     * tinymce.activeEditor.dom.add(tinymce.activeEditor.getBody(), 'p', { title: 'my title' }, 'Some content');
      */
     add,
 
@@ -1414,7 +1326,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      * @return {Element} HTML DOM node element that got created.
      * @example
      * // Adds an element where the caret/selection is in the active editor
-     * var el = tinymce.activeEditor.dom.create('div', {id: 'test', 'class': 'myclass'}, 'some content');
+     * var el = tinymce.activeEditor.dom.create('div', { id: 'test', 'class': 'myclass' }, 'some content');
      * tinymce.activeEditor.selection.setNode(el);
      */
     create,
@@ -1429,7 +1341,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      * @return {String} String with new HTML element, for example: <a href="#">test</a>.
      * @example
      * // Creates a html chunk and inserts it at the current selection/caret location
-     * tinymce.activeEditor.selection.setContent(tinymce.activeEditor.dom.createHTML('a', {href: 'test.html'}, 'some line'));
+     * tinymce.activeEditor.selection.setContent(tinymce.activeEditor.dom.createHTML('a', { href: 'test.html' }, 'some line'));
      */
     createHTML,
 
@@ -1486,7 +1398,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      * @param {Boolean} computed Computed style.
      * @return {String} Current style or computed style value of an element.
      */
-    getStyle,
+    getStyle: getStyle as DOMUtils['getStyle'],
 
     /**
      * Sets multiple styles on the specified element(s).
@@ -1496,10 +1408,10 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      * @param {Object} styles Name/Value collection of style items to add to the element(s).
      * @example
      * // Sets styles on all paragraphs in the currently active editor
-     * tinymce.activeEditor.dom.setStyles(tinymce.activeEditor.dom.select('p'), {'background-color': 'red', 'color': 'green'});
+     * tinymce.activeEditor.dom.setStyles(tinymce.activeEditor.dom.select('p'), { 'background-color': 'red', 'color': 'green' });
      *
      * // Sets styles to an element by id in the current document
-     * tinymce.DOM.setStyles('mydiv', {'background-color': 'red', 'color': 'green'});
+     * tinymce.DOM.setStyles('mydiv', { 'background-color': 'red', 'color': 'green' });
      */
     setStyles,
 
@@ -1536,10 +1448,10 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      * @param {Object} attrs Name/Value collection of attribute items to add to the element(s).
      * @example
      * // Sets class and title attributes on all paragraphs in the active editor
-     * tinymce.activeEditor.dom.setAttribs(tinymce.activeEditor.dom.select('p'), {'class': 'myclass', title: 'some title'});
+     * tinymce.activeEditor.dom.setAttribs(tinymce.activeEditor.dom.select('p'), { 'class': 'myclass', title: 'some title' });
      *
      * // Sets class and title attributes on a specific element in the current page
-     * tinymce.DOM.setAttribs('mydiv', {'class': 'myclass', title: 'some title'});
+     * tinymce.DOM.setAttribs('mydiv', { 'class': 'myclass', title: 'some title' });
      */
     setAttribs,
 
@@ -1560,7 +1472,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      * @method getPos
      * @param {Element/String} elm HTML element or element id to get x, y position from.
      * @param {Element} rootElm Optional root element to stop calculations at.
-     * @return {object} Absolute position of the specified element object with x, y fields.
+     * @return {Object} Absolute position of the specified element object with x, y fields.
      */
     getPos,
 
@@ -1661,8 +1573,8 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      *
      * @method toggleClass
      * @param {Element} elm Element to toggle class on.
-     * @param {[type]} cls Class to toggle on/off.
-     * @param {[type]} state Optional state to set.
+     * @param {String} cls Class to toggle on/off.
+     * @param {Boolean} state Optional state to set.
      */
     toggleClass,
 
@@ -1748,7 +1660,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     setOuterHTML,
 
     /**
-     * Entity decodes a string. This method decodes any HTML entities, such as &aring;.
+     * Entity decodes a string. This method decodes any HTML entities, such as `&amp;aring;`.
      *
      * @method decode
      * @param {String} s String to decode entities on.
@@ -1757,7 +1669,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     decode,
 
     /**
-     * Entity encodes a string. This method encodes the most common entities, such as <>"&.
+     * Entity encodes a string. This method encodes the most common entities, such as `<`, `>`, `"` and `&`.
      *
      * @method encode
      * @param {String} text String to encode with entities.
@@ -1808,20 +1720,11 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     findCommonAncestor,
 
     /**
-     * Parses the specified RGB color value and returns a hex version of that color.
-     *
-     * @method toHex
-     * @param {String} rgbVal RGB string value like rgb(1,2,3)
-     * @return {String} Hex version of that RGB value like #FF00FF.
-     */
-    toHex,
-
-    /**
      * Executes the specified function on the element by id or dom element node or array of elements/id.
      *
      * @method run
      * @param {String/Element/Array} elm ID or DOM element object or array with ids or elements.
-     * @param {function} func Function to execute for each item.
+     * @param {Function} func Function to execute for each item.
      * @param {Object} scope Optional scope to execute the function in.
      * @return {Object/Array} Single object, or an array of objects if multiple input elements were passed in.
      */
@@ -1839,11 +1742,11 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     /**
      * Returns true/false if the specified node is to be considered empty or not.
      *
-     * @example
-     * tinymce.DOM.isEmpty(node, {img: true});
      * @method isEmpty
      * @param {Object} elements Optional name/value object with elements that are automatically treated as non-empty elements.
      * @return {Boolean} true/false if the node is empty or not.
+     * @example
+     * tinymce.DOM.isEmpty(node, { img: true });
      */
     isEmpty,
 
@@ -1854,7 +1757,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      * @method createRng
      * @return {DOMRange} DOM Range object.
      * @example
-     * var rng = tinymce.DOM.createRng();
+     * const rng = tinymce.DOM.createRng();
      * alert(rng.startContainer + "," + rng.startOffset);
      */
     createRng,
@@ -1864,7 +1767,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      *
      * @method nodeIndex
      * @param {Node} node Node to look for.
-     * @param {boolean} normalized Optional true/false state if the index is what it would be after a normalization.
+     * @param {Boolean} normalized Optional true/false state if the index is what it would be after a normalization.
      * @return {Number} Index of the specified node.
      */
     nodeIndex: findNodeIndex,
@@ -1872,7 +1775,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
     /**
      * Splits an element into two new elements and places the specified split
      * element or elements between the new ones. For example splitting the paragraph at the bold element in
-     * this example <p>abc<b>abc</b>123</p> would produce <p>abc</p><b>abc</b><p>123</p>.
+     * this example `<p>abc<b>abc</b>123</p>` would produce `<p>abc</p><b>abc</b><p>123</p>`.
      *
      * @method split
      * @param {Element} parentElm Parent element to split.
@@ -1889,9 +1792,9 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      * @param {Element/Document/Window/Array} target Target element to bind events to.
      * handler to or an array of elements/ids/documents.
      * @param {String} name Name of event handler to add, for example: click.
-     * @param {function} func Function to execute when the event occurs.
+     * @param {Function} func Function to execute when the event occurs.
      * @param {Object} scope Optional scope to execute the function in.
-     * @return {function} Function callback handler the same as the one passed in.
+     * @return {Function} Function callback handler the same as the one passed in.
      */
     bind: bind as DOMUtils['bind'],
 
@@ -1901,29 +1804,52 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
      * @method unbind
      * @param {Element/Document/Window/Array} target Target element to unbind events on.
      * @param {String} name Event handler name, for example: "click"
-     * @param {function} func Function to remove.
-     * @return {bool/Array} Bool state of true if the handler was removed, or an array of states if multiple input elements
+     * @param {Function} func Function to remove.
+     * @return {Boolean/Array} Bool state of true if the handler was removed, or an array of states if multiple input elements
      * were passed in.
      */
     unbind: unbind as DOMUtils['unbind'],
 
     /**
-     * Fires the specified event name with object on target.
+     * Fires the specified event name and optional object on the specified target.
+     * <br>
+     * <em>Deprecated in TinyMCE 6.0 and has been marked for removal in TinyMCE 7.0. Use <code>dispatch</code> instead.</em>
      *
      * @method fire
      * @param {Node/Document/Window} target Target element or object to fire event on.
+     * @param {String} name Event name to fire.
+     * @param {Object} evt Event object to send.
+     * @return {Event} Event object.
+     * @deprecated Use dispatch() instead
+     */
+    fire,
+
+    /**
+     * Dispatches the specified event name and optional object on the specified target.
+     *
+     * @method dispatch
+     * @param {Node/Document/Window} target Target element or object to dispatch event on.
      * @param {String} name Name of the event to fire.
      * @param {Object} evt Event object to send.
      * @return {Event} Event object.
      */
-    fire,
+    dispatch,
 
     // Returns the content editable state of a node
     getContentEditable,
     getContentEditableParent,
 
     /**
-     * Destroys all internal references to the DOM to solve IE leak issues.
+     * Checks if the specified node is editable within the given context of its parents.
+     *
+     * @method isEditable
+     * @param {Node} node Node to check if it's editable.
+     * @return {Boolean} Will be true if the node is editable and false if it's not editable.
+     */
+    isEditable,
+
+    /**
+     * Destroys all internal references to the DOM to solve memory leak issues.
      *
      * @method destroy
      */

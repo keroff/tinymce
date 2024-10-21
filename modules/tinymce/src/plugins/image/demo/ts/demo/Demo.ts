@@ -1,6 +1,6 @@
-import Delay from 'tinymce/core/api/util/Delay';
+import { TinyMCE } from 'tinymce/core/api/PublicApi';
 
-declare let tinymce: any;
+declare let tinymce: TinyMCE;
 
 tinymce.init({
   selector: 'textarea.tinymce',
@@ -21,13 +21,13 @@ tinymce.init({
   file_picker_callback: (callback, _value, _meta) => {
     callback('https://www.google.com/logos/google.jpg', { alt: 'My alt text', caption: true });
   },
-  images_upload_handler: (blobInfo, success, _failure, _progress) => {
+  images_upload_handler: (blobInfo, _progress) => new Promise((success) => {
     // eslint-disable-next-line no-console
     console.log(blobInfo);
-    Delay.setTimeout(() => {
+    setTimeout(() => {
       success('https://www.google.com/logos/google.jpg');
     }, 5000);
-  },
+  }),
   height: 600
 });
 

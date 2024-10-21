@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import Editor from './api/Editor';
 import { fireError } from './api/Events';
 import I18n from './api/util/I18n';
@@ -16,7 +9,7 @@ const displayNotification = (editor: Editor, message: string) => {
   });
 };
 
-const displayError = (editor: Editor, message: string) => {
+const displayError = (editor: Editor, message: string): void => {
   if (editor._skinLoaded) {
     displayNotification(editor, message);
   } else {
@@ -26,40 +19,48 @@ const displayError = (editor: Editor, message: string) => {
   }
 };
 
-const uploadError = (editor: Editor, message: string) => {
+const uploadError = (editor: Editor, message: string): void => {
   displayError(editor, I18n.translate([ 'Failed to upload image: {0}', message ]));
 };
 
-const logError = (editor: Editor, errorType: string, msg: string) => {
+const logError = (editor: Editor, errorType: string, msg: string): void => {
   fireError(editor, errorType, { message: msg });
   // eslint-disable-next-line no-console
   console.error(msg);
 };
 
-const createLoadError = (type: string, url: string, name?: string) => name ?
+const createLoadError = (type: string, url: string, name?: string): string => name ?
   `Failed to load ${type}: ${name} from url ${url}` :
   `Failed to load ${type} url: ${url}`;
 
-const pluginLoadError = (editor: Editor, url: string, name?: string) => {
+const pluginLoadError = (editor: Editor, url: string, name?: string): void => {
   logError(editor, 'PluginLoadError', createLoadError('plugin', url, name));
 };
 
-const iconsLoadError = (editor: Editor, url: string, name?: string) => {
+const iconsLoadError = (editor: Editor, url: string, name?: string): void => {
   logError(editor, 'IconsLoadError', createLoadError('icons', url, name));
 };
 
-const languageLoadError = (editor: Editor, url: string, name: string) => {
+const languageLoadError = (editor: Editor, url: string, name: string): void => {
   logError(editor, 'LanguageLoadError', createLoadError('language', url, name));
 };
 
-const pluginInitError = (editor: Editor, name: string, err) => {
+const themeLoadError = (editor: Editor, url: string, name: string): void => {
+  logError(editor, 'ThemeLoadError', createLoadError('theme', url, name));
+};
+
+const modelLoadError = (editor: Editor, url: string, name: string): void => {
+  logError(editor, 'ModelLoadError', createLoadError('model', url, name));
+};
+
+const pluginInitError = (editor: Editor, name: string, err: any): void => {
   const message = I18n.translate([ 'Failed to initialize plugin: {0}', name ]);
   fireError(editor, 'PluginLoadError', { message });
   initError(message, err);
   displayError(editor, message);
 };
 
-const initError = (message: string, ...x: any[]) => {
+const initError = (message: string, ...x: any[]): void => {
   const console = window.console;
   if (console) { // Skip test env
     if (console.error) {
@@ -74,6 +75,8 @@ export {
   pluginLoadError,
   iconsLoadError,
   languageLoadError,
+  themeLoadError,
+  modelLoadError,
   pluginInitError,
   uploadError,
   displayError,

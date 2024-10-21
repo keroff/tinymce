@@ -1,15 +1,8 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import RangeUtils from 'tinymce/core/api/dom/RangeUtils';
 import Editor from 'tinymce/core/api/Editor';
 import Tools from 'tinymce/core/api/util/Tools';
 
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import * as Utils from './Utils';
 
 const removeEmptyNamedAnchorsInSelection = (editor: Editor): void => {
@@ -41,7 +34,7 @@ const getId = (editor: Editor): string => {
 
 const createAnchor = (editor: Editor, id: string): void => {
   editor.undoManager.transact(() => {
-    if (!Settings.allowHtmlInNamedAnchor(editor)) {
+    if (!Options.allowHtmlInNamedAnchor(editor)) {
       editor.selection.collapse(true);
     }
     if (editor.selection.isCollapsed()) {
@@ -50,7 +43,7 @@ const createAnchor = (editor: Editor, id: string): void => {
       // Remove any empty named anchors in the selection as they cannot be removed by the formatter since they are cef
       removeEmptyNamedAnchorsInSelection(editor);
       // Format is set up to truncate any partially selected named anchors so that they are not completely removed
-      editor.formatter.remove('namedAnchor', null, null, true);
+      editor.formatter.remove('namedAnchor', undefined, undefined, true);
       // Insert new anchor using the formatter - will wrap selected content in anchor
       editor.formatter.apply('namedAnchor', { value: id });
       // Need to add visual classes to anchors if required

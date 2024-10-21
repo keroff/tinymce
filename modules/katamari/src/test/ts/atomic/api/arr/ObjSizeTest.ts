@@ -15,7 +15,6 @@ describe('atomic.katamari.api.arr.ObjSizeTest', () => {
     check(3, { a: 'a', b: 'b', c: 'c' });
   });
 
-  // NOTE: This breaks for empty keys
   it('inductive case', () => {
     fc.assert(fc.property(
       fc.dictionary(fc.asciiString(1, 30), fc.integer()),
@@ -23,7 +22,9 @@ describe('atomic.katamari.api.arr.ObjSizeTest', () => {
       fc.integer(),
       (obj, k, v) => {
         const objWithoutK = Obj.filter(obj, (x, i) => i !== k);
-        assert.deepEqual(Obj.size({ k: v, ...objWithoutK }), Obj.size(objWithoutK) + 1);
-      }));
+        assert.deepEqual(Obj.size({ [k]: v, ...objWithoutK }), Obj.size(objWithoutK) + 1);
+      }), {
+      numRuns: 5000
+    });
   });
 });

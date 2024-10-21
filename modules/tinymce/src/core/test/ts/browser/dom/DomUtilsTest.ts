@@ -1,28 +1,33 @@
 import { context, describe, it } from '@ephox/bedrock-client';
+import { Type } from '@ephox/katamari';
+import { ContentEditable, Hierarchy, Insert, Remove, SugarBody, SugarElement } from '@ephox/sugar';
 import { assert } from 'chai';
 
 import DOMUtils from 'tinymce/core/api/dom/DOMUtils';
-import Env from 'tinymce/core/api/Env';
 import Schema from 'tinymce/core/api/html/Schema';
 import Tools from 'tinymce/core/api/util/Tools';
 
 import * as HtmlUtils from '../../module/test/HtmlUtils';
 
-describe('browser.tinymce.core.dom.DOMUtils', () => {
+describe('browser.tinymce.core.dom.DOMUtilsTest', () => {
   const DOM = DOMUtils(document, { keep_values: true, schema: Schema() });
+
+  const getTestElement = (id: string = 'test') =>
+    DOM.get(id) as HTMLElement;
 
   it('parseStyle', () => {
     DOM.add(document.body, 'div', { id: 'test' });
 
     const dom = DOMUtils(document, {
-      hex_colors: true, keep_values: true, url_converter: (u) => {
+      keep_values: true,
+      url_converter: (u) => {
         return 'X' + u + 'Y';
       }
     });
 
     assert.equal(dom.serializeStyle(dom.parseStyle('border: 1px solid red; color: green')), 'border: 1px solid red; color: green;', 'incorrect parsing');
 
-    assert.equal(dom.serializeStyle(dom.parseStyle('border: 1px solid rgb(0, 255, 255); color: green')), 'border: 1px solid #00ffff; color: green;', 'incorrect parsing');
+    assert.equal(dom.serializeStyle(dom.parseStyle('border: 1px solid rgb(0, 255, 255); color: green')), 'border: 1px solid rgb(0, 255, 255); color: green;', 'incorrect parsing');
 
     assert.equal(dom.serializeStyle(
       dom.parseStyle('border-top: 1px solid red; border-left: 1px solid red; border-bottom: 1px solid red; border-right: 1px solid red;')
@@ -50,7 +55,7 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     // equal(dom.getAttrib('test2', 'style'), Env.ue && !window.getSelection ?
     // 'border: #00ff00 1px solid;' : 'border: 1px solid #00ff00;'); // IE has a separate output
 
-    dom.get('test').innerHTML = '<span id="test2" style="background-image: url(http://www.site.com/test.gif);"></span>';
+    (dom.get('test') as HTMLElement).innerHTML = '<span id="test2" style="background-image: url(http://www.site.com/test.gif);"></span>';
     assert.equal(dom.getAttrib('test2', 'style'), `background-image: url('Xhttp://www.site.com/test.gifY');`, 'incorrect attribute value');
 
     DOM.remove('test');
@@ -59,19 +64,19 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
   it('addClass', () => {
     DOM.add(document.body, 'div', { id: 'test' });
 
-    DOM.get('test').className = '';
+    getTestElement().className = '';
     DOM.addClass('test', 'abc');
-    assert.equal(DOM.get('test').className, 'abc', 'incorrect classname');
+    assert.equal(getTestElement().className, 'abc', 'incorrect classname');
 
     DOM.addClass('test', '123');
-    assert.equal(DOM.get('test').className, 'abc 123', 'incorrect classname');
+    assert.equal(getTestElement().className, 'abc 123', 'incorrect classname');
 
-    DOM.get('test').innerHTML = '<span id="test2"></span><span id="test3"></span><span id="test4"></span>';
+    getTestElement().innerHTML = '<span id="test2"></span><span id="test3"></span><span id="test4"></span>';
     DOM.addClass(DOM.select('span', 'test'), 'abc');
-    assert.equal(DOM.get('test2').className, 'abc', 'incorrect classname');
-    assert.equal(DOM.get('test3').className, 'abc', 'incorrect classname');
-    assert.equal(DOM.get('test4').className, 'abc', 'incorrect classname');
-    DOM.get('test').innerHTML = '';
+    assert.equal((getTestElement('test2')).className, 'abc', 'incorrect classname');
+    assert.equal((getTestElement('test3')).className, 'abc', 'incorrect classname');
+    assert.equal((getTestElement('test4')).className, 'abc', 'incorrect classname');
+    getTestElement().innerHTML = '';
 
     DOM.remove('test');
   });
@@ -79,21 +84,21 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
   it('removeClass', () => {
     DOM.add(document.body, 'div', { id: 'test' });
 
-    DOM.get('test').className = 'abc 123 xyz';
+    getTestElement().className = 'abc 123 xyz';
     DOM.removeClass('test', '123');
-    assert.equal(DOM.get('test').className, 'abc xyz', 'incorrect classname');
+    assert.equal(getTestElement().className, 'abc xyz', 'incorrect classname');
 
-    DOM.get('test').innerHTML = (
+    getTestElement().innerHTML = (
       '<span id="test2" class="test1"></span><span id="test3" class="test test1 test"></span><span id="test4" class="test1 test"></span>'
     );
     DOM.removeClass(DOM.select('span', 'test'), 'test1');
-    assert.equal(DOM.get('test2').className, '', 'incorrect classname');
-    assert.equal(DOM.get('test3').className, 'test test', 'incorrect classname');
-    assert.equal(DOM.get('test4').className, 'test', 'incorrect classname');
+    assert.equal((getTestElement('test2')).className, '', 'incorrect classname');
+    assert.equal((getTestElement('test3')).className, 'test', 'incorrect classname');
+    assert.equal((getTestElement('test4')).className, 'test', 'incorrect classname');
 
-    DOM.get('test').innerHTML = '<span id="test2" class="test"></span>';
+    getTestElement().innerHTML = '<span id="test2" class="test"></span>';
     DOM.removeClass('test2', 'test');
-    assert.equal(HtmlUtils.normalizeHtml(DOM.get('test').innerHTML), '<span id="test2"></span>', 'incorrect classname');
+    assert.equal(getTestElement().innerHTML, '<span id="test2"></span>', 'incorrect classname');
 
     DOM.remove('test');
   });
@@ -101,46 +106,44 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
   it('hasClass', () => {
     DOM.add(document.body, 'div', { id: 'test' });
 
-    DOM.get('test').className = 'abc 123 xyz';
+    getTestElement().className = 'abc 123 xyz';
     assert.isTrue(DOM.hasClass('test', 'abc'), 'incorrect hasClass result');
     assert.isTrue(DOM.hasClass('test', '123'), 'incorrect hasClass result');
     assert.isTrue(DOM.hasClass('test', 'xyz'), 'incorrect hasClass result');
     assert.isFalse(DOM.hasClass('test', 'aaa'), 'incorrect hasClass result');
 
-    DOM.get('test').className = 'abc';
+    getTestElement().className = 'abc';
     assert.isTrue(DOM.hasClass('test', 'abc'), 'incorrect hasClass result');
 
-    DOM.get('test').className = 'aaa abc';
+    getTestElement().className = 'aaa abc';
     assert.isTrue(DOM.hasClass('test', 'abc'), 'incorrect hasClass result');
 
-    DOM.get('test').className = 'abc aaa';
+    getTestElement().className = 'abc aaa';
     assert.isTrue(DOM.hasClass('test', 'abc'), 'incorrect hasClass result');
 
     DOM.remove('test');
   });
 
   it('add', () => {
-    let e;
-
     DOM.add(document.body, 'div', { id: 'test' });
 
     DOM.add('test', 'span', { class: 'abc 123' }, 'content <b>abc</b>');
-    e = DOM.get('test').getElementsByTagName('span')[0];
+    let e = getTestElement().getElementsByTagName('span')[0];
     assert.equal(e.className, 'abc 123', 'incorrect className');
     assert.equal(e.innerHTML.toLowerCase(), 'content <b>abc</b>', 'incorrect innerHTML');
     DOM.remove(e);
 
     DOM.add('test', 'span', { class: 'abc 123' });
-    e = DOM.get('test').getElementsByTagName('span')[0];
+    e = getTestElement().getElementsByTagName('span')[0];
     assert.equal(e.className, 'abc 123', 'incorrect classname');
     DOM.remove(e);
 
     DOM.add('test', 'span');
-    e = DOM.get('test').getElementsByTagName('span')[0];
+    e = getTestElement().getElementsByTagName('span')[0];
     assert.equal(e.nodeName, 'SPAN', 'incorrect nodeName');
     DOM.remove(e);
 
-    DOM.get('test').innerHTML = '<span id="test2"></span><span id="test3"></span><span id="test4"></span>';
+    getTestElement().innerHTML = '<span id="test2"></span><span id="test3"></span><span id="test4"></span>';
     DOM.add([ 'test2', 'test3', 'test4' ], 'span', { class: 'abc 123' });
     assert.equal(DOM.select('span', 'test').length, 6, 'incorrect length');
 
@@ -160,10 +163,11 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
       id: 'id1',
       class: 'abc 123'
     }, 'content <b>abc</b>'), '<span id="id1" class="abc 123">content <b>abc</b></span>');
-    assert.equal(DOM.createHTML('span', { id: 'id1', class: 'abc 123' }), '<span id="id1" class="abc 123" />');
-    assert.equal(DOM.createHTML('span', { id: null, class: undefined }), '<span />');
-    assert.equal(DOM.createHTML('span'), '<span />');
-    assert.equal(DOM.createHTML('span', null, 'content <b>abc</b>'), '<span>content <b>abc</b></span>');
+    assert.equal(DOM.createHTML('span', { id: 'id1', class: 'abc 123' }), '<span id="id1" class="abc 123"></span>');
+    assert.equal(DOM.createHTML('span', { id: null, class: undefined } as any), '<span></span>');
+    assert.equal(DOM.createHTML('span'), '<span></span>');
+    assert.equal(DOM.createHTML('span', {}, 'content <b>abc</b>'), '<span>content <b>abc</b></span>');
+    assert.equal(DOM.createHTML('img', {}), '<img />');
   });
 
   it('uniqueId', () => {
@@ -176,11 +180,11 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     DOM.add(document.body, 'div', { id: 'test' });
 
     DOM.show('test');
-    assert.equal(DOM.get('test').style.display, '');
+    assert.equal(getTestElement().style.display, '');
     assert.isFalse(DOM.isHidden('test'));
 
     DOM.hide('test');
-    assert.equal(DOM.get('test').style.display, 'none');
+    assert.equal(getTestElement().style.display, 'none');
     assert.isTrue(DOM.isHidden('test'));
 
     // Cleanup
@@ -199,10 +203,6 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     DOM.setHTML('test', '<div class="test1 test2 test3">test 1</div><div class="test2">test 2 <div>test 3</div></div><div>test 4</div>');
     assert.equal(DOM.select('div.test2', 'test').length, 2);
 
-    DOM.setHTML('test', '<div class="test1 test2 test3">test 1</div><div class="test2">test 2 <div>test 3</div></div><div>test 4</div>');
-    assert.equal(DOM.select('div div', 'test').length, 1, ''); // Issue: http://bugs.webkit.org/show_bug.cgi?id=17461
-    // alert(DOM.select('div div', 'test').length +","+DOM.get('test').querySelectorAll('div div').length);
-
     DOM.remove('test');
   });
 
@@ -215,7 +215,7 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     assert.isFalse(DOM.is(DOM.get('textX'), 'div#textX2'));
     assert.isFalse(DOM.is(null, 'div#textX2'));
 
-    DOM.get('test').innerHTML = '<div><span class="test">ab<span><a id="test2" href="">abc</a>c</span></span></div>';
+    getTestElement().innerHTML = '<div><span class="test">ab<span><a id="test2" href="">abc</a>c</span></span></div>';
 
     assert.isTrue(DOM.is(DOM.select('span', 'test'), 'span'));
     assert.isTrue(DOM.is(DOM.select('#test2', 'test'), '#test2'));
@@ -256,9 +256,10 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     assert.equal(DOM.getAttrib('test', 'src'), '&<>"123&<>"src');
     assert.equal(DOM.getAttrib('test', 'href'), '&<>"abc&<>"href');
 
-    assert.equal(DOM.getAttrib(document, 'test'), '');
-    assert.equal(DOM.getAttrib(document, 'test', ''), '');
-    assert.equal(DOM.getAttrib(document, 'test', 'x'), 'x');
+    const nonElement = document as unknown as Element;
+    assert.equal(DOM.getAttrib(nonElement, 'test'), '');
+    assert.equal(DOM.getAttrib(nonElement, 'test', ''), '');
+    assert.equal(DOM.getAttrib(nonElement, 'test', 'x'), 'x');
 
     DOM.remove('test');
   });
@@ -285,10 +286,10 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
 
     DOM.add(document.body, 'div', { id: 'test' });
 
-    DOM.get('test').innerHTML = '<span id="test2" class="test"></span>';
+    getTestElement().innerHTML = '<span id="test2" class="test"></span>';
     assert.isTrue(check(DOM.getAttribs('test2'), 'id,class'));
 
-    DOM.get('test').innerHTML = '<input id="test2" type="checkbox" name="test" value="1" disabled readonly checked></span>';
+    getTestElement().innerHTML = '<input id="test2" type="checkbox" name="test" value="1" disabled readonly checked></span>';
     assert.isTrue(check(DOM.getAttribs('test2'), 'id,type,name,value,disabled,readonly,checked'));
 
     DOM.remove('test');
@@ -336,33 +337,33 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     DOM.remove('test');
   });
 
-  const eqNodeName = (name) => (n) => n.nodeName === name;
+  const eqNodeName = (name: string) => (n: Node) => n.nodeName === name;
 
   it('getParent', () => {
     DOM.add(document.body, 'div', { id: 'test' });
 
-    DOM.get('test').innerHTML = '<div><span>ab<a id="test2" href="">abc</a>c</span></div>';
+    getTestElement().innerHTML = '<div><span>ab<a id="test2" href="">abc</a>c</span></div>';
 
-    assert.equal(DOM.getParent('test2', eqNodeName('SPAN')).nodeName, 'SPAN');
-    assert.equal(DOM.getParent('test2', eqNodeName('BODY')).nodeName, 'BODY');
+    assert.equal(DOM.getParent('test2', eqNodeName('SPAN'))?.nodeName, 'SPAN');
+    assert.equal(DOM.getParent('test2', eqNodeName('BODY'))?.nodeName, 'BODY');
     assert.isNull(DOM.getParent('test2', eqNodeName('BODY'), document.body));
     assert.isNull(DOM.getParent('test2', eqNodeName('X')));
-    assert.equal(DOM.getParent('test2', 'SPAN').nodeName, 'SPAN');
-    assert.isNull(DOM.getParent('test2', 'body', DOM.get('test')));
+    assert.equal(DOM.getParent('test2', 'SPAN')?.nodeName, 'SPAN');
+    assert.isNull(DOM.getParent('test2', 'body', getTestElement()));
 
-    DOM.get('test').innerHTML = '';
+    getTestElement().innerHTML = '';
 
     DOM.remove('test');
   });
 
   it('getParents', () => {
     DOM.add(document.body, 'div', { id: 'test' });
-    DOM.get('test').innerHTML = '<div><span class="test">ab<span><a id="test2" href="">abc</a>c</span></span></div>';
+    getTestElement().innerHTML = '<div><span class="test">ab<span><a id="test2" href="">abc</a>c</span></span></div>';
 
     assert.lengthOf(DOM.getParents('test2', eqNodeName('SPAN')), 2);
     assert.lengthOf(DOM.getParents('test2', 'span'), 2);
     assert.lengthOf(DOM.getParents('test2', 'span.test'), 1);
-    assert.lengthOf(DOM.getParents('test2', 'body', DOM.get('test')), 0);
+    assert.lengthOf(DOM.getParents('test2', 'body', getTestElement()), 0);
 
     // getParents should stop at DocumentFragment
     const frag = document.createDocumentFragment();
@@ -395,7 +396,7 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
 
     DOM.setAttrib('test', 'style', '');
 
-    DOM.get('test').innerHTML = '<div style="width:320px;height:240px"><div id="test2" style="width:50%;height:240px"></div></div>';
+    getTestElement().innerHTML = '<div style="width:320px;height:240px"><div id="test2" style="width:50%;height:240px"></div></div>';
     r = DOM.getRect('test2');
     assert.equal(r.w, 160);
 
@@ -403,15 +404,15 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
   });
 
   it('getSize', () => {
-    let r;
+    let r: { w: number; h: number };
 
     DOM.add(document.body, 'div', { id: 'test' });
 
-    DOM.get('test').innerHTML = '<div style="width:320px;height:240px"><div id="test2" style="width:50%;height:240px"></div></div>';
+    getTestElement().innerHTML = '<div style="width:320px;height:240px"><div id="test2" style="width:50%;height:240px"></div></div>';
     r = DOM.getSize('test2');
     assert.equal(r.w, 160);
 
-    DOM.get('test').innerHTML = '<div style="width:320px;height:240px"><div id="test2" style="width:100px;height:240px"></div></div>';
+    getTestElement().innerHTML = '<div style="width:320px;height:240px"><div id="test2" style="width:100px;height:240px"></div></div>';
     r = DOM.getSize('test2');
     assert.equal(r.w, 100);
 
@@ -422,12 +423,12 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
   it('getNext', () => {
     DOM.add(document.body, 'div', { id: 'test' });
 
-    DOM.get('test').innerHTML = '<strong>A</strong><span>B</span><em>C</em>';
-    assert.equal(DOM.getNext(DOM.get('test').firstChild, '*').nodeName, 'SPAN');
-    assert.equal(DOM.getNext(DOM.get('test').firstChild, 'em').nodeName, 'EM');
-    assert.isNull(DOM.getNext(DOM.get('test').firstChild, 'div'));
+    getTestElement().innerHTML = '<strong>A</strong><span>B</span><em>C</em>';
+    assert.equal(DOM.getNext(getTestElement().firstChild as HTMLElement, '*')?.nodeName, 'SPAN');
+    assert.equal(DOM.getNext(getTestElement().firstChild as HTMLElement, 'em')?.nodeName, 'EM');
+    assert.isNull(DOM.getNext(getTestElement().firstChild as HTMLElement, 'div'));
     assert.isNull(DOM.getNext(null, 'div'));
-    assert.equal(DOM.getNext(DOM.get('test').firstChild, eqNodeName('EM')).nodeName, 'EM');
+    assert.equal(DOM.getNext(getTestElement().firstChild as HTMLElement, eqNodeName('EM'))?.nodeName, 'EM');
 
     DOM.remove('test');
   });
@@ -435,12 +436,12 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
   it('getPrev', () => {
     DOM.add(document.body, 'div', { id: 'test' });
 
-    DOM.get('test').innerHTML = '<strong>A</strong><span>B</span><em>C</em>';
-    assert.equal(DOM.getPrev(DOM.get('test').lastChild, '*').nodeName, 'SPAN');
-    assert.equal(DOM.getPrev(DOM.get('test').lastChild, 'strong').nodeName, 'STRONG');
-    assert.isNull(DOM.getPrev(DOM.get('test').lastChild, 'div'));
+    getTestElement().innerHTML = '<strong>A</strong><span>B</span><em>C</em>';
+    assert.equal(DOM.getPrev(getTestElement().lastChild as HTMLElement, '*')?.nodeName, 'SPAN');
+    assert.equal(DOM.getPrev(getTestElement().lastChild as HTMLElement, 'strong')?.nodeName, 'STRONG');
+    assert.isNull(DOM.getPrev(getTestElement().lastChild as HTMLElement, 'div'));
     assert.isNull(DOM.getPrev(null, 'div'));
-    assert.equal(DOM.getPrev(DOM.get('test').lastChild, eqNodeName('STRONG')).nodeName, 'STRONG');
+    assert.equal(DOM.getPrev(getTestElement().lastChild as HTMLElement, eqNodeName('STRONG'))?.nodeName, 'STRONG');
 
     DOM.remove('test');
   });
@@ -450,7 +451,7 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
 
     DOM.loadCSS('tinymce/dom/test.css?a=1,tinymce/dom/test.css?a=2,tinymce/dom/test.css?a=3');
 
-    Tools.each(document.getElementsByTagName('link'), (n: HTMLLinkElement) => {
+    Tools.each(document.getElementsByTagName('link'), (n) => {
       if (n.href.indexOf('test.css?a=') !== -1 && !n.crossOrigin) {
         c++;
       }
@@ -459,19 +460,19 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     assert.equal(c, 3);
   });
 
-  it('loadCSS contentCssCors enabled', function () {
+  it('loadCSS contentCssCors enabled', () => {
     let c = 0;
 
-    // The crossorigin attribute isn't supported in IE11
-    if (Env.ie && Env.ie < 12) {
-      this.skip();
-    }
-
     // Create an iframe to load in, so that we are using a different document. Otherwise DOMUtils will fallback to using the default.
-    const iframe = DOM.create('iframe', { src: `javascript=''` }) as HTMLIFrameElement;
+    const iframe = DOM.create('iframe', { src: `javascript=''` });
     DOM.add(document.body, iframe);
 
-    const iframeDoc = iframe.contentWindow.document;
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (Type.isNullable(iframeDoc)) {
+      assert.fail('Iframe document is not available');
+      return;
+    }
+
     iframeDoc.open();
     iframeDoc.write('<html><body></body></html>');
     iframeDoc.close();
@@ -479,7 +480,7 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     const CustomDOM = DOMUtils(iframeDoc, { keep_values: true, schema: Schema(), contentCssCors: true });
     CustomDOM.loadCSS('tinymce/dom/test_cors.css?a=1,tinymce/dom/test_cors.css?a=2,tinymce/dom/test_cors.css?a=3');
 
-    Tools.each(iframeDoc.getElementsByTagName('link'), (n: HTMLLinkElement) => {
+    Tools.each(iframeDoc.getElementsByTagName('link'), (n) => {
       if (n.href.indexOf('test_cors.css?a=') !== -1 && n.crossOrigin === 'anonymous') {
         c++;
       }
@@ -495,11 +496,11 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
 
     DOM.setHTML('test', '<span id="test2"></span>');
     DOM.insertAfter(DOM.create('br'), 'test2');
-    assert.equal(DOM.get('test2').nextSibling.nodeName, 'BR');
+    assert.equal(DOM.get('test2')?.nextSibling?.nodeName, 'BR');
 
     DOM.setHTML('test', '<span>test</span><span id="test2"></span><span>test</span>');
     DOM.insertAfter(DOM.create('br'), 'test2');
-    assert.equal(DOM.get('test2').nextSibling.nodeName, 'BR');
+    assert.equal(DOM.get('test2')?.nextSibling?.nodeName, 'BR');
 
     DOM.remove('test');
   });
@@ -509,6 +510,9 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     assert.isTrue(DOM.isBlock('DIV'));
     assert.isFalse(DOM.isBlock('SPAN'));
     assert.isTrue(DOM.isBlock('div'));
+    assert.isFalse(DOM.isBlock('a'), 'Anchor name should not be block');
+    assert.isTrue(DOM.isBlock(DOM.create('a', { 'data-mce-block': 'true' } )), 'Anchor with data-mce-block should be block');
+    assert.isFalse(DOM.isBlock(DOM.create('a')), 'Anchor without data-mce-block should not be block');
   });
 
   it('remove', () => {
@@ -516,7 +520,7 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
 
     DOM.setHTML('test', '<span id="test2"><span>test</span><span>test2</span></span>');
     DOM.remove('test2', true);
-    assert.equal(DOM.get('test').innerHTML.toLowerCase(), '<span>test</span><span>test2</span>');
+    assert.equal(getTestElement().innerHTML.toLowerCase(), '<span>test</span><span>test2</span>');
 
     DOM.setHTML('test', '<span id="test2"><span>test</span><span>test2</span></span>');
     assert.equal((DOM.remove('test2') as Node).nodeName, 'SPAN');
@@ -529,21 +533,13 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
 
     DOM.setHTML('test', '<span id="test2"><span>test</span><span>test2</span></span>');
     DOM.replace(DOM.create('div', { id: 'test2' }), 'test2', true);
-    assert.equal(DOM.get('test2').innerHTML.toLowerCase(), '<span>test</span><span>test2</span>');
+    assert.equal(DOM.get('test2')?.innerHTML.toLowerCase(), '<span>test</span><span>test2</span>');
 
     DOM.setHTML('test', '<span id="test2"><span>test</span><span>test2</span></span>');
     DOM.replace(DOM.create('div', { id: 'test2' }), 'test2');
-    assert.equal(DOM.get('test2').innerHTML, '');
+    assert.equal(DOM.get('test2')?.innerHTML, '');
 
     DOM.remove('test');
-  });
-
-  it('toHex', () => {
-    assert.equal(DOM.toHex('rgb(0, 255, 255)'), '#00ffff');
-    assert.equal(DOM.toHex('rgb(255, 0, 0)'), '#ff0000');
-    assert.equal(DOM.toHex('rgb(0, 0, 255)'), '#0000ff');
-    assert.equal(DOM.toHex('rgb  (  0  , 0  , 255  )  '), '#0000ff');
-    assert.equal(DOM.toHex('   RGB  (  0  , 0  , 255  )  '), '#0000ff');
   });
 
   it('getOuterHTML', () => {
@@ -558,10 +554,10 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
 
     DOM.setHTML('test', '<span id="test2"><span>test</span><span>test2</span></span>');
     DOM.setOuterHTML('test2', '<div id="test2">123</div><div id="test3">abc</div>');
-    assert.equal(Tools.trim(DOM.get('test').innerHTML).toLowerCase().replace(/>\s+</g, '><').replace(/\"/g, ''), '<div id=test2>123</div><div id=test3>abc</div>');
+    assert.equal(Tools.trim(getTestElement().innerHTML).toLowerCase().replace(/>\s+</g, '><').replace(/\"/g, ''), '<div id=test2>123</div><div id=test3>abc</div>');
 
     DOM.setHTML('test', 'test');
-    assert.equal(Tools.trim(DOM.getOuterHTML(DOM.get('test').firstChild as Element)), 'test');
+    assert.equal(Tools.trim(DOM.getOuterHTML(getTestElement().firstChild as Element)), 'test');
 
     DOM.remove('test');
   });
@@ -577,46 +573,46 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     DOM.add(document.body, 'div', { id: 'test' });
 
     DOM.setHTML('test', '<p><b>text1<span>inner</span>text2</b></p>');
-    parent = DOM.select('p', DOM.get('test'))[0];
-    point = DOM.select('span', DOM.get('test'))[0];
+    parent = DOM.select('p', getTestElement())[0];
+    point = DOM.select('span', getTestElement())[0];
     DOM.split(parent, point);
-    assert.equal(DOM.get('test').innerHTML.toLowerCase().replace(/\s+/g, ''), '<p><b>text1</b></p><span>inner</span><p><b>text2</b></p>');
+    assert.equal(getTestElement().innerHTML.toLowerCase().replace(/\s+/g, ''), '<p><b>text1</b></p><span>inner</span><p><b>text2</b></p>');
 
     DOM.setHTML('test', '<p><strong>  &nbsp;  <span></span>cd</strong></p>');
-    parent = DOM.select('strong', DOM.get('test'))[0];
-    point = DOM.select('span', DOM.get('test'))[0];
+    parent = DOM.select('strong', getTestElement())[0];
+    point = DOM.select('span', getTestElement())[0];
     DOM.split(parent, point);
-    assert.equal(DOM.get('test').innerHTML.toLowerCase(), '<p><strong>  &nbsp;  </strong><span></span><strong>cd</strong></p>', 'TINY-6251: Do not remove spaces containing nbsp');
+    assert.equal(getTestElement().innerHTML.toLowerCase(), '<p><strong>  &nbsp;  </strong><span></span><strong>cd</strong></p>', 'TINY-6251: Do not remove spaces containing nbsp');
 
     DOM.setHTML('test', '<ul><li>first line<br><ul><li><span>second</span> <span>line</span></li><li>third line<br></li></ul></li></ul>');
-    parent = DOM.select('li:nth-child(1)', DOM.get('test'))[0];
-    point = DOM.select('ul li:nth-child(2)', DOM.get('test'))[0];
+    parent = DOM.select('li:nth-child(1)', getTestElement())[0];
+    point = DOM.select('ul li:nth-child(2)', getTestElement())[0];
     DOM.split(parent, point);
-    assert.equal(HtmlUtils.cleanHtml(DOM.get('test').innerHTML), '<ul><li>first line<br><ul><li><span>second</span> <span>line</span></li></ul></li><li>third line<br></li></ul>');
+    assert.equal(HtmlUtils.cleanHtml(getTestElement().innerHTML), '<ul><li>first line<br><ul><li><span>second</span> <span>line</span></li></ul></li><li>third line<br></li></ul>');
 
     DOM.setHTML('test', '<p><b>&nbsp; <span>inner</span>text2</b></p>');
-    parent = DOM.select('p', DOM.get('test'))[0];
-    point = DOM.select('span', DOM.get('test'))[0];
+    parent = DOM.select('p', getTestElement())[0];
+    point = DOM.select('span', getTestElement())[0];
     DOM.split(parent, point);
-    assert.equal(HtmlUtils.cleanHtml(DOM.get('test').innerHTML), '<p><b>&nbsp; </b></p><span>inner</span><p><b>text2</b></p>');
+    assert.equal(HtmlUtils.cleanHtml(getTestElement().innerHTML), '<p><b>&nbsp; </b></p><span>inner</span><p><b>text2</b></p>');
 
     DOM.setHTML('test', '<p><b><a id="anchor"></a><span>inner</span>text2</b></p>');
-    parent = DOM.select('p', DOM.get('test'))[0];
-    point = DOM.select('span', DOM.get('test'))[0];
+    parent = DOM.select('p', getTestElement())[0];
+    point = DOM.select('span', getTestElement())[0];
     DOM.split(parent, point);
-    assert.equal(HtmlUtils.cleanHtml(DOM.get('test').innerHTML), '<p><b><a id="anchor"></a></b></p><span>inner</span><p><b>text2</b></p>');
+    assert.equal(HtmlUtils.cleanHtml(getTestElement().innerHTML), '<p><b><a id="anchor"></a></b></p><span>inner</span><p><b>text2</b></p>');
 
     DOM.setHTML('test', '<p>text<span style="text-decoration: underline;"> <span>t</span></span>ext</p>');
-    parent = DOM.select('span', DOM.get('test'))[0];
-    point = DOM.select('span', DOM.get('test'))[1];
+    parent = DOM.select('span', getTestElement())[0];
+    point = DOM.select('span', getTestElement())[1];
     DOM.split(parent, point);
-    assert.equal(DOM.get('test').innerHTML, '<p>text<span style="text-decoration: underline;"> </span><span>t</span>ext</p>', 'TINY-6268: Do not remove spaces at start of split');
+    assert.equal(getTestElement().innerHTML, '<p>text<span style="text-decoration: underline;"> </span><span>t</span>ext</p>', 'TINY-6268: Do not remove spaces at start of split');
 
     DOM.setHTML('test', '<p>tex<span style="text-decoration: underline;"><span>t</span> </span>text</p>');
-    parent = DOM.select('span', DOM.get('test'))[0];
-    point = DOM.select('span', DOM.get('test'))[1];
+    parent = DOM.select('span', getTestElement())[0];
+    point = DOM.select('span', getTestElement())[1];
     DOM.split(parent, point);
-    assert.equal(DOM.get('test').innerHTML, '<p>tex<span>t</span><span style="text-decoration: underline;"> </span>text</p>', 'TINY-6268: Do not remove spaces at end of split');
+    assert.equal(getTestElement().innerHTML, '<p>tex<span>t</span><span style="text-decoration: underline;"> </span>text</p>', 'TINY-6268: Do not remove spaces at end of split');
 
     DOM.remove('test');
   });
@@ -624,15 +620,15 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
   it('nodeIndex', () => {
     DOM.add(document.body, 'div', { id: 'test' }, 'abc<b>abc</b>abc');
 
-    assert.equal(DOM.nodeIndex(DOM.get('test').childNodes[0]), 0);
-    assert.equal(DOM.nodeIndex(DOM.get('test').childNodes[1]), 1);
-    assert.equal(DOM.nodeIndex(DOM.get('test').childNodes[2]), 2);
+    assert.equal(DOM.nodeIndex(getTestElement().childNodes[0]), 0);
+    assert.equal(DOM.nodeIndex(getTestElement().childNodes[1]), 1);
+    assert.equal(DOM.nodeIndex(getTestElement().childNodes[2]), 2);
 
-    DOM.get('test').insertBefore(DOM.doc.createTextNode('a'), DOM.get('test').firstChild);
-    DOM.get('test').insertBefore(DOM.doc.createTextNode('b'), DOM.get('test').firstChild);
+    getTestElement().insertBefore(DOM.doc.createTextNode('a'), getTestElement().firstChild);
+    getTestElement().insertBefore(DOM.doc.createTextNode('b'), getTestElement().firstChild);
 
-    assert.equal(DOM.nodeIndex(DOM.get('test').lastChild), 4);
-    assert.equal(DOM.nodeIndex(DOM.get('test').lastChild, true), 2);
+    assert.equal(DOM.nodeIndex(getTestElement().lastChild as Text), 4);
+    assert.equal(DOM.nodeIndex(getTestElement().lastChild as Text, true), 2);
 
     DOM.remove('test');
   });
@@ -643,10 +639,10 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     const domUtils = DOMUtils(document);
 
     DOM.setHTML('test', '<hr>');
-    assert.isFalse(domUtils.isEmpty(DOM.get('test')));
+    assert.isFalse(domUtils.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<p><br></p>');
-    assert.isTrue(domUtils.isEmpty(DOM.get('test')));
+    assert.isTrue(domUtils.isEmpty(getTestElement()));
 
     DOM.remove('test');
   });
@@ -655,98 +651,98 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     DOM.schema = Schema(); // A schema will be added when used within a editor instance
     DOM.add(document.body, 'div', { id: 'test' }, '');
 
-    assert.isTrue(DOM.isEmpty(DOM.get('test')));
+    assert.isTrue(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<br />');
-    assert.isTrue(DOM.isEmpty(DOM.get('test')));
+    assert.isTrue(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<br /><br />');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', 'text');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<span>text</span>');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<span></span>');
-    assert.isTrue(DOM.isEmpty(DOM.get('test')));
+    assert.isTrue(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<div><span><b></b></span><b></b><em></em></div>');
-    assert.isTrue(DOM.isEmpty(DOM.get('test')));
+    assert.isTrue(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<div><span><b></b></span><b></b><em>X</em></div>');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<div><span><b></b></span><b></b><em> </em></div>');
-    assert.isTrue(DOM.isEmpty(DOM.get('test')));
+    assert.isTrue(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<div><span><b></b></span><b></b><em><a name="x"></a></em></div>');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<img src="tinymce/ui/img/raster.gif">');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<span data-mce-bookmark="1"></span>');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<span data-mce-style="color:Red"></span>');
-    assert.isTrue(DOM.isEmpty(DOM.get('test')));
+    assert.isTrue(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<div><!-- comment --></div>');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<span data-mce-bogus="1"></span>');
-    assert.isTrue(DOM.isEmpty(DOM.get('test')));
+    assert.isTrue(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<span data-mce-bogus="1">a</span>');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<span data-mce-bogus="all">a</span>');
-    assert.isTrue(DOM.isEmpty(DOM.get('test')));
+    assert.isTrue(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<span data-mce-bogus="all">a</span>b');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<code> </code>');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<pre> </pre>');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<code></code>');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.setHTML('test', '<pre></pre>');
-    assert.isFalse(DOM.isEmpty(DOM.get('test')));
+    assert.isFalse(DOM.isEmpty(getTestElement()));
 
     DOM.remove('test');
   });
 
   it('isEmpty with list of elements considered non-empty', () => {
-    const elm = DOM.create('p', null, '<img>');
+    const elm = DOM.create('p', {}, '<img>');
     assert.isFalse(DOM.isEmpty(elm, { img: true }));
   });
 
   it('isEmpty on pre', () => {
-    const elm = DOM.create('pre', null, '  ');
+    const elm = DOM.create('pre', {}, '  ');
     assert.isFalse(DOM.isEmpty(elm));
   });
 
   it('isEmpty with list of elements considered non-empty without schema', () => {
     const domWithoutSchema = DOMUtils(document, { keep_values: true });
 
-    const elm = domWithoutSchema.create('p', null, '<img>');
+    const elm = domWithoutSchema.create('p', {}, '<img>');
     assert.isFalse(domWithoutSchema.isEmpty(elm, { img: true }));
   });
 
   it('isEmpty on P with BR in EM', () => {
-    const elm = DOM.create('p', null, '<em><br></em>');
+    const elm = DOM.create('p', {}, '<em><br></em>');
     assert.isTrue(DOM.isEmpty(elm));
   });
 
   it('isEmpty on P with two BR in EM', () => {
-    const elm = DOM.create('p', null, '<em><br><br></em>');
+    const elm = DOM.create('p', {}, '<em><br><br></em>');
     assert.equal(false, DOM.isEmpty(elm));
   });
 
@@ -756,7 +752,7 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
     DOM.bind(document, 'click', () => {
       count++;
     });
-    DOM.fire(document, 'click');
+    DOM.dispatch(document, 'click');
     DOM.unbind(document, 'click');
     assert.equal(count, 1);
 
@@ -765,14 +761,14 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
       e.stopPropagation();
       count++;
     });
-    DOM.fire(document, 'click');
-    DOM.fire(window, 'click');
+    DOM.dispatch(document, 'click');
+    DOM.dispatch(window, 'click');
     DOM.unbind([ document, window ], 'click');
     assert.equal(count, 2);
 
     count = 0;
-    DOM.fire(document, 'click');
-    DOM.fire(window, 'click');
+    DOM.dispatch(document, 'click');
+    DOM.dispatch(window, 'click');
     assert.equal(count, 0);
   });
 
@@ -850,5 +846,93 @@ describe('browser.tinymce.core.dom.DOMUtils', () => {
       assert.isTrue(DOM.isChildOf(s, p), 'Attached text node');
       assert.isTrue(DOM.isChildOf(m, p), 'Attached para node');
     });
+  });
+
+  context('isEditable', () => {
+    const withScratchDomUtils = (innerHtml: string, f: (dom: DOMUtils, root: SugarElement<HTMLElement>) => void) => {
+      const root = SugarElement.fromHtml<HTMLElement>(`<div>${innerHtml}</div>`);
+
+      Insert.append(SugarBody.body(), root);
+
+      const dom = DOMUtils(document, { root_element: root.dom, schema: Schema() });
+
+      f(dom, root);
+
+      dom.destroy();
+      Remove.remove(root);
+    };
+
+    const testIsEditable = (testCase: { input: string; editableRoot?: boolean; path: number[]; expected: boolean }) => () => {
+      withScratchDomUtils(testCase.input, (domUtils, root) => {
+        const scope = Hierarchy.follow(root, testCase.path).getOrDie('Could not find element by path');
+        ContentEditable.set(root, testCase.editableRoot ?? true);
+        assert.equal(domUtils.isEditable(scope.dom), testCase.expected, 'Should be the expected editable state');
+      });
+    };
+
+    it('TINY-9462: isEditable on text node in editable root', testIsEditable({
+      input: 'text node',
+      path: [],
+      expected: true
+    }));
+
+    it('TINY-9462: isEditable on text node in noneditable root', testIsEditable({
+      input: 'text node',
+      editableRoot: false,
+      path: [],
+      expected: false
+    }));
+
+    it('TINY-9462: isEditable on element in editable root', testIsEditable({
+      input: '<p>test</p>',
+      path: [ 0 ],
+      expected: true
+    }));
+
+    it('TINY-9462: isEditable on element in noneditable root', testIsEditable({
+      input: '<p>test</p>',
+      editableRoot: false,
+      path: [ 0 ],
+      expected: false
+    }));
+
+    it('TINY-9462: isEditable on text node in element in editable root', testIsEditable({
+      input: '<p>test</p>',
+      path: [ 0, 0 ],
+      expected: true
+    }));
+
+    it('TINY-9462: isEditable on text node in element in noneditable root', testIsEditable({
+      input: '<p>test</p>',
+      editableRoot: false,
+      path: [ 0, 0 ],
+      expected: false
+    }));
+
+    it('TINY-9462: isEditable on text node in noneditable element in editable root', testIsEditable({
+      input: '<p contenteditable="false">test</p>',
+      path: [ 0, 0 ],
+      expected: false
+    }));
+
+    it('TINY-9462: isEditable on text node in editable element in noneditable root', testIsEditable({
+      input: '<p contenteditable="true">test</p>',
+      editableRoot: false,
+      path: [ 0, 0 ],
+      expected: true
+    }));
+
+    it('TINY-9462: isEditable on element in noneditable element in editable root', testIsEditable({
+      input: '<p contenteditable="false"><span></span></p>',
+      path: [ 0, 0 ],
+      expected: false
+    }));
+
+    it('TINY-9462: isEditable on element in editable element in noneditable root', testIsEditable({
+      input: '<p contenteditable="true"><span></span></p>',
+      editableRoot: false,
+      path: [ 0, 0 ],
+      expected: true
+    }));
   });
 });

@@ -1,10 +1,9 @@
 import { describe, it } from '@ephox/bedrock-client';
-import { LegacyUnit, TinyAssertions, TinyHooks } from '@ephox/wrap-mcagar';
+import { LegacyUnit, TinyAssertions, TinySelections, TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/lists/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.plugins.lists.OutdentTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
@@ -22,7 +21,7 @@ describe('browser.tinymce.plugins.lists.OutdentTest', () => {
         'margin-bottom,margin-left,display,position,top,left,list-style-type'
     },
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ], true);
+  }, [ Plugin ], true);
 
   it('TBA: Outdent inside LI in beginning of OL in LI', () => {
     const editor = hook.editor();
@@ -102,7 +101,7 @@ describe('browser.tinymce.plugins.lists.OutdentTest', () => {
       '</ol>'
     );
 
-    LegacyUnit.setSelection(editor, 'li li:last', 1);
+    LegacyUnit.setSelection(editor, 'li li:last-of-type', 1);
     editor.execCommand('Outdent');
 
     TinyAssertions.assertContent(editor,
@@ -228,7 +227,7 @@ describe('browser.tinymce.plugins.lists.OutdentTest', () => {
       '</ol>'
     );
 
-    LegacyUnit.setSelection(editor, 'ol ol li:first', 0);
+    LegacyUnit.setSelection(editor, 'ol ol li:first-of-type', 0);
     editor.execCommand('Outdent');
 
     TinyAssertions.assertContent(editor,
@@ -257,7 +256,7 @@ describe('browser.tinymce.plugins.lists.OutdentTest', () => {
       '</ol>'
     );
 
-    LegacyUnit.setSelection(editor, 'ol ol li:last', 1);
+    LegacyUnit.setSelection(editor, 'ol ol li:last-of-type', 1);
     editor.execCommand('Outdent');
 
     TinyAssertions.assertContent(editor,
@@ -473,5 +472,15 @@ describe('browser.tinymce.plugins.lists.OutdentTest', () => {
     );
 
     assert.equal(editor.selection.getNode().nodeName, 'LI');
+  });
+
+  it('TINY-8068: Outdent list inside a div inside a list item should only remove the nested list', () => {
+    const editor = hook.editor();
+    editor.setContent('<ul><li><div><ul><li>a</li></ul></div></li></ul>');
+
+    TinySelections.setCursor(editor, [ 0, 0, 0, 0, 0, 0 ], 0);
+    editor.execCommand('Outdent');
+
+    TinyAssertions.assertContent(editor, '<ul><li><div><p>a</p></div></li></ul>');
   });
 });

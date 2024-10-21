@@ -1,9 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
+import { Type } from '@ephox/katamari';
 
 import Tools from 'tinymce/core/api/util/Tools';
 
@@ -33,6 +28,18 @@ const urlPatterns: UrlPattern[] = [
     regex: /youtube.com\/embed\/([a-z0-9\?&=\-_]+)/i,
     type: 'iframe', w: 560, h: 314,
     url: 'www.youtube.com/embed/$1',
+    allowFullscreen: true
+  },
+  {
+    regex: /vimeo\.com\/([0-9]+)\?h=(\w+)/,
+    type: 'iframe', w: 425, h: 350,
+    url: 'player.vimeo.com/video/$1?h=$2&title=0&byline=0&portrait=0&color=8dc7dc',
+    allowFullscreen: true
+  },
+  {
+    regex: /vimeo\.com\/(.*)\/([0-9]+)\?h=(\w+)/,
+    type: 'iframe', w: 425, h: 350,
+    url: 'player.vimeo.com/video/$2?h=$3&title=0&amp;byline=0',
     allowFullscreen: true
   },
   {
@@ -81,14 +88,16 @@ const getUrl = (pattern: UrlPattern, url: string): string => {
 
   const match = pattern.regex.exec(url);
   let newUrl = protocol + pattern.url;
-  for (let i = 0; i < match.length; i++) {
-    newUrl = newUrl.replace('$' + i, () => match[i] ? match[i] : '');
+  if (Type.isNonNullable(match)) {
+    for (let i = 0; i < match.length; i++) {
+      newUrl = newUrl.replace('$' + i, () => match[i] ? match[i] : '');
+    }
   }
 
   return newUrl.replace(/\?$/, '');
 };
 
-const matchPattern = (url: string): UrlPattern => {
+const matchPattern = (url: string): UrlPattern | null => {
   const patterns = urlPatterns.filter((pattern) => pattern.regex.test(url));
 
   if (patterns.length > 0) {

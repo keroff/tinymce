@@ -1,21 +1,21 @@
 /* eslint-disable no-console */
 import { Fun } from '@ephox/katamari';
 
-import Editor from 'tinymce/core/api/Editor';
+import { TinyMCE } from 'tinymce/core/api/PublicApi';
 
 import ButtonSetupDemo from './ButtonSetupDemo';
 
-declare let tinymce: any;
+declare let tinymce: TinyMCE;
 
-export default () => {
+export default (): void => {
   tinymce.init({
-    // TODO: Investigate. Should thisget the styles (e.g. margin) of the div/textarea?
+    // TODO: Investigate. Should this get the styles (e.g. margin) of the div/textarea?
     selector: 'div.tiny-text',
     inline: false,
     theme: 'silver',
-    toolbar: [ 'styleselect', 'MagicButton', 'code', 'undo', 'toc', 'redo', 'preview', '|', 'help', 'link', '|', 'align', 'alignleft', 'alignright', 'aligncenter',
+    toolbar: [ 'styles', 'MagicButton', 'code', 'undo', 'redo', 'preview', '|', 'help', 'link', '|', 'align', 'alignleft', 'alignright', 'aligncenter',
       'alignjustify', 'alignnone', '|', 'bold', 'italic', 'underline', 'strikethrough', 'subscript', 'superscript', '|', 'blockquote',
-      'outdent', 'indent', '|', 'cut', 'copy', 'paste', '|', 'help', 'selectall', 'visualaid', 'newdocument', 'removeformat', 'remove', '|', 'menu-button-1'
+      'outdent', 'indent', '|', 'cut', 'copy', 'paste', '|', 'help', 'selectall', 'visualaid', 'newdocument', 'removeformat', 'remove', '|', 'menu-button-1', '|', 'mailmerge', 'mailmerge-NoCollapse'
     ].join(' '),
     // content_css: ['//fonts.googleapis.com/css?family=Lato:300,300i,400,400i', 'https://staging.tiny.cloud/css/content-standard.min.css'],
     plugins: [
@@ -29,18 +29,16 @@ export default () => {
       'wordcount',
       'table',
       'code',
-      'toc',
-      'paste',
       'image',
       'charmap',
       'emoticons',
-      'imagetools',
-      'textcolor',
       'media'
     ],
     // statusbar: false,
     resize: 'both',
     link_context_toolbar: true,
+    toolbar_sticky: true,
+    ui_mode: 'split',
     // fixed_toolbar_container: '#tiny-fixed-container', // DEPRECATED
 
     menubar: 'file edit view insert format table tools Menu-1 help',
@@ -100,7 +98,7 @@ export default () => {
       // }
     ],
 
-    setup: (ed: Editor) => {
+    setup: (ed) => {
       ButtonSetupDemo.setup(ed);
 
       ed.ui.registry.addButton('MagicButton', {

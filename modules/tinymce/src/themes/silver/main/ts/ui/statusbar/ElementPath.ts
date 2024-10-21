@@ -1,94 +1,82 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AddEventsBehaviour, AlloyEvents, Behaviour, Button, Disabling, Keying, Replacing, Tabstopping } from '@ephox/alloy';
+import { AddEventsBehaviour, AlloyEvents, AlloySpec, Behaviour, Button, Disabling, GuiFactory, Keying, Replacing, SimpleSpec, Tabstopping } from '@ephox/alloy';
 import { Arr } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
 
+import * as Events from '../../api/Events';
 import { UiFactoryBackstageProviders } from '../../backstage/Backstage';
 import * as ReadOnly from '../../ReadOnly';
 import { DisablingConfigs } from '../alien/DisablingConfigs';
 
-const isHidden = (elm) => {
-  if (elm.nodeType === 1) {
-    if (elm.nodeName === 'BR' || !!elm.getAttribute('data-mce-bogus')) {
-      return true;
-    }
+interface PathData {
+  readonly name: string;
+  readonly element: Node;
+}
 
-    if (elm.getAttribute('data-mce-type') === 'bookmark') {
-      return true;
-    }
-  }
+interface ElementPathSettings {
+  readonly delimiter?: string;
+}
 
-  return false;
-};
+const isHidden = (elm: Element): boolean =>
+  elm.nodeName === 'BR' || !!elm.getAttribute('data-mce-bogus') || elm.getAttribute('data-mce-type') === 'bookmark';
 
-const renderElementPath = (editor: Editor, settings, providersBackstage: UiFactoryBackstageProviders) => {
-  if (!settings.delimiter) {
-    settings.delimiter = '\u00BB';
-  }
+const renderElementPath = (editor: Editor, settings: ElementPathSettings, providersBackstage: UiFactoryBackstageProviders): SimpleSpec => {
+  const delimiter = settings.delimiter ?? '\u203A';
 
-  const getDataPath = (data) => {
-    const parts = data || [];
-
-    const newPathElements = Arr.map(parts, (part, index) => Button.sketch({
-      dom: {
-        tag: 'div',
-        classes: [ 'tox-statusbar__path-item' ],
-        attributes: {
-          'role': 'button',
-          'data-index': index,
-          'tab-index': -1,
-          'aria-level': index + 1
-        },
-        innerHtml: part.name
-      },
-      action: (_btn) => {
-        editor.focus();
-        editor.selection.select(part.element);
-        editor.nodeChanged();
-      },
-      buttonBehaviours: Behaviour.derive([
-        DisablingConfigs.button(providersBackstage.isDisabled),
-        ReadOnly.receivingConfig()
-      ])
-    }));
-
-    const divider = {
-      dom: {
-        tag: 'div',
-        classes: [ 'tox-statusbar__path-divider' ],
-        attributes: {
-          'aria-hidden': true
-        },
-        innerHtml: ` ${settings.delimiter} `
+  const renderElement = (name: string, element: Node, index: number): AlloySpec => Button.sketch({
+    dom: {
+      tag: 'div',
+      classes: [ 'tox-statusbar__path-item' ],
+      attributes: {
+        'data-index': index,
+        'aria-level': index + 1
       }
-    };
+    },
+    components: [
+      GuiFactory.text(name)
+    ],
+    action: (_btn) => {
+      editor.focus();
+      editor.selection.select(element);
+      editor.nodeChanged();
+    },
+    buttonBehaviours: Behaviour.derive([
+      DisablingConfigs.button(providersBackstage.isDisabled),
+      ReadOnly.receivingConfig()
+    ])
+  });
 
-    return Arr.foldl(newPathElements.slice(1), (acc, element) => {
-      const newAcc: any[] = acc;
-      newAcc.push(divider);
-      newAcc.push(element);
-      return newAcc;
-    }, [ newPathElements[0] ]);
-  };
+  const renderDivider = (): AlloySpec => ({
+    dom: {
+      tag: 'div',
+      classes: [ 'tox-statusbar__path-divider' ],
+      attributes: {
+        'aria-hidden': true
+      }
+    },
+    components: [
+      GuiFactory.text(` ${delimiter} `)
+    ]
+  });
 
-  const updatePath = (parents) => {
-    const newPath = [];
+  const renderPathData = (data: PathData[]): AlloySpec[] =>
+    Arr.foldl(data, (acc, path, index) => {
+      const element = renderElement(path.name, path.element, index);
+      if (index === 0) {
+        return acc.concat([ element ]);
+      } else {
+        return acc.concat([ renderDivider(), element ]);
+      }
+    }, [] as AlloySpec[]);
+
+  const updatePath = (parents: Node[]) => {
+    const newPath: PathData[] = [];
     let i = parents.length;
 
     while (i-- > 0) {
       const parent = parents[i];
-      if (parent.nodeType === 1 && !isHidden(parent)) {
-        const args = editor.fire('ResolveName', {
-          name: parent.nodeName.toLowerCase(),
-          target: parent
-        });
+      if (parent.nodeType === 1 && !isHidden(parent as Element)) {
+        const args = Events.fireResolveName(editor, parent);
 
         if (!args.isDefaultPrevented()) {
           newPath.push({ name: args.name, element: parent });
@@ -129,11 +117,8 @@ const renderElementPath = (editor: Editor, settings, providersBackstage: UiFacto
 
           editor.on('NodeChange', (e) => {
             const newPath = updatePath(e.parents);
-            if (newPath.length > 0) {
-              Replacing.set(comp, getDataPath(newPath));
-            } else {
-              Replacing.set(comp, []);
-            }
+            const newChildren = newPath.length > 0 ? renderPathData(newPath) : [];
+            Replacing.set(comp, newChildren);
           });
         })
       ])

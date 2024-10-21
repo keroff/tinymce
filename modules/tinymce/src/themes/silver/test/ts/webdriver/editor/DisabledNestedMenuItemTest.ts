@@ -3,8 +3,7 @@ import { afterEach, describe, it } from '@ephox/bedrock-client';
 import { SugarBody } from '@ephox/sugar';
 import { TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 
-import { Editor } from 'tinymce/core/api/PublicApi';
-import Theme from 'tinymce/themes/silver/Theme';
+import Editor from 'tinymce/core/api/Editor';
 
 describe('webdriver.tinymce.themes.silver.editor.menubar.DisabledNestedMenuItemTest', () => {
 
@@ -32,7 +31,7 @@ describe('webdriver.tinymce.themes.silver.editor.menubar.DisabledNestedMenuItemT
 
       editor.ui.registry.addNestedMenuItem('preferences', {
         text: 'Preferences',
-        disabled: true,
+        enabled: false,
         getSubmenuItems: () => [{
           type: 'menuitem',
           text: 'Settings',
@@ -47,7 +46,7 @@ describe('webdriver.tinymce.themes.silver.editor.menubar.DisabledNestedMenuItemT
         }]
       });
     }
-  }, [ Theme ]);
+  }, []);
 
   const pOpenCodeMenu = () => {
     TinyUiActions.clickOnMenu(hook.editor(), codeMenuItemSelector);
@@ -56,8 +55,8 @@ describe('webdriver.tinymce.themes.silver.editor.menubar.DisabledNestedMenuItemT
 
   // two `Escape` to close submenus
   const closeCodeMenu = () => {
-    TinyUiActions.keydown(hook.editor(), Keys.escape());
-    TinyUiActions.keydown(hook.editor(), Keys.escape());
+    TinyUiActions.keyup(hook.editor(), Keys.escape());
+    TinyUiActions.keyup(hook.editor(), Keys.escape());
   };
 
   const assertPreferencesMenuIsNotOpen = () => {

@@ -1,18 +1,13 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Fun, Obj } from '@ephox/katamari';
-import { SugarElement } from '@ephox/sugar';
+import { Insert, SugarElement } from '@ephox/sugar';
 
 import Editor from './api/Editor';
-import { SchemaMap } from './api/html/Schema';
-import * as Settings from './api/Settings';
+import Schema, { SchemaMap } from './api/html/Schema';
+import * as Options from './api/Options';
 import * as Bookmarks from './bookmark/Bookmarks';
+import * as TransparentElements from './content/TransparentElements';
 import * as NodeType from './dom/NodeType';
+import * as PaddingBr from './dom/PaddingBr';
 import * as Parents from './dom/Parents';
 import * as EditorFocus from './focus/EditorFocus';
 
@@ -26,29 +21,27 @@ import * as EditorFocus from './focus/EditorFocus';
 const isBlockElement = (blockElements: SchemaMap, node: Node) =>
   Obj.has(blockElements, node.nodeName);
 
-const isValidTarget = (blockElements, node) => {
+const isValidTarget = (schema: Schema, node: Node) => {
   if (NodeType.isText(node)) {
     return true;
   } else if (NodeType.isElement(node)) {
-    return !isBlockElement(blockElements, node) && !Bookmarks.isBookmarkNode(node);
+    return !isBlockElement(schema.getBlockElements(), node) && !Bookmarks.isBookmarkNode(node) && !TransparentElements.isTransparentBlock(schema, node);
   } else {
     return false;
   }
 };
 
-const hasBlockParent = (blockElements, root, node) => {
+const hasBlockParent = (blockElements: SchemaMap, root: Node, node: Node) => {
   return Arr.exists(Parents.parents(SugarElement.fromDom(node), SugarElement.fromDom(root)), (elm) => {
     return isBlockElement(blockElements, elm.dom);
   });
 };
 
-// const is
-
-const shouldRemoveTextNode = (blockElements, node) => {
+const shouldRemoveTextNode = (blockElements: SchemaMap, node: Node) => {
   if (NodeType.isText(node)) {
-    if (node.nodeValue.length === 0) {
+    if (node.data.length === 0) {
       return true;
-    } else if (/^\s+$/.test(node.nodeValue) && (!node.nextSibling || isBlockElement(blockElements, node.nextSibling))) {
+    } else if (/^\s+$/.test(node.data) && (!node.nextSibling || isBlockElement(blockElements, node.nextSibling))) {
       return true;
     }
   }
@@ -56,35 +49,42 @@ const shouldRemoveTextNode = (blockElements, node) => {
   return false;
 };
 
+const createRootBlock = (editor: Editor): HTMLElement =>
+  editor.dom.create(Options.getForcedRootBlock(editor), Options.getForcedRootBlockAttrs(editor));
+
 const addRootBlocks = (editor: Editor) => {
   const dom = editor.dom, selection = editor.selection;
-  const schema = editor.schema, blockElements = schema.getBlockElements();
-  let node: Node = selection.getStart();
+  const schema = editor.schema;
+  const blockElements = schema.getBlockElements();
+  const startNode = selection.getStart();
   const rootNode = editor.getBody();
-  let rootBlockNode, tempNode, wrapped;
+  let rootBlockNode: Node | undefined | null;
+  let tempNode: Node;
+  let wrapped = false;
 
-  const forcedRootBlock = Settings.getForcedRootBlock(editor);
-  if (!node || !NodeType.isElement(node) || !forcedRootBlock) {
+  const forcedRootBlock = Options.getForcedRootBlock(editor);
+  if (!startNode || !NodeType.isElement(startNode)) {
     return;
   }
 
   const rootNodeName = rootNode.nodeName.toLowerCase();
-  if (!schema.isValidChild(rootNodeName, forcedRootBlock.toLowerCase()) || hasBlockParent(blockElements, rootNode, node)) {
+  if (!schema.isValidChild(rootNodeName, forcedRootBlock.toLowerCase()) || hasBlockParent(blockElements, rootNode, startNode)) {
     return;
   }
 
   // Get current selection
   const rng = selection.getRng();
-  const startContainer = rng.startContainer;
-  const startOffset = rng.startOffset;
-  const endContainer = rng.endContainer;
-  const endOffset = rng.endOffset;
+  const { startContainer, startOffset, endContainer, endOffset } = rng;
   const restoreSelection = EditorFocus.hasFocus(editor);
 
   // Wrap non block elements and text nodes
-  node = rootNode.firstChild;
+  let node = rootNode.firstChild;
   while (node) {
-    if (isValidTarget(blockElements, node)) {
+    if (NodeType.isElement(node)) {
+      TransparentElements.updateElement(schema, node);
+    }
+
+    if (isValidTarget(schema, node)) {
       // Remove empty text nodes and nodes containing only whitespace
       if (shouldRemoveTextNode(blockElements, node)) {
         tempNode = node;
@@ -94,8 +94,8 @@ const addRootBlocks = (editor: Editor) => {
       }
 
       if (!rootBlockNode) {
-        rootBlockNode = dom.create(forcedRootBlock, Settings.getForcedRootBlockAttrs(editor));
-        node.parentNode.insertBefore(rootBlockNode, node);
+        rootBlockNode = createRootBlock(editor);
+        rootNode.insertBefore(rootBlockNode, node);
         wrapped = true;
       }
 
@@ -116,12 +116,24 @@ const addRootBlocks = (editor: Editor) => {
   }
 };
 
-const setup = (editor: Editor) => {
-  if (Settings.getForcedRootBlock(editor)) {
-    editor.on('NodeChange', Fun.curry(addRootBlocks, editor));
-  }
+const insertEmptyLine = (editor: Editor, root: SugarElement<HTMLElement>, insertBlock: (root: SugarElement<HTMLElement>, block: SugarElement<HTMLElement>) => void): Range => {
+  const block = SugarElement.fromDom(createRootBlock(editor));
+  const br = PaddingBr.createPaddingBr();
+
+  Insert.append(block, br);
+  insertBlock(root, block);
+
+  const rng = document.createRange();
+  rng.setStartBefore(br.dom);
+  rng.setEndBefore(br.dom);
+  return rng;
+};
+
+const setup = (editor: Editor): void => {
+  editor.on('NodeChange', Fun.curry(addRootBlocks, editor));
 };
 
 export {
+  insertEmptyLine,
   setup
 };

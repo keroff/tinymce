@@ -1,4 +1,4 @@
-import { assert, UnitTest } from '@ephox/bedrock-client';
+import { Assert, UnitTest } from '@ephox/bedrock-client';
 import { Fun, Optional } from '@ephox/katamari';
 import { Html, Insert, SugarElement } from '@ephox/sugar';
 
@@ -11,19 +11,25 @@ UnitTest.test('CloneFormatsTest', () => {
   const cloneTableFill = TableFill.cellOperations(Fun.noop, doc, Optional.none());
   const noCloneTableFill = TableFill.cellOperations(Fun.noop, doc, noCloneFormats);
 
-  const cellElement = SugarElement.fromTag('td');
-  const cellContent = SugarElement.fromHtml('<strong contenteditable="false"><em>stuff</em></strong>');
-  Insert.append(cellElement, cellContent);
-  const cell: CellData = {
-    element: cellElement,
-    colspan: 1,
-    rowspan: 1
+  const createCell = (content: string): CellData => {
+    const cellElement = SugarElement.fromTag('td');
+    const cellContent = SugarElement.fromHtml(content);
+    Insert.append(cellElement, cellContent);
+    return {
+      element: cellElement,
+      colspan: 1,
+      rowspan: 1
+    };
   };
 
-  const clonedCell = cloneTableFill.cell(cell);
+  const testClonedCell = (content: string, expected: string) => {
+    const cell = createCell(content);
+    const clonedCell = cloneTableFill.cell(cell);
+    Assert.eq('', expected, Html.getOuter(clonedCell));
+    const noClonedCell = noCloneTableFill.cell(cell);
+    Assert.eq('', '<td><br></td>', Html.getOuter(noClonedCell));
+  };
 
-  assert.eq('<td><strong><em><br></em></strong></td>', Html.getOuter(clonedCell));
-
-  const noClonedCell = noCloneTableFill.cell(cell);
-  assert.eq('<td><br></td>', Html.getOuter(noClonedCell));
+  testClonedCell('<strong contenteditable="false"><em>stuff</em></strong>', '<td><br></td>');
+  testClonedCell('<strong><em contenteditable="false">stuff</em></strong>', '<td><strong><br></strong></td>');
 });

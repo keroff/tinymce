@@ -1,4 +1,4 @@
-import { assert, UnitTest } from '@ephox/bedrock-client';
+import { Assert, UnitTest } from '@ephox/bedrock-client';
 import { Fun, Optional } from '@ephox/katamari';
 import { PlatformDetection } from '@ephox/sand';
 
@@ -33,14 +33,6 @@ interface TestAttrMap {
 
 UnitTest.asynctest('ScrollTest', (success, failure) => {
   const platform = PlatformDetection.detect();
-
-  if (!Math.sign) { // For IE: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/sign
-    Math.sign = (x) => {
-      const a = x > 0 ? 1 : 0;
-      const b = x < 0 ? 1 : 0;
-      return (a - b) || +x;
-    };
-  }
 
   const testOne = (i: string, attrMap: TestAttrMap, next: () => void) => {
     const iframe = SugarElement.fromHtml<HTMLIFrameElement>(i);
@@ -101,8 +93,8 @@ UnitTest.asynctest('ScrollTest', (success, failure) => {
   const scrollCheck = (x: number, y: number, epsX: number, epsY: number, doc: TestDocSpec, msg: string) => {
     Css.reflow(doc.body);
     const scr = Scroll.get(doc.rawDoc);
-    assert.eq(true, within(x, scr.left, epsX), msg + ' (' + doc.dir + ') Expected scrollCheck x=' + x + ', got=' + scr.left + ', eps=' + epsX);
-    assert.eq(true, within(y, scr.top, epsY), msg + ' (' + doc.dir + ') Expected scrollCheck y=' + y + ', got=' + scr.top + ', eps=' + epsY);
+    Assert.eq(msg + ' (' + doc.dir + ') Expected scrollCheck x=' + x + ', got=' + scr.left + ', eps=' + epsX, true, within(x, scr.left, epsX));
+    Assert.eq(msg + ' (' + doc.dir + ') Expected scrollCheck y=' + y + ', got=' + scr.top + ', eps=' + epsY, true, within(y, scr.top, epsY));
   };
 
   // scroll to (x,y) and check position
@@ -137,52 +129,48 @@ UnitTest.asynctest('ScrollTest', (success, failure) => {
 
     // TINY-9203: due to Win11 FF adopting native hidden scrollbar behavior and current inability to distinguish between Win10 and Win11
     // (both os.version.major === 10), allow scrollbar to be either hidden or visible when on Win10/11 FF
-    const noVisibleScrollbarBrowser = platform.os.isOSX() || (platform.browser.isFirefox() && platform.os.isLinux()) || (platform.browser.isFirefox() && platform.os.isWindows() && platform.os.version.major >= 10);
-    assert.eq(true, scrollBarWidth > 5 && scrollBarWidth < 50 || (noVisibleScrollbarBrowser && scrollBarWidth === 0), 'scroll bar width, got=' + scrollBarWidth);
+    const noVisibleScrollbarBrowser = platform.os.isMacOS() || (platform.browser.isFirefox() && platform.os.isLinux()) || (platform.browser.isFirefox() && platform.os.isWindows() && platform.os.version.major >= 10);
+    Assert.eq('scroll bar width, got=' + scrollBarWidth, true, scrollBarWidth > 5 && scrollBarWidth < 50 || (noVisibleScrollbarBrowser && scrollBarWidth === 0));
 
     scrollCheck(0, 0, 0, 0, doc, 'start pos');
 
-    //  TBIO-5131 - skip tests for IE and EDGE RTL (x coords go -ve from left to right on the screen in RTL mode)
-    if ( !(doc.rtl && (platform.browser.isIE() || platform.browser.isEdge())) ) {
+    const cPos = SugarLocation.absolute(cEl);
+    setToElement(doc, cEl, cPos.left, cPos.top, 1, 1, 'set to centre el');
 
-      const cPos = SugarLocation.absolute(cEl);
-      setToElement(doc, cEl, cPos.left, cPos.top, 1, 1, 'set to centre el');
+    // scroll text of the centre cell into view (right-aligned in RTL mode)
+    const x = cX + (doc.rtl ? (Width.get(cEl) - Width.get(doc.iframe)) : 0);
+    scrollTo(x, cY, doc); // scroll back to centre
 
-      // scroll text of the centre cell into view (right-aligned in RTL mode)
-      const x = cX + (doc.rtl ? (Width.get(cEl) - Width.get(doc.iframe)) : 0);
-      scrollTo(x, cY, doc); // scroll back to centre
+    scrollBy(-50, 30, doc, 'scrollBy/1');
+    scrollBy(50, -30, doc, 'scrollBy/2');
 
-      scrollBy(-50, 30, doc, 'scrollBy/1');
-      scrollBy(50, -30, doc, 'scrollBy/2');
+    scrollCheck(x, cY, 0, 0, doc, 'reset/2');
 
-      scrollCheck(x, cY, 0, 0, doc, 'reset/2');
+    // scroll to top el
+    const pos = SugarLocation.absolute(doc.byId('top1'));
+    setToElement(doc, doc.byId('top1'), pos.left, pos.top, 0, 0, 'set to top');
 
-      // scroll to top el
-      const pos = SugarLocation.absolute(doc.byId('top1'));
-      setToElement(doc, doc.byId('top1'), pos.left, pos.top, 0, 0, 'set to top');
+    scrollTo(x, cY, doc); // scroll back to centre
 
-      scrollTo(x, cY, doc); // scroll back to centre
+    // scroll to bottom el
+    const bot1Pos = SugarLocation.absolute(doc.byId('top1'));
+    const bot = hgt + 2 * bodyBorder + 2 * mar - (doc.rawWin.innerHeight - scrollBarWidth); // content height minus viewport-excluding-the-bottom-scrollbar
+    setToElement(doc, doc.byId('bot1'), bot1Pos.left, bot, 0, 20, 'set to bottom');
 
-      // scroll to bottom el
-      const bot1Pos = SugarLocation.absolute(doc.byId('top1'));
-      const bot = hgt + 2 * bodyBorder + 2 * mar - (doc.rawWin.innerHeight - scrollBarWidth); // content height minus viewport-excluding-the-bottom-scrollbar
-      setToElement(doc, doc.byId('bot1'), bot1Pos.left, bot, 0, 20, 'set to bottom');
+    scrollTo(x, cY, doc); // scroll back to centre
+    Scroll.preserve(doc.rawDoc, () => {
+      scrollBy( 100, 100, doc, 'scroll 1'); // scroll some where else
+    });
+    scrollCheck(x, cY, 0, 0, doc, 'preserve'); // scroll back at centre
 
-      scrollTo(x, cY, doc); // scroll back to centre
-      Scroll.preserve(doc.rawDoc, () => {
-        scrollBy( 100, 100, doc, 'scroll 1'); // scroll some where else
-      });
-      scrollCheck(x, cY, 0, 0, doc, 'preserve'); // scroll back at centre
-
-      const c1 = Scroll.capture(doc.rawDoc);
-      scrollBy( 100, 100, doc, 'scroll 2'); // scroll some where else
-      c1.restore();
-      scrollCheck(x, cY, 0, 0, doc, 'restore #1');
-      scrollBy( -100, -100, doc, 'scroll 3');
-      c1.save();
-      scrollBy(50, 50, doc, 'scroll 4');
-      c1.restore();
-      scrollCheck(x - 100, cY - 100, 0, 0, doc, 'restore #2');
-    }
+    const c1 = Scroll.capture(doc.rawDoc);
+    scrollBy( 100, 100, doc, 'scroll 2'); // scroll some where else
+    c1.restore();
+    scrollCheck(x, cY, 0, 0, doc, 'restore #1');
+    scrollBy( -100, -100, doc, 'scroll 3');
+    c1.save();
+    scrollBy(50, 50, doc, 'scroll 4');
+    c1.restore();
+    scrollCheck(x - 100, cY - 100, 0, 0, doc, 'restore #2');
   };
 });

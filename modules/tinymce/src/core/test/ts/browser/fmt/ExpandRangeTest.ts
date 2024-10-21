@@ -6,9 +6,9 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import * as ExpandRange from 'tinymce/core/fmt/ExpandRange';
+import { Format } from 'tinymce/core/fmt/FormatTypes';
 import { RangeLikeObject } from 'tinymce/core/selection/RangeTypes';
 import { ZWSP } from 'tinymce/core/text/Zwsp';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.fmt.ExpandRangeTest', () => {
   const inlineFormat = [{ inline: 'b' }];
@@ -17,9 +17,9 @@ describe('browser.tinymce.core.fmt.ExpandRangeTest', () => {
   const selectorFormatCollapsed = [{ selector: 'div', classes: 'b', collapsed: true }];
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ], true);
+  }, [], true);
 
-  const expandRng = (editor: Editor, startPath: number[], startOffset: number, endPath: number[], endOffset: number, format, excludeTrailingSpaces: boolean = false) => {
+  const expandRng = (editor: Editor, startPath: number[], startOffset: number, endPath: number[], endOffset: number, format: Format[], excludeTrailingSpaces: boolean = false) => {
     const startContainer = Hierarchy.follow(TinyDom.body(editor), startPath).getOrDie();
     const endContainer = Hierarchy.follow(TinyDom.body(editor), endPath).getOrDie();
 
@@ -27,7 +27,7 @@ describe('browser.tinymce.core.fmt.ExpandRangeTest', () => {
     rng.setStart(startContainer.dom, startOffset);
     rng.setEnd(endContainer.dom, endOffset);
 
-    return ExpandRange.expandRng(editor, rng, format, excludeTrailingSpaces);
+    return ExpandRange.expandRng(editor.dom, rng, format, excludeTrailingSpaces);
   };
 
   const assertRange = (editor: Editor, rng: RangeLikeObject, startPath: number[], startOffset: number, endPath: number[], endOffset: number) => {

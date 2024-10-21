@@ -1,11 +1,6 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AlloyComponent, Behaviour, Container, DomFactory, Memento, MementoRecord, ModalDialog, Reflecting, SketchSpec } from '@ephox/alloy';
+import {
+  AlloyComponent, AlloyParts, Behaviour, Container, DomFactory, Memento, MementoRecord, ModalDialog, Reflecting, SimpleSpec, SketchSpec
+} from '@ephox/alloy';
 import { Dialog } from '@ephox/bridge';
 import { Arr, Optional } from '@ephox/katamari';
 
@@ -13,27 +8,34 @@ import { UiFactoryBackstage } from '../../backstage/Backstage';
 import { renderFooterButton } from '../general/Button';
 import { footerChannel } from './DialogChannels';
 
-// FIX spelling and import location
 export interface DialogMemButton {
-  name: Dialog.DialogFooterButton['name'];
-  align: Dialog.DialogFooterButton['align'];
-  memento: MementoRecord;
+  readonly name: Dialog.DialogFooterButton['name'];
+  readonly align: Dialog.DialogFooterButton['align'];
+  readonly memento: MementoRecord;
 }
 
 export interface WindowFooterSpec {
-  buttons: Dialog.DialogFooterButton[];
+  readonly buttons: Dialog.DialogFooterButton[];
 }
 
-const makeButton = (button: Dialog.DialogFooterButton, backstage: UiFactoryBackstage) => renderFooterButton(button, button.type, backstage);
+export interface FooterState {
+  readonly lookupByName: (buttonName: string) => Optional<AlloyComponent>;
+  readonly footerButtons: DialogMemButton[];
+}
 
-const lookup = (compInSystem: AlloyComponent, footerButtons: DialogMemButton[], buttonName: string) => Arr.find(footerButtons, (button) => button.name === buttonName).bind((memButton) => memButton.memento.getOpt(compInSystem));
+const makeButton = (button: Dialog.DialogFooterButton, backstage: UiFactoryBackstage) =>
+  renderFooterButton(button, button.type, backstage);
 
-const renderComponents = (_data, state) => {
+const lookup = (compInSystem: AlloyComponent, footerButtons: DialogMemButton[], buttonName: string) =>
+  Arr.find(footerButtons, (button) => button.name === buttonName)
+    .bind((memButton) => memButton.memento.getOpt(compInSystem));
+
+const renderComponents = (_data: WindowFooterSpec, state: Optional<FooterState>): SketchSpec[] => {
   // default group is 'end'
   const footerButtons = state.map((s) => s.footerButtons).getOr([ ]);
   const buttonGroups = Arr.partition(footerButtons, (button) => button.align === 'start');
 
-  const makeGroup = (edge, buttons): SketchSpec => Container.sketch({
+  const makeGroup = (edge: string, buttons: DialogMemButton[]): SketchSpec => Container.sketch({
     dom: {
       tag: 'div',
       classes: [ `tox-dialog__footer-${edge}` ]
@@ -46,8 +48,8 @@ const renderComponents = (_data, state) => {
   return [ startButtons, endButtons ];
 };
 
-const renderFooter = (initSpec: WindowFooterSpec, backstage: UiFactoryBackstage) => {
-  const updateState = (_comp, data: WindowFooterSpec) => {
+const renderFooter = (initSpec: WindowFooterSpec, dialogId: string, backstage: UiFactoryBackstage): SimpleSpec => {
+  const updateState = (comp: AlloyComponent, data: WindowFooterSpec) => {
     const footerButtons: DialogMemButton[] = Arr.map(data.buttons, (button) => {
       const memButton = Memento.record(makeButton(button, backstage));
       return {
@@ -57,12 +59,10 @@ const renderFooter = (initSpec: WindowFooterSpec, backstage: UiFactoryBackstage)
       };
     });
 
-    const lookupByName = (
-      compInSystem: AlloyComponent,
-      buttonName: string
-    ) => lookup(compInSystem, footerButtons, buttonName);
+    const lookupByName = (buttonName: string) =>
+      lookup(comp, footerButtons, buttonName);
 
-    return Optional.some({
+    return Optional.some<FooterState>({
       lookupByName,
       footerButtons
     });
@@ -70,10 +70,10 @@ const renderFooter = (initSpec: WindowFooterSpec, backstage: UiFactoryBackstage)
 
   return {
     dom: DomFactory.fromHtml('<div class="tox-dialog__footer"></div>'),
-    components: [ ],
+    components: [],
     behaviours: Behaviour.derive([
       Reflecting.config({
-        channel: footerChannel,
+        channel: `${footerChannel}-${dialogId}`,
         initialData: initSpec,
         updateState,
         renderComponents
@@ -82,11 +82,11 @@ const renderFooter = (initSpec: WindowFooterSpec, backstage: UiFactoryBackstage)
   };
 };
 
-const renderInlineFooter = (initSpec: WindowFooterSpec, backstage: UiFactoryBackstage) => renderFooter(initSpec, backstage);
+const renderInlineFooter = (initSpec: WindowFooterSpec, dialogId: string, backstage: UiFactoryBackstage): SimpleSpec =>
+  renderFooter(initSpec, dialogId, backstage);
 
-const renderModalFooter = (initSpec: WindowFooterSpec, backstage: UiFactoryBackstage) => ModalDialog.parts.footer(
-  renderFooter(initSpec, backstage)
-);
+const renderModalFooter = (initSpec: WindowFooterSpec, dialogId: string, backstage: UiFactoryBackstage): AlloyParts.ConfiguredPart =>
+  ModalDialog.parts.footer(renderFooter(initSpec, dialogId, backstage));
 
 export {
   renderInlineFooter,

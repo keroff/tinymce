@@ -6,6 +6,33 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## 9.2.0 - 2023-03-15
+
+### Changed
+- `Awareness.isCursorPosition` API now returns `true` for passed `contenteditable=false` elements.
+
+## 9.1.0 - 2022-09-08
+
+### Improved
+- The `SugarNode.isHTMLElement` function now ensures the `nodeType` is `1` before checking the prototypes.
+
+## 9.0.0 - 2022-03-03
+
+### Added
+- New `Ready.image` function that returns a promise which will not resolve until the image element has loaded. Errors trigger promise rejection.
+
+### Changed
+- Upgraded to Katamari 9.0, which includes breaking changes to the `Optional` API used in this module.
+- Renamed `Ready.execute` to `Ready.document`, for better clarity on what it does
+- `Remove.unwrap` API now inserts children after the current node, instead of before.
+- `Replication.mutate` API now inserts the replacement node after the current node, instead of before.
+
+### Removed
+- Removed support for Microsoft Internet Explorer and legacy Microsoft Edge.
+
+### Fixed
+- The `Class.toggle` API didn't cleanup the class attribute when empty.
+
 ## 8.1.0 - 2021-10-11
 
 ### Added

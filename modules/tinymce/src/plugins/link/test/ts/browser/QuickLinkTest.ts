@@ -1,11 +1,11 @@
 import { FocusTools, Keys, UiFinder, Waiter } from '@ephox/agar';
 import { describe, it, before, after } from '@ephox/bedrock-client';
+import { PlatformDetection } from '@ephox/sand';
 import { SugarBody, SugarDocument } from '@ephox/sugar';
-import { TinyAssertions, TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-mcagar';
+import { TinyAssertions, TinyHooks, TinySelections, TinyUiActions, TinyContentActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/link/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import { TestLinkUi } from '../module/TestLinkUi';
 
@@ -15,9 +15,11 @@ describe('browser.tinymce.plugins.link.QuickLinkTest', () => {
     toolbar: 'link',
     link_quicklink: true,
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ], true);
+  }, [ Plugin ], true);
 
   const doc = SugarDocument.getDocument();
+
+  const metaKey = PlatformDetection.detect().os.isMacOS() ? { metaKey: true } : { ctrlKey: true };
 
   before(() => {
     TestLinkUi.clearHistory();
@@ -156,5 +158,38 @@ describe('browser.tinymce.plugins.link.QuickLinkTest', () => {
       'a[href="http://tiny.cloud/7"]': 1,
       'a:contains("Word")': 1
     });
+  });
+
+  it('TINY-8057: Checking that mceLink command can open Quicklink and dialog', async () => {
+    const editor = hook.editor();
+    editor.setContent('');
+    editor.execCommand('mcelink', false, { dialog: true });
+    await TinyUiActions.pWaitForDialog(editor);
+    TinyUiActions.closeDialog(editor);
+    editor.execCommand('mcelink');
+    await TinyUiActions.pWaitForPopup(editor, '.tox-pop .tox-toolbar');
+    await FocusTools.pTryOnSelector('Selector should be in context form input', doc, '.tox-toolbar input');
+    TinyUiActions.keydown(editor, Keys.enter());
+    UiFinder.notExists(SugarBody.body(), '.tox-pop__dialog');
+  });
+
+  it('TINY-8057: Checking Quicklink opens with keyboard shortcut', async () => {
+    const editor = hook.editor();
+    editor.setContent('');
+    TinyContentActions.keystroke(editor, 'K'.charCodeAt(0), metaKey);
+    await TinyUiActions.pWaitForPopup(editor, '.tox-pop__dialog .tox-toolbar');
+    await FocusTools.pTryOnSelector('Selector should be in context form input', doc, '.tox-toolbar input');
+    TinyUiActions.keydown(editor, Keys.enter());
+    UiFinder.notExists(SugarBody.body(), '.tox-pop__dialog');
+  });
+
+  it('TINY-9593: Preserve formatting on text selection', async () => {
+    const editor = hook.editor();
+    editor.setContent('<p>Lorem <em><strong>ipsum</strong></em> dolor sit amet</p>');
+    TinySelections.setSelection(editor, [ 0, 1, 0, 0 ], ''.length, [ 0, 1, 0, 0 ], 'ipsum'.length);
+    await pOpenQuickLink(editor);
+    FocusTools.setActiveValue(doc, 'http://tiny.cloud/2');
+    TinyUiActions.keydown(editor, Keys.enter());
+    TinyAssertions.assertContent(editor, '<p>Lorem <a href="http://tiny.cloud/2"><em><strong>ipsum</strong></em></a> dolor sit amet</p>');
   });
 });

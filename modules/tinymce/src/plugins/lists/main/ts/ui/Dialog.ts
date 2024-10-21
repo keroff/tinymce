@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Optional } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -12,11 +5,12 @@ import Editor from 'tinymce/core/api/Editor';
 import { parseDetail, parseStartValue } from '../core/ListNumbering';
 import { isOlNode } from '../core/NodeType';
 import { getParentList } from '../core/Selection';
+import { isWithinNonEditableList } from '../core/Util';
 
 const open = (editor: Editor): void => {
   // Find the current list and skip opening if the selection isn't in an ordered list
   const currentList = getParentList(editor);
-  if (!isOlNode(currentList)) {
+  if (!isOlNode(currentList) || isWithinNonEditableList(editor, currentList)) {
     return;
   }
 
@@ -36,7 +30,7 @@ const open = (editor: Editor): void => {
     initialData: {
       start: parseDetail({
         start: editor.dom.getAttrib(currentList, 'start', '1'),
-        listStyleType: Optional.some(editor.dom.getStyle(currentList, 'list-style-type'))
+        listStyleType: Optional.from(editor.dom.getStyle(currentList, 'list-style-type'))
       })
     },
     buttons: [

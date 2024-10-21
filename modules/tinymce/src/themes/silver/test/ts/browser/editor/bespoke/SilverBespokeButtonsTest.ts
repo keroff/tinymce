@@ -1,21 +1,19 @@
 import { ApproxStructure, Assertions, FocusTools, Keyboard, Keys, Mouse, UiFinder } from '@ephox/agar';
-import { describe, it } from '@ephox/bedrock-client';
+import { context, describe, it } from '@ephox/bedrock-client';
 import { Arr, Fun } from '@ephox/katamari';
 import { SugarBody, SugarDocument } from '@ephox/sugar';
-import { TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-mcagar';
+import { TinyHooks, TinySelections, TinyState, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import PromisePolyfill from 'tinymce/core/api/util/Promise';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as MenuUtils from '../../../module/MenuUtils';
 
 describe('browser.tinymce.themes.silver.editor.bespoke.SilverBespokeButtonsTest', () => {
   const hook = TinyHooks.bddSetup<Editor>({
-    toolbar: 'align fontselect fontsizeselect formatselect styleselect',
+    toolbar: 'align fontfamily fontsize blocks styles',
     base_url: '/project/tinymce/js/tinymce',
     content_css: '/project/tinymce/src/themes/silver/test/css/content.css'
-  }, [ Theme ]);
+  }, []);
 
   const pAssertFocusOnItem = (itemText: string) => FocusTools.pTryOnSelector(
     `Focus should be on ${itemText}`,
@@ -55,11 +53,11 @@ describe('browser.tinymce.themes.silver.editor.bespoke.SilverBespokeButtonsTest'
       await pBeforeStep();
       assertItemTicks(label, expectedTicks);
       await pAfterStep();
-      TinyUiActions.keydown(editor, Keys.escape());
+      TinyUiActions.keyup(editor, Keys.escape());
       UiFinder.notExists(SugarBody.body(), '[role="menu"]');
     };
 
-  const pNoop = () => PromisePolyfill.resolve();
+  const pNoop = () => Promise.resolve();
   const pCheckItemsAtLocation = pCheckItemsAtLocationPlus(pNoop, pNoop, (text) => MenuUtils.pOpenMenu('', text));
   const pCheckAlignItemsAtLocation = pCheckItemsAtLocationPlus(pNoop, pNoop, () => MenuUtils.pOpenAlignMenu(''));
 
@@ -70,8 +68,8 @@ describe('browser.tinymce.themes.silver.editor.bespoke.SilverBespokeButtonsTest'
     },
     // Afterwards, escape the submenu
     () => {
-      Keyboard.activeKeydown(SugarDocument.getDocument(), Keys.escape());
-      return PromisePolyfill.resolve();
+      Keyboard.activeKeyup(SugarDocument.getDocument(), Keys.escape());
+      return Promise.resolve();
     },
     (text) => MenuUtils.pOpenMenu('', text)
   );
@@ -112,7 +110,7 @@ describe('browser.tinymce.themes.silver.editor.bespoke.SilverBespokeButtonsTest'
     );
   });
 
-  it('TBA: Checking fontselect ticks and updating', async () => {
+  it('TBA: Checking fontfamily ticks and updating', async () => {
     const editor = hook.editor();
     editor.setContent('<p>First paragraph</p><p>Second paragraph</p>');
     TinySelections.setCursor(editor, [ 0, 0 ], 'Fi'.length);
@@ -237,8 +235,8 @@ describe('browser.tinymce.themes.silver.editor.bespoke.SilverBespokeButtonsTest'
     TinyUiActions.keydown(editor, Keys.right());
     await pAssertFocusOnItem('Paragraph');
     assertItemTicks('Checking blocks in menu', [ false, true ].concat(Arr.range(6, Fun.never)));
-    TinyUiActions.keydown(editor, Keys.escape());
-    TinyUiActions.keydown(editor, Keys.escape());
+    TinyUiActions.keyup(editor, Keys.escape());
+    TinyUiActions.keyup(editor, Keys.escape());
   });
 
   it('TBA: Checking style ticks and updating', async () => {
@@ -298,9 +296,9 @@ describe('browser.tinymce.themes.silver.editor.bespoke.SilverBespokeButtonsTest'
     TinyUiActions.keydown(editor, Keys.right());
     await pAssertFocusOnItem('Heading 1');
     assertItemTicks('Checking headings in menu', [ true ].concat(Arr.range(5, Fun.never)));
-    TinyUiActions.keydown(editor, Keys.escape());
-    TinyUiActions.keydown(editor, Keys.escape());
-    TinyUiActions.keydown(editor, Keys.escape());
+    TinyUiActions.keyup(editor, Keys.escape());
+    TinyUiActions.keyup(editor, Keys.escape());
+    TinyUiActions.keyup(editor, Keys.escape());
   });
 
   it('TBA: Checking toolbar keyboard navigation', async () => {
@@ -321,5 +319,23 @@ describe('browser.tinymce.themes.silver.editor.bespoke.SilverBespokeButtonsTest'
     TinyUiActions.keydown(editor, Keys.left());
     await pAssertFocusOnAlignToolbarButton(); // Alignment
     UiFinder.notExists(SugarBody.body(), '[role="menu"]');
+  });
+
+  context('Noneditable root', () => {
+    const testDisableOnNoneditable = (title: string) => () => {
+      TinyState.withNoneditableRootEditor(hook.editor(), (editor) => {
+        editor.setContent('<div>Noneditable content</div><div contenteditable="true">Editable content</div>');
+        TinySelections.setSelection(editor, [ 0, 0 ], 0, [ 0, 0 ], 2);
+        UiFinder.exists(SugarBody.body(), `[aria-label="${title}"]:disabled`);
+        TinySelections.setSelection(editor, [ 1, 0 ], 0, [ 1, 0 ], 2);
+        UiFinder.exists(SugarBody.body(), `[aria-label="${title}"]:not(:disabled)`);
+      });
+    };
+
+    it('TINY-9669: Disable align on noneditable content', testDisableOnNoneditable('Align'));
+    it('TINY-9669: Disable fontfamily on noneditable content', testDisableOnNoneditable('Fonts'));
+    it('TINY-9669: Disable fontsize on noneditable content', testDisableOnNoneditable('Font sizes'));
+    it('TINY-9669: Disable blocks on noneditable content', testDisableOnNoneditable('Blocks'));
+    it('TINY-9669: Disable styles on noneditable content', testDisableOnNoneditable('Formats'));
   });
 });

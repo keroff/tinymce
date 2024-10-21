@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Arr, Fun, Obj, Optional, Strings } from '@ephox/katamari';
+import { Arr, Fun, Obj, Optional, Strings, Unicode } from '@ephox/katamari';
 import { Attribute, Insert, Remove, SugarElement, SugarNode } from '@ephox/sugar';
 
 import DomTreeWalker from '../api/dom/TreeWalker';
@@ -17,47 +10,48 @@ import * as PaddingBr from '../dom/PaddingBr';
 import * as SplitRange from '../selection/SplitRange';
 import * as Zwsp from '../text/Zwsp';
 import * as ExpandRange from './ExpandRange';
-import { getParentCaretContainer, isCaretNode } from './FormatContainer';
+import { CARET_ID, getParentCaretContainer, isCaretNode } from './FormatContainer';
 import { FormatVars } from './FormatTypes';
 import * as FormatUtils from './FormatUtils';
 import * as MatchFormat from './MatchFormat';
 
-const ZWSP = Zwsp.ZWSP, CARET_ID = '_mce_caret';
+const ZWSP = Zwsp.ZWSP;
 
 const importNode = (ownerDocument: Document, node: Node) => {
   return ownerDocument.importNode(node, true);
 };
 
 const getEmptyCaretContainers = (node: Node) => {
-  const nodes: Node[] = [];
+  const nodes: Element[] = [];
 
-  while (node) {
-    if ((node.nodeType === 3 && node.nodeValue !== ZWSP) || node.childNodes.length > 1) {
+  let tempNode: Node | null = node;
+  while (tempNode) {
+    if ((NodeType.isText(tempNode) && tempNode.data !== ZWSP) || tempNode.childNodes.length > 1) {
       return [];
     }
 
     // Collect nodes
-    if (node.nodeType === 1) {
-      nodes.push(node);
+    if (NodeType.isElement(tempNode)) {
+      nodes.push(tempNode);
     }
 
-    node = node.firstChild;
+    tempNode = tempNode.firstChild;
   }
 
   return nodes;
 };
 
-const isCaretContainerEmpty = (node: Node) => {
+const isCaretContainerEmpty = (node: Node): boolean => {
   return getEmptyCaretContainers(node).length > 0;
 };
 
-const findFirstTextNode = (node: Node) => {
+const findFirstTextNode = (node: Node | null): Text | null => {
   if (node) {
     const walker = new DomTreeWalker(node, node);
 
-    for (node = walker.current(); node; node = walker.next()) {
-      if (NodeType.isText(node)) {
-        return node;
+    for (let tempNode = walker.current(); tempNode; tempNode = walker.next()) {
+      if (NodeType.isText(tempNode)) {
+        return tempNode;
       }
     }
   }
@@ -84,7 +78,7 @@ const createCaretContainer = (fill: boolean) => {
 
 const trimZwspFromCaretContainer = (caretContainerNode: Node) => {
   const textNode = findFirstTextNode(caretContainerNode);
-  if (textNode && textNode.nodeValue.charAt(0) === ZWSP) {
+  if (textNode && textNode.data.charAt(0) === ZWSP) {
     textNode.deleteData(0, 1);
   }
 
@@ -127,14 +121,14 @@ const removeCaretContainerNode = (editor: Editor, node: Node, moveCaret: boolean
 };
 
 // Removes the caret container for the specified node or all on the current document
-const removeCaretContainer = (editor: Editor, node: Node, moveCaret: boolean = true) => {
+const removeCaretContainer = (editor: Editor, node: Node | null, moveCaret: boolean = true) => {
   const dom = editor.dom, selection = editor.selection;
   if (!node) {
     node = getParentCaretContainer(editor.getBody(), selection.getStart());
 
     if (!node) {
       while ((node = dom.get(CARET_ID))) {
-        removeCaretContainerNode(editor, node, false);
+        removeCaretContainerNode(editor, node, moveCaret);
       }
     }
   } else {
@@ -143,15 +137,16 @@ const removeCaretContainer = (editor: Editor, node: Node, moveCaret: boolean = t
 };
 
 const insertCaretContainerNode = (editor: Editor, caretContainer: Node, formatNode: Node) => {
-  const dom = editor.dom, block = dom.getParent(formatNode, Fun.curry(FormatUtils.isTextBlock, editor));
+  const dom = editor.dom;
+  const block = dom.getParent(formatNode, Fun.curry(FormatUtils.isTextBlock, editor.schema));
 
   if (block && dom.isEmpty(block)) {
     // Replace formatNode with caretContainer when removing format from empty block like <p><b>|</b></p>
-    formatNode.parentNode.replaceChild(caretContainer, formatNode);
+    formatNode.parentNode?.replaceChild(caretContainer, formatNode);
   } else {
     PaddingBr.removeTrailingBr(SugarElement.fromDom(formatNode));
     if (dom.isEmpty(formatNode)) {
-      formatNode.parentNode.replaceChild(caretContainer, formatNode);
+      formatNode.parentNode?.replaceChild(caretContainer, formatNode);
     } else {
       dom.insertAfter(caretContainer, formatNode);
     }
@@ -168,10 +163,11 @@ const insertFormatNodesIntoCaretContainer = (formatNodes: Node[], caretContainer
     return appendNode(parentNode, formatNode.cloneNode(false));
   }, caretContainer);
 
-  return appendNode(innerMostFormatNode, innerMostFormatNode.ownerDocument.createTextNode(ZWSP));
+  const doc = innerMostFormatNode.ownerDocument ?? document;
+  return appendNode(innerMostFormatNode, doc.createTextNode(ZWSP));
 };
 
-const cleanFormatNode = (editor: Editor, caretContainer: Node, formatNode: Node, name: string, vars: FormatVars, similar: boolean): Optional<Node> => {
+const cleanFormatNode = (editor: Editor, caretContainer: Node, formatNode: Element, name: string, vars?: FormatVars, similar?: boolean): Optional<Node> => {
   const formatter = editor.formatter;
   const dom = editor.dom;
 
@@ -184,7 +180,7 @@ const cleanFormatNode = (editor: Editor, caretContainer: Node, formatNode: Node,
   // If more than one format is present, then there's additional formats that should be retained. So clone the node,
   // remove the format and then return cleaned format node
   if (uniqueFormats.length > 0) {
-    const clonedFormatNode = formatNode.cloneNode(false);
+    const clonedFormatNode = formatNode.cloneNode(false) as Element;
     dom.add(caretContainer, clonedFormatNode);
     formatter.remove(name, vars, clonedFormatNode, similar);
     dom.remove(clonedFormatNode);
@@ -194,9 +190,14 @@ const cleanFormatNode = (editor: Editor, caretContainer: Node, formatNode: Node,
   }
 };
 
-const applyCaretFormat = (editor: Editor, name: string, vars: FormatVars) => {
-  let caretContainer: Node, textNode: Node;
+const applyCaretFormat = (editor: Editor, name: string, vars?: FormatVars): void => {
+  let caretContainer: Node | null;
   const selection = editor.selection;
+
+  const formatList = editor.formatter.get(name);
+  if (!formatList) {
+    return;
+  }
 
   const selectionRng = selection.getRng();
   let offset = selectionRng.startOffset;
@@ -204,9 +205,6 @@ const applyCaretFormat = (editor: Editor, name: string, vars: FormatVars) => {
   const text = container.nodeValue;
 
   caretContainer = getParentCaretContainer(editor.getBody(), selection.getStart());
-  if (caretContainer) {
-    textNode = findFirstTextNode(caretContainer);
-  }
 
   // Expand to word if caret is in the middle of a text node and the char before/after is a alpha numeric character
   const wordcharRegex = /[^\s\u00a0\u00ad\u200b\ufeff]/;
@@ -219,7 +217,7 @@ const applyCaretFormat = (editor: Editor, name: string, vars: FormatVars) => {
     selectionRng.collapse(true);
 
     // Expand the range to the closest word and split it at those points
-    let rng = ExpandRange.expandRng(editor, selectionRng, editor.formatter.get(name));
+    let rng = ExpandRange.expandRng(editor.dom, selectionRng, formatList);
     rng = SplitRange.split(rng);
 
     // Apply the format to the range
@@ -228,10 +226,12 @@ const applyCaretFormat = (editor: Editor, name: string, vars: FormatVars) => {
     // Move selection back to caret position
     selection.moveToBookmark(bookmark);
   } else {
-    if (!caretContainer || textNode.nodeValue !== ZWSP) {
+    let textNode = caretContainer ? findFirstTextNode(caretContainer) : null;
+
+    if (!caretContainer || textNode?.data !== ZWSP) {
       // Need to import the node into the document on IE or we get a lovely WrongDocument exception
       caretContainer = importNode(editor.getDoc(), createCaretContainer(true).dom);
-      textNode = caretContainer.firstChild;
+      textNode = caretContainer.firstChild as Text;
 
       selectionRng.insertNode(caretContainer);
       offset = 1;
@@ -246,28 +246,34 @@ const applyCaretFormat = (editor: Editor, name: string, vars: FormatVars) => {
   }
 };
 
-const removeCaretFormat = (editor: Editor, name: string, vars: FormatVars, similar: boolean) => {
+const removeCaretFormat = (editor: Editor, name: string, vars?: FormatVars, similar?: boolean): void => {
   const dom = editor.dom;
   const selection = editor.selection;
-  let hasContentAfter: boolean, node: Node, formatNode: Node;
-  const parents: Node[] = [];
-  const rng = selection.getRng();
+  let hasContentAfter = false;
 
+  const formatList = editor.formatter.get(name);
+  if (!formatList) {
+    return;
+  }
+
+  const rng = selection.getRng();
   const container = rng.startContainer;
   const offset = rng.startOffset;
-  node = container;
+  let node: Node | null = container;
 
-  if (container.nodeType === 3) {
-    if (offset !== container.nodeValue.length) {
+  if (NodeType.isText(container)) {
+    if (offset !== container.data.length) {
       hasContentAfter = true;
     }
 
     node = node.parentNode;
   }
 
+  const parents: Node[] = [];
+  let formatNode: Element | undefined;
   while (node) {
     if (MatchFormat.matchNode(editor, node, name, vars, similar)) {
-      formatNode = node;
+      formatNode = node as Element;
       break;
     }
 
@@ -292,7 +298,7 @@ const removeCaretFormat = (editor: Editor, name: string, vars: FormatVars, simil
     rng.collapse(true);
 
     // Expand the range to the closest word and split it at those points
-    let expandedRng = ExpandRange.expandRng(editor, rng, editor.formatter.get(name), true);
+    let expandedRng = ExpandRange.expandRng(dom, rng, formatList, true);
     expandedRng = SplitRange.split(expandedRng);
 
     // TODO: Figure out how on earth this works, as it shouldn't since remove format
@@ -303,12 +309,14 @@ const removeCaretFormat = (editor: Editor, name: string, vars: FormatVars, simil
     const caretContainer = getParentCaretContainer(editor.getBody(), formatNode);
     const newCaretContainer = createCaretContainer(false).dom;
 
-    insertCaretContainerNode(editor, newCaretContainer, caretContainer !== null ? caretContainer : formatNode);
+    insertCaretContainerNode(editor, newCaretContainer, caretContainer ?? formatNode);
 
     const cleanedFormatNode = cleanFormatNode(editor, newCaretContainer, formatNode, name, vars, similar);
     const caretTextNode = insertFormatNodesIntoCaretContainer(parents.concat(cleanedFormatNode.toArray()), newCaretContainer);
 
-    removeCaretContainerNode(editor, caretContainer, false);
+    if (caretContainer) {
+      removeCaretContainerNode(editor, caretContainer, false);
+    }
     selection.setCursorLocation(caretTextNode, 1);
 
     if (dom.isEmpty(formatNode)) {
@@ -317,10 +325,10 @@ const removeCaretFormat = (editor: Editor, name: string, vars: FormatVars, simil
   }
 };
 
-const disableCaretContainer = (editor: Editor, keyCode: number) => {
+const disableCaretContainer = (editor: Editor, keyCode: number, moveCaret: boolean) => {
   const selection = editor.selection, body = editor.getBody();
 
-  removeCaretContainer(editor, null, false);
+  removeCaretContainer(editor, null, moveCaret);
 
   // Remove caret container if it's empty
   if ((keyCode === 8 || keyCode === 46) && selection.isCollapsed() && selection.getStart().innerHTML === ZWSP) {
@@ -333,27 +341,44 @@ const disableCaretContainer = (editor: Editor, keyCode: number) => {
   }
 };
 
-const setup = (editor: Editor) => {
+const endsWithNbsp = (element: Node) => NodeType.isText(element) && Strings.endsWith(element.data, Unicode.nbsp);
+
+const setup = (editor: Editor): void => {
   editor.on('mouseup keydown', (e) => {
-    disableCaretContainer(editor, e.keyCode);
+    disableCaretContainer(editor, e.keyCode, endsWithNbsp(editor.selection.getRng().endContainer));
   });
 };
 
-const replaceWithCaretFormat = (targetNode: Node, formatNodes: Node[]) => {
+const createCaretFormat = (formatNodes: Node[]): {
+  caretContainer: SugarElement<HTMLSpanElement>;
+  caretPosition: CaretPosition;
+} => {
   const caretContainer = createCaretContainer(false);
   const innerMost = insertFormatNodesIntoCaretContainer(formatNodes, caretContainer.dom);
+  return { caretContainer, caretPosition: CaretPosition(innerMost, 0) };
+};
+
+const replaceWithCaretFormat = (targetNode: Node, formatNodes: Node[]): CaretPosition => {
+  const { caretContainer, caretPosition } = createCaretFormat(formatNodes);
   Insert.before(SugarElement.fromDom(targetNode), caretContainer);
   Remove.remove(SugarElement.fromDom(targetNode));
 
-  return CaretPosition(innerMost, 0);
+  return caretPosition;
 };
 
-const isFormatElement = (editor: Editor, element: SugarElement) => {
+const createCaretFormatAtStart = (rng: Range, formatNodes: Node[]): CaretPosition => {
+  const { caretContainer, caretPosition } = createCaretFormat(formatNodes);
+  rng.insertNode(caretContainer.dom);
+
+  return caretPosition;
+};
+
+const isFormatElement = (editor: Editor, element: SugarElement<Node>): boolean => {
   const inlineElements = editor.schema.getTextInlineElements();
   return Obj.has(inlineElements, SugarNode.name(element)) && !isCaretNode(element.dom) && !NodeType.isBogus(element.dom);
 };
 
-const isEmptyCaretFormatElement = (element: SugarElement) => {
+const isEmptyCaretFormatElement = (element: SugarElement<Node>): boolean => {
   return isCaretNode(element.dom) && isCaretContainerEmpty(element.dom);
 };
 
@@ -362,6 +387,7 @@ export {
   applyCaretFormat,
   removeCaretFormat,
   replaceWithCaretFormat,
+  createCaretFormatAtStart,
   isFormatElement,
   isEmptyCaretFormatElement
 };

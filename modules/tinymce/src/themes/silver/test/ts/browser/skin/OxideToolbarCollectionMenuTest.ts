@@ -1,15 +1,13 @@
-import { ApproxStructure, Assertions, FocusTools, Keys, Mouse } from '@ephox/agar';
-import { TestHelpers } from '@ephox/alloy';
+import { ApproxStructure, Assertions, FocusTools, Keys, Mouse, TestStore } from '@ephox/agar';
 import { describe, it } from '@ephox/bedrock-client';
 import { Arr } from '@ephox/katamari';
 import { SugarBody, SugarDocument } from '@ephox/sugar';
 import { TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.themes.silver.skin.OxideToolbarCollectionMenuTest', () => {
-  const store = TestHelpers.TestStore();
+  const store = TestStore();
   const hook = TinyHooks.bddSetup<Editor>({
     toolbar: 'toolbar-collection',
     base_url: '/project/tinymce/js/tinymce',
@@ -33,7 +31,7 @@ describe('browser.tinymce.themes.silver.skin.OxideToolbarCollectionMenuTest', ()
         onItemAction: store.adder('onItemAction')
       });
     }
-  }, [ Theme ]);
+  }, []);
 
   it('Check structure of toolbar collection', async () => {
     const editor = hook.editor();

@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AlloyComponent, AlloySpec, Behaviour, Disabling } from '@ephox/alloy';
+import { AlloyComponent, AlloySpec, Behaviour, Disabling, ItemTypes } from '@ephox/alloy';
 import { Menu } from '@ephox/bridge';
 import { Arr, Optional } from '@ephox/katamari';
 import { SelectorFilter } from '@ephox/sugar';
@@ -20,11 +13,11 @@ import { replaceText } from './AutocompleteMenuItem';
 import { buildData, renderCommonItem } from './CommonMenuItem';
 
 export interface CardExtras {
-  itemBehaviours?: Array<Behaviour.NamedConfiguredBehaviour<Behaviour.BehaviourConfigSpec, Behaviour.BehaviourConfigDetail>>;
+  readonly itemBehaviours?: Behaviour.NamedConfiguredBehaviour<any, any, any>[];
   // Extras specific to cardText components
-  cardText: {
-    matchText?: string;
-    highlightOn: string[];
+  readonly cardText: {
+    readonly matchText?: string;
+    readonly highlightOn: string[];
   };
 }
 
@@ -49,17 +42,17 @@ export const renderCardMenuItem = (
   itemResponse: ItemResponse,
   sharedBackstage: UiFactoryBackstageShared,
   extras: CardExtras
-) => {
+): ItemTypes.ItemSpec => {
   const getApi = (component: AlloyComponent): Menu.CardMenuItemInstanceApi => ({
-    isDisabled: () => Disabling.isDisabled(component),
-    setDisabled: (state: boolean) => {
-      Disabling.set(component, state);
+    isEnabled: () => !Disabling.isDisabled(component),
+    setEnabled: (state: boolean) => {
+      Disabling.set(component, !state);
 
       // Disable sub components
       Arr.each(SelectorFilter.descendants(component.element, '*'), (elm) => {
         component.getSystem().getByDom(elm).each((comp: AlloyComponent) => {
           if (comp.hasConfigured(Disabling)) {
-            Disabling.set(comp, state);
+            Disabling.set(comp, !state);
           }
         });
       });
@@ -81,7 +74,7 @@ export const renderCardMenuItem = (
 
   return renderCommonItem({
     data: buildData({ text: Optional.none(), ...spec }),
-    disabled: spec.disabled,
+    enabled: spec.enabled,
     getApi,
     onAction: spec.onAction,
     onSetup: spec.onSetup,

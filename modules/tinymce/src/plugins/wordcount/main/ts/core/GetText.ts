@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Unicode } from '@ephox/katamari';
 
 import DomTreeWalker from 'tinymce/core/api/dom/TreeWalker';
@@ -12,18 +5,19 @@ import Schema, { SchemaMap } from 'tinymce/core/api/html/Schema';
 
 const getText = (node: Node, schema: Schema): string[] => {
   const blockElements: SchemaMap = schema.getBlockElements();
-  const shortEndedElements: SchemaMap = schema.getShortEndedElements();
+  const voidElements: SchemaMap = schema.getVoidElements();
 
-  const isNewline = (node: Node) => blockElements[node.nodeName] || shortEndedElements[node.nodeName];
+  const isNewline = (node: Node) => blockElements[node.nodeName] || voidElements[node.nodeName];
 
   const textBlocks: string[] = [];
   let txt = '';
   const treeWalker = new DomTreeWalker(node, node);
 
-  while ((node = treeWalker.next())) {
-    if (node.nodeType === 3) {
-      txt += Unicode.removeZwsp((node as Text).data);
-    } else if (isNewline(node) && txt.length) {
+  let tempNode: Node | null | undefined;
+  while ((tempNode = treeWalker.next())) {
+    if (tempNode.nodeType === 3) {
+      txt += Unicode.removeZwsp((tempNode as Text).data);
+    } else if (isNewline(tempNode) && txt.length) {
       textBlocks.push(txt);
       txt = '';
     }

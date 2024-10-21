@@ -6,7 +6,6 @@ import { Attribute, SugarBody, SugarDocument, SugarElement } from '@ephox/sugar'
 import { TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.themes.silver.skin.OxideCollectionComponentTest', () => {
   before(function () {
@@ -74,7 +73,7 @@ describe('browser.tinymce.themes.silver.skin.OxideCollectionComponentTest', () =
         }
       });
     }
-  }, [ Theme ]);
+  }, []);
 
   const structureItem = (optText: Optional<string>, optIcon: Optional<string>): ApproxStructure.Builder<StructAssert> =>
     (s, str, arr) => s.element('div', {
@@ -150,8 +149,7 @@ describe('browser.tinymce.themes.silver.skin.OxideCollectionComponentTest', () =
           children: [
             s.element('div', {
               classes: [ arr.has('tox-collection__group') ],
-              children: Arr.map([ 'D', 'E', 'F' ], (letter) =>
-                structureItem(Optional.none(), Optional.some('icon-' + letter))(s, str, arr)
+              children: Arr.map([ 'D', 'E', 'F' ], (letter) => structureItem(Optional.none(), Optional.some('icon-' + letter))(s, str, arr)
               )
             })
           ]

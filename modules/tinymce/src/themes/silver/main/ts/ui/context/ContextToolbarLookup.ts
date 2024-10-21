@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { InlineContent } from '@ephox/bridge';
 import { Arr, Optional } from '@ephox/katamari';
 import { Compare, SugarElement, SugarNode, TransformFind } from '@ephox/sugar';
@@ -35,7 +28,7 @@ const matchTargetWith = (elem: SugarElement<Element>, candidates: ContextType[])
   };
 };
 
-const filterByPositionForStartNode = (toolbars: ContextType[]) => {
+const filterByPositionForStartNode = (toolbars: ContextType[]): ContextType[] => {
   if (toolbars.length <= 1) {
     return toolbars;
   } else {
@@ -59,7 +52,7 @@ const filterByPositionForStartNode = (toolbars: ContextType[]) => {
   }
 };
 
-const filterByPositionForAncestorNode = (toolbars: ContextType[]) => {
+const filterByPositionForAncestorNode = (toolbars: ContextType[]): ContextType[] => {
   if (toolbars.length <= 1) {
     return toolbars;
   } else {
@@ -87,12 +80,12 @@ const matchStartNode = (elem: SugarElement<Element>, nodeCandidates: ContextType
   const nodeMatches = matchTargetWith(elem, nodeCandidates);
 
   if (nodeMatches.contextForms.length > 0) {
-    return Optional.some({ elem, toolbars: [ nodeMatches.contextForms[ 0 ] ] });
+    return Optional.some({ elem, toolbars: [ nodeMatches.contextForms[0] ] });
   } else {
     const editorMatches = matchTargetWith(elem, editorCandidates);
 
     if (editorMatches.contextForms.length > 0) {
-      return Optional.some({ elem, toolbars: [ editorMatches.contextForms[ 0 ] ] });
+      return Optional.some({ elem, toolbars: [ editorMatches.contextForms[0] ] });
     } else if (nodeMatches.contextToolbars.length > 0 || editorMatches.contextToolbars.length > 0) {
       const toolbars = filterByPositionForStartNode(nodeMatches.contextToolbars.concat(editorMatches.contextToolbars));
       return Optional.some({ elem, toolbars });

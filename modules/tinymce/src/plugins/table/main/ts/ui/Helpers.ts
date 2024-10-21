@@ -1,10 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
+import { Transformations } from '@ephox/acid';
 import { Arr, Fun, Obj, Optional, Strings, Type } from '@ephox/katamari';
 import { TableLookup, TableOperations } from '@ephox/snooker';
 import { Css, SugarElement, SugarElements } from '@ephox/sugar';
@@ -13,8 +7,8 @@ import DOMUtils from 'tinymce/core/api/dom/DOMUtils';
 import Editor from 'tinymce/core/api/Editor';
 
 import * as Styles from '../actions/Styles';
-import { getDefaultAttributes, getDefaultStyles, shouldStyleWithCss } from '../api/Settings';
-import * as Util from '../core/Util';
+import * as Options from '../api/Options';
+import * as Utils from '../core/Utils';
 
 /**
  * @class tinymce.table.ui.Helpers
@@ -72,24 +66,24 @@ export type CellData = {
   readonly backgroundcolor?: string;
 };
 
-const rgbToHex = (dom: DOMUtils) => (value: string): string =>
-  Strings.startsWith(value, 'rgb') ? dom.toHex(value) : value;
+const rgbToHex = (value: string): string =>
+  Strings.startsWith(value, 'rgb') ? Transformations.rgbaToHexString(value) : value;
 
-const extractAdvancedStyles = (dom: DOMUtils, elm: Node): AdvancedStyles => {
+const extractAdvancedStyles = (elm: Node): AdvancedStyles => {
   const element = SugarElement.fromDom(elm);
   return {
     borderwidth: Css.getRaw(element, 'border-width').getOr(''),
     borderstyle: Css.getRaw(element, 'border-style').getOr(''),
-    bordercolor: Css.getRaw(element, 'border-color').map(rgbToHex(dom)).getOr(''),
-    backgroundcolor: Css.getRaw(element, 'background-color').map(rgbToHex(dom)).getOr('')
+    bordercolor: Css.getRaw(element, 'border-color').map(rgbToHex).getOr(''),
+    backgroundcolor: Css.getRaw(element, 'background-color').map(rgbToHex).getOr('')
   };
 };
 
-const getSharedValues = <T>(data: T[]): T => {
+const getSharedValues = <T extends Record<string, string>>(data: T[]): T => {
   // TODO surely there's a better way to do this??
   // Mutates baseData to return an object that contains only the values
   // that were the same across all objects in data
-  const baseData = data[0];
+  const baseData: Record<string, string> = data[0];
   const comparisonData = data.slice(1);
 
   Arr.each(comparisonData, (items) => {
@@ -105,7 +99,7 @@ const getSharedValues = <T>(data: T[]): T => {
     });
   });
 
-  return baseData;
+  return baseData as T;
 };
 
 // The extractDataFrom... functions are in this file partly for code reuse and partly so we can test them,
@@ -117,13 +111,13 @@ const getHAlignment = Fun.curry(getAlignment, [ 'left', 'center', 'right' ], 'al
 const getVAlignment = Fun.curry(getAlignment, [ 'top', 'middle', 'bottom' ], 'valign');
 
 const extractDataFromSettings = (editor: Editor, hasAdvTableTab: boolean): TableData => {
-  const style = getDefaultStyles(editor);
-  const attrs = getDefaultAttributes(editor);
+  const style = Options.getDefaultStyles(editor);
+  const attrs = Options.getDefaultAttributes(editor);
 
-  const extractAdvancedStyleData = (dom: DOMUtils) => ({
+  const extractAdvancedStyleData = () => ({
     borderstyle: Obj.get(style, 'border-style').getOr(''),
-    bordercolor: rgbToHex(dom)(Obj.get(style, 'border-color').getOr('')),
-    backgroundcolor: rgbToHex(dom)(Obj.get(style, 'background-color').getOr(''))
+    bordercolor: rgbToHex(Obj.get(style, 'border-color').getOr('')),
+    backgroundcolor: rgbToHex(Obj.get(style, 'background-color').getOr(''))
   });
 
   const defaultData: TableData = {
@@ -139,13 +133,13 @@ const extractDataFromSettings = (editor: Editor, hasAdvTableTab: boolean): Table
 
   const getBorder = () => {
     const borderWidth = style['border-width'];
-    if (shouldStyleWithCss(editor) && borderWidth) {
+    if (Options.shouldStyleWithCss(editor) && borderWidth) {
       return { border: borderWidth };
     }
     return Obj.get(attrs, 'border').fold(() => ({}), (border) => ({ border }));
   };
 
-  const advStyle = (hasAdvTableTab ? extractAdvancedStyleData(editor.dom) : {});
+  const advStyle = (hasAdvTableTab ? extractAdvancedStyleData() : {});
 
   const getCellPaddingCellSpacing = () => {
     const spacing = Obj.get(style, 'border-spacing').or(Obj.get(attrs, 'cellspacing')).fold( () => ({}), (cellspacing) => ({ cellspacing }));
@@ -181,33 +175,33 @@ const extractDataFromTableElement = (editor: Editor, elm: Element, hasAdvTableTa
     // 3. !shouldStyleWithCss && nothing on the table - grab styles from the first th or td
 
     const optBorderWidth = Css.getRaw(SugarElement.fromDom(elm), 'border-width');
-    if (shouldStyleWithCss(editor) && optBorderWidth.isSome()) {
+    if (Options.shouldStyleWithCss(editor) && optBorderWidth.isSome()) {
       return optBorderWidth.getOr('');
     }
     return dom.getAttrib(elm, 'border') || Styles.getTDTHOverallStyle(editor.dom, elm, 'border-width')
-      || Styles.getTDTHOverallStyle(editor.dom, elm, 'border');
+      || Styles.getTDTHOverallStyle(editor.dom, elm, 'border') || '';
   };
 
   const dom = editor.dom;
 
-  const cellspacing = shouldStyleWithCss(editor) ?
+  const cellspacing = Options.shouldStyleWithCss(editor) ?
     dom.getStyle(elm, 'border-spacing') || dom.getAttrib(elm, 'cellspacing') :
     dom.getAttrib(elm, 'cellspacing') || dom.getStyle(elm, 'border-spacing');
 
-  const cellpadding = shouldStyleWithCss(editor) ?
+  const cellpadding = Options.shouldStyleWithCss(editor) ?
     Styles.getTDTHOverallStyle(dom, elm, 'padding') || dom.getAttrib(elm, 'cellpadding') :
     dom.getAttrib(elm, 'cellpadding') || Styles.getTDTHOverallStyle(dom, elm, 'padding');
 
   return {
     width: dom.getStyle(elm, 'width') || dom.getAttrib(elm, 'width'),
     height: dom.getStyle(elm, 'height') || dom.getAttrib(elm, 'height'),
-    cellspacing,
-    cellpadding,
+    cellspacing: cellspacing ?? '',
+    cellpadding: cellpadding ?? '',
     border: getBorder(dom, elm),
     caption: !!dom.select('caption', elm)[0],
     class: dom.getAttrib(elm, 'class', ''),
     align: getHAlignment(editor, elm),
-    ...(hasAdvTableTab ? extractAdvancedStyles(dom, elm) : {})
+    ...(hasAdvTableTab ? extractAdvancedStyles(elm) : {})
   };
 };
 
@@ -218,7 +212,7 @@ const extractDataFromRowElement = (editor: Editor, elm: HTMLTableRowElement, has
     class: dom.getAttrib(elm, 'class', ''),
     type: getRowType(elm),
     align: getHAlignment(editor, elm),
-    ...(hasAdvancedRowTab ? extractAdvancedStyles(dom, elm) : {})
+    ...(hasAdvancedRowTab ? extractAdvancedStyles(elm) : {})
   };
 };
 
@@ -232,11 +226,11 @@ const extractDataFromCellElement = (editor: Editor, cell: HTMLTableCellElement, 
     width: getStyle(colElm, 'width'),
     height: getStyle(cell, 'height'),
     scope: dom.getAttrib(cell, 'scope'),
-    celltype: Util.getNodeName(cell) as 'td' | 'th',
+    celltype: Utils.getNodeName(cell) as 'td' | 'th',
     class: dom.getAttrib(cell, 'class', ''),
     halign: getHAlignment(editor, cell),
     valign: getVAlignment(editor, cell),
-    ...(hasAdvancedCellTab ? extractAdvancedStyles(dom, cell) : {})
+    ...(hasAdvancedCellTab ? extractAdvancedStyles(cell) : {})
   };
 };
 

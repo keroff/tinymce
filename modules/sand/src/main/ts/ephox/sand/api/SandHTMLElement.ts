@@ -10,7 +10,7 @@ const getPrototypeOf = Object.getPrototypeOf;
  * MDN no use on this one, but here's the link anyway:
  * https://developer.mozilla.org/en/docs/Web/API/HTMLElement
  */
-const sandHTMLElement = (scope: Window) => {
+const sandHTMLElement = (scope: Window | undefined) => {
   return Global.getOrDie('HTMLElement', scope) as typeof HTMLElement;
 };
 
@@ -21,7 +21,7 @@ const isPrototypeOf = (x: any): x is HTMLElement => {
 
   // TINY-7374: We can't rely on looking at the owner window HTMLElement as the element may have
   // been constructed in a different window and then appended to the current window document.
-  return Type.isObject(x) && (sandHTMLElement(scope).prototype.isPrototypeOf(x) || /^\[object HTML\w*Element\]$/.test(getPrototypeOf(x).toString()));
+  return Type.isObject(x) && (sandHTMLElement(scope).prototype.isPrototypeOf(x) || /^HTML\w*Element$/.test(getPrototypeOf(x).constructor.name));
 };
 
 export {

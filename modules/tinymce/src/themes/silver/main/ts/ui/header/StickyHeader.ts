@@ -1,20 +1,14 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AlloyComponent, Boxes, Channels, Docking, Focusing, Receiving } from '@ephox/alloy';
+import { AlloyComponent, Behaviour, Boxes, Channels, Docking, DockingTypes, Focusing, Receiving } from '@ephox/alloy';
 import { Arr, Optional, Result, Singleton } from '@ephox/katamari';
 import { Class, Classes, Compare, Css, Focus, Height, Scroll, SugarElement, SugarLocation, Traverse, Visibility, Width } from '@ephox/sugar';
 
 import Editor from 'tinymce/core/api/Editor';
 import { ScrollIntoViewEvent } from 'tinymce/core/api/EventTypes';
 
-import * as Settings from '../../api/Settings';
+import * as Options from '../../api/Options';
 import { UiFactoryBackstageShared } from '../../backstage/Backstage';
 import * as EditorChannels from '../../Channels';
+import * as ScrollingContext from '../../modes/ScrollingContext';
 
 const visibility = {
   fadeInClass: 'tox-editor-dock-fadein',
@@ -25,9 +19,10 @@ const visibility = {
 const editorStickyOnClass = 'tox-tinymce--toolbar-sticky-on';
 const editorStickyOffClass = 'tox-tinymce--toolbar-sticky-off';
 
-const scrollFromBehindHeader = (e: ScrollIntoViewEvent, containerHeader: SugarElement) => {
+const scrollFromBehindHeader = (e: ScrollIntoViewEvent, containerHeader: SugarElement<HTMLElement>) => {
   const doc = Traverse.owner(containerHeader);
-  const viewHeight = doc.dom.defaultView.innerHeight;
+  const win = Traverse.defaultView(containerHeader);
+  const viewHeight = win.dom.innerHeight;
   const scrollPos = Scroll.get(doc);
 
   const markerElement = SugarElement.fromDom(e.elm);
@@ -62,10 +57,10 @@ const isDockedMode = (header: AlloyComponent, mode: 'top' | 'bottom') => Arr.con
 const updateIframeContentFlow = (header: AlloyComponent): void => {
   const getOccupiedHeight = (elm: SugarElement<HTMLElement>) => Height.getOuter(elm) +
       (parseInt(Css.get(elm, 'margin-top'), 10) || 0) +
-      (parseInt(Css.get(elm, 'margin-bottom'), 10) || 0) ;
+      (parseInt(Css.get(elm, 'margin-bottom'), 10) || 0);
 
   const elm = header.element;
-  Traverse.parent(elm).each((parentElem: SugarElement<HTMLElement>) => {
+  Traverse.parentElement(elm).each((parentElem) => {
     const padding = 'padding-' + Docking.getModes(header)[0];
 
     if (Docking.isDocked(header)) {
@@ -176,14 +171,14 @@ const isDocked = (lazyHeader: () => Optional<AlloyComponent>): boolean => lazyHe
 const getIframeBehaviours = () => [
   Receiving.config({
     channels: {
-      [ EditorChannels.toolbarHeightChange() ]: {
+      [EditorChannels.toolbarHeightChange()]: {
         onReceive: updateIframeContentFlow
       }
     }
   })
 ];
 
-const getBehaviours = (editor: Editor, sharedBackstage: UiFactoryBackstageShared) => {
+const getBehaviours = (editor: Editor, sharedBackstage: UiFactoryBackstageShared): Behaviour.NamedConfiguredBehaviour<any, any, any>[] => {
   const focusedElm = Singleton.value<SugarElement>();
   const lazySink = sharedBackstage.getSink;
 
@@ -196,8 +191,14 @@ const getBehaviours = (editor: Editor, sharedBackstage: UiFactoryBackstageShared
       updateIframeContentFlow(comp);
     }
     updateEditorClasses(editor, Docking.isDocked(comp));
+
+    // TINY-9223: This will only reposition the popups in the same mothership as the StickyHeader
+    // and its sink. If we need to reposition the popups in all motherships (in the two sink
+    // model) then we'll need a reference to all motherships here.
     comp.getSystem().broadcastOn( [ Channels.repositionPopups() ], { });
-    lazySink().each((sink) => sink.getSystem().broadcastOn( [ Channels.repositionPopups() ], { }));
+    lazySink().each(
+      (sink) => sink.getSystem().broadcastOn( [ Channels.repositionPopups() ], { })
+    );
   };
 
   const additionalBehaviours = editor.inline ? [ ] : getIframeBehaviours();
@@ -209,11 +210,43 @@ const getBehaviours = (editor: Editor, sharedBackstage: UiFactoryBackstageShared
         lazyContext: (comp) => {
           const headerHeight = Height.getOuter(comp.element);
           const container = editor.inline ? editor.getContentAreaContainer() : editor.getContainer();
-          const box = Boxes.box(SugarElement.fromDom(container));
-          // Force the header to hide before it overflows outside the container
-          const boxHeight = box.height - headerHeight;
-          const topBound = box.y + (isDockedMode(comp, 'top') ? 0 : headerHeight);
-          return Optional.some(Boxes.bounds(box.x, topBound, box.width, boxHeight));
+
+          return Optional.from(container).map((c) => {
+            const box = Boxes.box(SugarElement.fromDom(c));
+            const optScrollingContext = ScrollingContext.detectWhenSplitUiMode(editor, comp.element);
+            return optScrollingContext.fold(
+              () => {
+                // Force the header to hide before it overflows outside the container
+                const boxHeight = box.height - headerHeight;
+                const topBound = box.y + (isDockedMode(comp, 'top') ? 0 : headerHeight);
+                return Boxes.bounds(box.x, topBound, box.width, boxHeight);
+              },
+              (scrollEnv) => {
+                const constrainedBounds = Boxes.constrain(
+                  box,
+                  ScrollingContext.getBoundsFrom(scrollEnv)
+                );
+
+                // When the toolbar location is set to the top, y is the top of the container and height is the available container height minus the header height, as the toolbar will be placed at the top of the container
+                // This is so that as you scroll the scrollable container/the page, it will dock at the top and when there's insufficient height/space (that's the reason of deducting the headerHeight for the available height), it will be hidden.
+                // When the toolbar location is set to the bottom, y is the top of the container plus the header height, as the toolbar will be placed at the bottom of the container, beyond the container, so that's why we need to add the headerHeight
+                // When there's insufficient height/space, it will be hidden, and when you scroll past the editor, it will be hidden
+                const constrainedBoundsY = isDockedMode(comp, 'top')
+                  ? constrainedBounds.y
+                  : constrainedBounds.y + headerHeight;
+
+                return Boxes.bounds(
+                  constrainedBounds.x,
+                  // ASSUMPTION: The constrainedBounds removes the need for us to set this to 0px
+                  // for docked mode. Also, docking in a scrolling environment will often be
+                  // at the scroller top, not the window top
+                  constrainedBoundsY,
+                  constrainedBounds.width,
+                  constrainedBounds.height - headerHeight
+                );
+              }
+            );
+          });
         },
         onShow: () => {
           runOnSinkElement((elem) => updateSinkVisibility(elem, true));
@@ -236,11 +269,31 @@ const getBehaviours = (editor: Editor, sharedBackstage: UiFactoryBackstageShared
         ...visibility
       },
       lazyViewport: (comp) => {
-        const win = Boxes.win();
-        const offset = Settings.getStickyToolbarOffset(editor);
-        const top = win.y + (isDockedMode(comp, 'top') ? offset : 0);
-        const height = win.height - (isDockedMode(comp, 'bottom') ? offset : 0);
-        return Boxes.bounds(win.x, top, win.width, height);
+        const optScrollingContext = ScrollingContext.detectWhenSplitUiMode(editor, comp.element);
+        return optScrollingContext.fold<DockingTypes.DockingViewport>(
+          () => {
+            const boundsWithoutOffset = Boxes.win();
+            const offset = Options.getStickyToolbarOffset(editor);
+            const top = boundsWithoutOffset.y + (isDockedMode(comp, 'top') ? offset : 0);
+            const height = boundsWithoutOffset.height - (isDockedMode(comp, 'bottom') ? offset : 0);
+            // No scrolling context, so just window
+            return {
+              bounds: Boxes.bounds(boundsWithoutOffset.x, top, boundsWithoutOffset.width, height),
+              optScrollEnv: Optional.none()
+            };
+          },
+          (sc) => {
+            // TINY-9411: Implement sticky toolbar offsets in scrollable containers
+            const combinedBounds = ScrollingContext.getBoundsFrom(sc);
+            return {
+              bounds: combinedBounds,
+              optScrollEnv: Optional.some({
+                currentScrollTop: sc.element.dom.scrollTop,
+                scrollElmTop: SugarLocation.absolute(sc.element).top
+              })
+            };
+          }
+        );
       },
       modes: [ sharedBackstage.header.getDockingMode() ],
       onDocked: onDockingSwitch,

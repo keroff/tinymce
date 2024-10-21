@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Obj } from '@ephox/katamari';
 
 export interface IconPack {
@@ -27,9 +20,9 @@ const CreateIconManager = (): IconManager => {
   const get = (id: string) => {
     if (lookup[id]) {
       return lookup[id];
+    } else {
+      return { icons: {}};
     }
-
-    return { icons: {}};
   };
 
   const has = (id: string) => Obj.has(lookup, id);

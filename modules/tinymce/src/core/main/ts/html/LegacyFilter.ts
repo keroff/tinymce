@@ -1,14 +1,8 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Arr } from '@ephox/katamari';
+import { Arr, Strings } from '@ephox/katamari';
 
 import DomParser, { DomParserSettings } from '../api/html/DomParser';
 import AstNode from '../api/html/Node';
+import Schema from '../api/html/Schema';
 import Styles from '../api/html/Styles';
 import Tools from '../api/util/Tools';
 
@@ -35,7 +29,9 @@ const addFontToSpansFilter = (domParser: DomParser, styles: Styles, fontSizes: s
       }
 
       if (size) {
-        props['font-size'] = fontSizes[parseInt(node.attr('size'), 10) - 1];
+        Strings.toInt(size).each((num) => {
+          props['font-size'] = fontSizes[num - 1];
+        });
       }
 
       node.name = 'span';
@@ -45,32 +41,37 @@ const addFontToSpansFilter = (domParser: DomParser, styles: Styles, fontSizes: s
   });
 };
 
-const addStrikeToSpanFilter = (domParser: DomParser, styles: Styles): void => {
+const addStrikeFilter = (domParser: DomParser, schema: Schema, styles: Styles): void => {
   domParser.addNodeFilter('strike', (nodes) => {
+    const convertToSTag = schema.type !== 'html4';
     Arr.each(nodes, (node) => {
-      const props = styles.parse(node.attr('style'));
+      if (convertToSTag) {
+        node.name = 's';
+      } else {
+        const props = styles.parse(node.attr('style'));
 
-      props['text-decoration'] = 'line-through';
+        props['text-decoration'] = 'line-through';
 
-      node.name = 'span';
-      node.attr('style', styles.serialize(props));
+        node.name = 'span';
+        node.attr('style', styles.serialize(props));
+      }
     });
   });
 };
 
-const addFilters = (domParser: DomParser, settings: DomParserSettings): void => {
+const addFilters = (domParser: DomParser, settings: DomParserSettings, schema: Schema): void => {
   const styles = Styles();
 
   if (settings.convert_fonts_to_spans) {
-    addFontToSpansFilter(domParser, styles, Tools.explode(settings.font_size_legacy_values));
+    addFontToSpansFilter(domParser, styles, Tools.explode(settings.font_size_legacy_values ?? ''));
   }
 
-  addStrikeToSpanFilter(domParser, styles);
+  addStrikeFilter(domParser, schema, styles);
 };
 
-const register = (domParser: DomParser, settings: DomParserSettings): void => {
+const register = (domParser: DomParser, settings: DomParserSettings, schema: Schema): void => {
   if (settings.inline_styles) {
-    addFilters(domParser, settings);
+    addFilters(domParser, settings, schema);
   }
 };
 

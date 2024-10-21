@@ -1,19 +1,17 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { AlloyEvents, Focusing, GuiFactory, Memento, ModalDialog } from '@ephox/alloy';
 import { Optional } from '@ephox/katamari';
 
+import { UiFactoryBackstage } from '../../backstage/Backstage';
 import { renderFooterButton } from '../general/Button';
 import { formCancelEvent, FormCancelEvent } from '../general/FormEvents';
 import * as Dialogs from './Dialogs';
 
-export const setup = (extras) => {
-  const sharedBackstage = extras.backstage.shared;
+interface AlertDialogApi {
+  readonly open: (message: string, callback: () => void) => void;
+}
+
+export const setup = (backstage: UiFactoryBackstage): AlertDialogApi => {
+  const sharedBackstage = backstage.shared;
 
   const open = (message: string, callback: () => void) => {
 
@@ -27,10 +25,11 @@ export const setup = (extras) => {
         name: 'close-alert',
         text: 'OK',
         primary: true,
+        buttonType: Optional.some('primary'),
         align: 'end',
-        disabled: false,
+        enabled: true,
         icon: Optional.none()
-      }, 'cancel', extras.backstage)
+      }, 'cancel', backstage)
     );
 
     const titleSpec = Dialogs.pUntitled();

@@ -4,8 +4,7 @@ import { Arr } from '@ephox/katamari';
 import { SugarBody } from '@ephox/sugar';
 import { assert } from 'chai';
 
-import PromisePolyfill from 'tinymce/core/api/util/Promise';
-import { ToolbarMode } from 'tinymce/themes/silver/api/Settings';
+import { ToolbarMode } from 'tinymce/themes/silver/api/Options';
 
 export interface OpenNestedMenus {
   readonly label: string;
@@ -20,27 +19,27 @@ const getToolbarSelector = (type: ToolbarMode, opening: boolean) => {
   return type === ToolbarMode.sliding ? slidingClass : floatingClass;
 };
 
-const pOpenMenuWithSelector = async (label: string, selector: string) => {
+const pOpenMenuWithSelector = async (label: string, selector: string): Promise<void> => {
   Mouse.clickOn(SugarBody.body(), selector);
   await UiFinder.pWaitForVisible(`Waiting for menu: ${label}`, SugarBody.body(), '[role="menu"]');
 };
 
-const pOpenMore = async (type: ToolbarMode) => {
-  Mouse.clickOn(SugarBody.body(), 'button[title="More..."]');
+const pOpenMore = async (type: ToolbarMode): Promise<void> => {
+  Mouse.clickOn(SugarBody.body(), 'button[title="Reveal or hide additional toolbar items"]');
   await UiFinder.pWaitForVisible('Waiting for more drawer to open', SugarBody.body(), getToolbarSelector(type, true));
 };
 
-const pCloseMore = async (type: ToolbarMode) => {
-  Mouse.clickOn(SugarBody.body(), 'button[title="More..."]');
+const pCloseMore = async (type: ToolbarMode): Promise<void> => {
+  Mouse.clickOn(SugarBody.body(), 'button[title="Reveal or hide additional toolbar items"]');
   await Waiter.pTryUntil('Waiting for more drawer to close', () => UiFinder.notExists(SugarBody.body(), getToolbarSelector(type, false)));
 };
 
-const pOpenAlignMenu = (label: string) => {
+const pOpenAlignMenu = (label: string): Promise<void> => {
   const selector = 'button[aria-label="Align"]';
   return pOpenMenuWithSelector(label, selector);
 };
 
-const pOpenMenu = (label: string, menuText: string) => {
+const pOpenMenu = (label: string, menuText: string): Promise<void> => {
   const menuTextParts = menuText.indexOf(':') > -1 ? menuText.split(':') : [ menuText ];
   const btnText = menuTextParts[0];
   const pseudo = menuTextParts.length > 1 ? ':' + menuTextParts[1] : '';
@@ -48,13 +47,13 @@ const pOpenMenu = (label: string, menuText: string) => {
   return pOpenMenuWithSelector(label, selector);
 };
 
-const pOpenNestedMenus = (menus: OpenNestedMenus[]) =>
+const pOpenNestedMenus = (menus: OpenNestedMenus[]): Promise<void> =>
   Arr.foldl(menus, (p, menu) => p.then(async () => {
     await pOpenMenuWithSelector(menu.label, menu.selector);
-  }), PromisePolyfill.resolve());
+  }), Promise.resolve());
 
-const assertMoreDrawerInViewport = (type: ToolbarMode) => {
-  const toolbar = UiFinder.findIn(SugarBody.body(), getToolbarSelector(type, true)).getOrDie();
+const assertMoreDrawerInViewport = (type: ToolbarMode): void => {
+  const toolbar = UiFinder.findIn<HTMLDivElement>(SugarBody.body(), getToolbarSelector(type, true)).getOrDie();
   const winBox = Boxes.win();
   const drawerBox = Boxes.box(toolbar);
   // -1 from the bottom to account for the negative margin

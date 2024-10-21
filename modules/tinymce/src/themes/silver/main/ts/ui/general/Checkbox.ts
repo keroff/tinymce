@@ -1,41 +1,22 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import {
-  AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloyTriggers, Behaviour, Disabling, Focusing, FormField as AlloyFormField, Keying, Memento,
-  NativeEvents, Representing, SimpleSpec, Tabstopping, Unselecting
+  AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloyTriggers, Behaviour, Disabling, Focusing, FormField as AlloyFormField, GuiFactory, Keying, Memento,
+  NativeEvents, SimpleSpec, Tabstopping, Unselecting
 } from '@ephox/alloy';
 import { Dialog } from '@ephox/bridge';
 import { Fun, Optional } from '@ephox/katamari';
+import { Checked, Class, Traverse } from '@ephox/sugar';
 
 import { UiFactoryBackstageProviders } from '../../backstage/Backstage';
 import * as ReadOnly from '../../ReadOnly';
 import { ComposingConfigs } from '../alien/ComposingConfigs';
+import * as RepresentingConfigs from '../alien/RepresentingConfigs';
 import * as Icons from '../icons/Icons';
 import { formChangeEvent } from './FormEvents';
 
 type CheckboxSpec = Omit<Dialog.Checkbox, 'type'>;
 
-export const renderCheckbox = (spec: CheckboxSpec, providerBackstage: UiFactoryBackstageProviders): SimpleSpec => {
-  const repBehaviour = Representing.config({
-    store: {
-      mode: 'manual',
-      getValue: (comp: AlloyComponent): boolean => {
-        const el = comp.element.dom as HTMLInputElement;
-        return el.checked;
-      },
-      setValue: (comp: AlloyComponent, value: boolean) => {
-        const el = comp.element.dom as HTMLInputElement;
-        el.checked = value;
-      }
-    }
-  });
-
-  const toggleCheckboxHandler = (comp) => {
+export const renderCheckbox = (spec: CheckboxSpec, providerBackstage: UiFactoryBackstageProviders, initialData: Optional<boolean>): SimpleSpec => {
+  const toggleCheckboxHandler = (comp: AlloyComponent) => {
     comp.element.dom.click();
     return Optional.some(true);
   };
@@ -53,11 +34,17 @@ export const renderCheckbox = (spec: CheckboxSpec, providerBackstage: UiFactoryB
     behaviours: Behaviour.derive([
       ComposingConfigs.self(),
       Disabling.config({
-        disabled: () => spec.disabled || providerBackstage.isDisabled()
+        disabled: () => !spec.enabled || providerBackstage.isDisabled(),
+        onDisabled: (component) => {
+          Traverse.parentElement(component.element).each((element) => Class.add(element, 'tox-checkbox--disabled'));
+        },
+        onEnabled: (component) => {
+          Traverse.parentElement(component.element).each((element) => Class.remove(element, 'tox-checkbox--disabled'));
+        }
       }),
       Tabstopping.config({}),
       Focusing.config({ }),
-      repBehaviour,
+      RepresentingConfigs.withElement(initialData, Checked.get, Checked.set),
       Keying.config({
         mode: 'special',
         onEnter: toggleCheckboxHandler,
@@ -75,9 +62,11 @@ export const renderCheckbox = (spec: CheckboxSpec, providerBackstage: UiFactoryB
   const pLabel = AlloyFormField.parts.label({
     dom: {
       tag: 'span',
-      classes: [ 'tox-checkbox__label' ],
-      innerHtml: providerBackstage.translate(spec.label)
+      classes: [ 'tox-checkbox__label' ]
     },
+    components: [
+      GuiFactory.text(providerBackstage.translate(spec.label))
+    ],
     behaviours: Behaviour.derive([
       Unselecting.config({})
     ])
@@ -113,14 +102,7 @@ export const renderCheckbox = (spec: CheckboxSpec, providerBackstage: UiFactoryB
     ],
     fieldBehaviours: Behaviour.derive([
       Disabling.config({
-        disabled: () => spec.disabled || providerBackstage.isDisabled(),
-        disableClass: 'tox-checkbox--disabled',
-        onDisabled: (comp) => {
-          AlloyFormField.getField(comp).each(Disabling.disable);
-        },
-        onEnabled: (comp) => {
-          AlloyFormField.getField(comp).each(Disabling.enable);
-        }
+        disabled: () => !spec.enabled || providerBackstage.isDisabled(),
       }),
       ReadOnly.receivingConfig()
     ])

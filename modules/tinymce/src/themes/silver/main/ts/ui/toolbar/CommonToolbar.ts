@@ -1,19 +1,13 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 // eslint-disable-next-line max-len
 import {
-  AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloySpec, Behaviour, Boxes, Focusing, Keying, SplitFloatingToolbar as AlloySplitFloatingToolbar,
+  AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloySpec, Behaviour, Boxes, Focusing, Keying, SketchSpec,
+  SplitFloatingToolbar as AlloySplitFloatingToolbar,
   SplitSlidingToolbar as AlloySplitSlidingToolbar, Tabstopping, Toolbar as AlloyToolbar, ToolbarGroup as AlloyToolbarGroup
 } from '@ephox/alloy';
 import { Arr, Optional, Result } from '@ephox/katamari';
 import { Traverse } from '@ephox/sugar';
 
-import { ToolbarMode } from '../../api/Settings';
+import { ToolbarMode } from '../../api/Options';
 import { UiFactoryBackstageProviders } from '../../backstage/Backstage';
 import * as Channels from '../../Channels';
 import * as ReadOnly from '../../ReadOnly';
@@ -22,27 +16,30 @@ import { renderIconButtonSpec } from '../general/Button';
 import { ToolbarButtonClasses } from './button/ButtonClasses';
 
 export interface MoreDrawerData {
-  lazyMoreButton: () => AlloyComponent;
-  lazyToolbar: () => AlloyComponent;
-  lazyHeader: () => AlloyComponent;
+  readonly lazyMoreButton: () => AlloyComponent;
+  readonly lazyToolbar: () => AlloyComponent;
+  readonly lazyHeader: () => AlloyComponent;
 }
+
 export interface ToolbarSpec {
-  type: ToolbarMode;
-  uid: string;
-  cyclicKeying: boolean;
-  onEscape: (comp: AlloyComponent) => Optional<boolean>;
-  initGroups: ToolbarGroup[];
-  attributes?: Record<string, string>;
-  providers: UiFactoryBackstageProviders;
+  readonly type: ToolbarMode;
+  readonly uid: string;
+  readonly cyclicKeying: boolean;
+  readonly onEscape: (comp: AlloyComponent) => Optional<boolean>;
+  readonly initGroups: ToolbarGroup[];
+  readonly attributes?: Record<string, string>;
+  readonly providers: UiFactoryBackstageProviders;
 }
+
 export interface MoreDrawerToolbarSpec extends ToolbarSpec {
-  getSink: () => Result<AlloyComponent, string>;
-  moreDrawerData?: MoreDrawerData;
+  readonly getSink: () => Result<AlloyComponent, string>;
+  readonly moreDrawerData: MoreDrawerData;
+  readonly onToggled: (comp: AlloyComponent, state: boolean) => void;
 }
 
 export interface ToolbarGroup {
-  title: Optional<string>;
-  items: AlloySpec[];
+  readonly title: Optional<string>;
+  readonly items: AlloySpec[];
 }
 
 const renderToolbarGroupCommon = (toolbarGroup: ToolbarGroup) => {
@@ -64,7 +61,8 @@ const renderToolbarGroupCommon = (toolbarGroup: ToolbarGroup) => {
       // nav within a group breaks if disabled buttons are first in their group so skip them
       itemSelector: '*:not(.tox-split-button) > .tox-tbtn:not([disabled]), ' +
                     '.tox-split-button:not([disabled]), ' +
-                    '.tox-toolbar-nav-js:not([disabled])'
+                    '.tox-toolbar-nav-js:not([disabled]), ' +
+                    '.tox-number-input:not([disabled])'
     },
     tgroupBehaviours: Behaviour.derive([
       Tabstopping.config({}),
@@ -73,10 +71,10 @@ const renderToolbarGroupCommon = (toolbarGroup: ToolbarGroup) => {
   };
 };
 
-const renderToolbarGroup = (toolbarGroup: ToolbarGroup) =>
+const renderToolbarGroup = (toolbarGroup: ToolbarGroup): SketchSpec =>
   AlloyToolbarGroup.sketch(renderToolbarGroupCommon(toolbarGroup));
 
-const getToolbarbehaviours = (toolbarSpec: ToolbarSpec, modeName) => {
+const getToolbarBehaviours = (toolbarSpec: ToolbarSpec, modeName: 'cyclic' | 'acyclic') => {
   const onAttached = AlloyEvents.runOnAttached((component) => {
     const groups = Arr.map(toolbarSpec.initGroups, renderToolbarGroup);
     AlloyToolbar.setGroups(component, groups);
@@ -113,17 +111,18 @@ const renderMoreToolbarCommon = (toolbarSpec: MoreDrawerToolbarSpec) => {
       'overflow-button': renderIconButtonSpec({
         name: 'more',
         icon: Optional.some('more-drawer'),
-        disabled: false,
-        tooltip: Optional.some('More...'),
+        enabled: true,
+        tooltip: Optional.some('Reveal or hide additional toolbar items'),
         primary: false,
+        buttonType: Optional.none(),
         borderless: false
       }, Optional.none(), toolbarSpec.providers)
     },
-    splitToolbarBehaviours: getToolbarbehaviours(toolbarSpec, modeName)
+    splitToolbarBehaviours: getToolbarBehaviours(toolbarSpec, modeName)
   };
 };
 
-const renderFloatingMoreToolbar = (toolbarSpec: MoreDrawerToolbarSpec) => {
+const renderFloatingMoreToolbar = (toolbarSpec: MoreDrawerToolbarSpec): SketchSpec => {
   const baseSpec = renderMoreToolbarCommon(toolbarSpec);
   const overflowXOffset = 4;
 
@@ -164,11 +163,13 @@ const renderFloatingMoreToolbar = (toolbarSpec: MoreDrawerToolbarSpec) => {
     components: [ primary ],
     markers: {
       overflowToggledClass: ToolbarButtonClasses.Ticked
-    }
+    },
+    onOpened: (comp) => toolbarSpec.onToggled(comp, true),
+    onClosed: (comp) => toolbarSpec.onToggled(comp, false)
   });
 };
 
-const renderSlidingMoreToolbar = (toolbarSpec: MoreDrawerToolbarSpec) => {
+const renderSlidingMoreToolbar = (toolbarSpec: MoreDrawerToolbarSpec): SketchSpec => {
   const primary = AlloySplitSlidingToolbar.parts.primary({
     dom: {
       tag: 'div',
@@ -196,15 +197,19 @@ const renderSlidingMoreToolbar = (toolbarSpec: MoreDrawerToolbarSpec) => {
       overflowToggledClass: ToolbarButtonClasses.Ticked
     },
     onOpened: (comp) => {
+      // TINY-9223: This will only broadcast to the same mothership as the toolbar
       comp.getSystem().broadcastOn([ Channels.toolbarHeightChange() ], { type: 'opened' });
+      toolbarSpec.onToggled(comp, true);
     },
     onClosed: (comp) => {
+      // TINY-9223: This will only broadcast to the same mothership as the toolbar
       comp.getSystem().broadcastOn([ Channels.toolbarHeightChange() ], { type: 'closed' });
+      toolbarSpec.onToggled(comp, false);
     }
   });
 };
 
-const renderToolbar = (toolbarSpec: ToolbarSpec) => {
+const renderToolbar = (toolbarSpec: ToolbarSpec): SketchSpec => {
   const modeName = toolbarSpec.cyclicKeying ? 'cyclic' : 'acyclic';
 
   return AlloyToolbar.sketch({
@@ -219,7 +224,7 @@ const renderToolbar = (toolbarSpec: ToolbarSpec) => {
       AlloyToolbar.parts.groups({})
     ],
 
-    toolbarBehaviours: getToolbarbehaviours(toolbarSpec, modeName)
+    toolbarBehaviours: getToolbarBehaviours(toolbarSpec, modeName)
   });
 };
 

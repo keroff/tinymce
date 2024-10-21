@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## 10.2.0 - 2023-06-12
+
+### Improved
+- `Words.identify`, `TextZones.single` and `TextZones.range` now include words containing non-Latin characters. #TINY-9654
+
+## 10.0.0 - 2022-03-03
+
+### Changed
+- Upgraded to Katamari 9.0, which is incompatible with Katamari 8.0 if used in the same bundle.
+
+### Removed
+- Removed support for Microsoft Internet Explorer and legacy Microsoft Edge.
+
 ## 9.0.2 - 2021-10-11
 
 ### Fixed

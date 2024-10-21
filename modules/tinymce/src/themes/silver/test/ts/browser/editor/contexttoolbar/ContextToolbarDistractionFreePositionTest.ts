@@ -6,7 +6,6 @@ import { TinyDom, TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 interface Scenario {
   readonly content: string;
@@ -34,11 +33,11 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarDist
         onAction: Fun.noop
       });
       ed.ui.registry.addContextToolbar('test-toolbar', {
-        predicate: (node) => node.nodeName && node.nodeName.toLowerCase() === 'a',
+        predicate: (node) => node.nodeName.toLowerCase() === 'a',
         items: 'alpha'
       });
     }
-  }, [ Theme ], true);
+  }, [], true);
 
   before(() => {
     Css.setAll(TinyDom.contentAreaContainer(hook.editor()), {

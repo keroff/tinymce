@@ -7,31 +7,32 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Env from 'tinymce/core/api/Env';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.dom.ControlSelectionTest', () => {
+  const imgSrc = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAIAAAACUFjqAAAAGUlEQVR4nGK5aLGTATdgwiM3gqUBAQAA//8ukgHZvWHlnwAAAABJRU5ErkJggg==';
   const eventCounter = Cell<Record<string, number>>({ });
   const hook = TinyHooks.bddSetupLight<Editor>({
     add_unload_trigger: false,
     base_url: '/project/tinymce/js/tinymce',
     content_style: 'body.mce-content-body  { margin: 0 }',
     width: 800,
+    table_sizing_mode: 'fixed',
     setup: (editor: Editor) => {
       editor.on('ObjectResizeStart ObjectResized', (e) => {
         const counter = eventCounter.get();
         counter[e.type] = (counter[e.type] || 0) + 1;
       });
     }
-  }, [ Theme ], true);
+  }, [], true);
 
   const contextMenuClickInMiddleOf = (editor: Editor, elementPath: number[]) => {
     const element = Hierarchy.follow(TinyDom.body(editor), elementPath).getOrDie().dom as HTMLElement;
     const target = element as EventTarget;
     const rect = element.getBoundingClientRect();
     const clientX = (rect.left + rect.width / 2), clientY = (rect.top + rect.height / 2);
-    editor.fire('mousedown', { target, clientX, clientY, button: 2 } as MouseEvent);
-    editor.fire('mouseup', { target, clientX, clientY, button: 2 } as MouseEvent);
-    editor.fire('contextmenu', { target, clientX, clientY, button: 2 } as PointerEvent);
+    editor.dispatch('mousedown', { target, clientX, clientY, button: 2 } as MouseEvent);
+    editor.dispatch('mouseup', { target, clientX, clientY, button: 2 } as MouseEvent);
+    editor.dispatch('contextmenu', { target, clientX, clientY, button: 2 } as PointerEvent);
   };
 
   const resetEventCounter = () => eventCounter.set({ });
@@ -86,7 +87,7 @@ describe('browser.tinymce.core.dom.ControlSelectionTest', () => {
 
   it('TBA: Select image by context menu clicking on it', () => {
     const editor = hook.editor();
-    editor.setContent('<p><img src="http://www.google.com/google.jpg" width="100" height="100"></p>');
+    editor.setContent(`<p><img src="${imgSrc}" width="100" height="100"></p>`);
     contextMenuClickInMiddleOf(editor, [ 0, 0 ]);
     TinyAssertions.assertSelection(editor, [ 0 ], 0, [ 0 ], 1);
   });
@@ -186,5 +187,23 @@ describe('browser.tinymce.core.dom.ControlSelectionTest', () => {
     await pResizeAndAssertDimensions(editor, 'iframe', '#mceResizeHandlese', 100, 50, 402, 202);
     const wrapper = UiFinder.findIn(TinyDom.body(editor), 'span.mce-preview-object').getOrDie();
     getAndAssertDimensions(wrapper, 402 + 100, 202 + 50);
+  });
+
+  it('TINY-5947: data-mce-selected should be set synchronously when selecting control elements', async () => {
+    const editor = hook.editor();
+    editor.setContent(`<p><img src="${imgSrc}" width="100" height="100"></p>`);
+    TinySelections.setSelection(editor, [ 0 ], 0, [ 0 ], 1);
+    TinyAssertions.assertContentPresence(editor, {
+      'img[data-mce-selected="1"]': 1
+    });
+    await UiFinder.pWaitForVisible('Wait for resize handlers to show', TinyDom.body(editor), '#mceResizeHandlese');
+  });
+
+  it('TINY-9731: data-mce-selected should appear on selected details element', () => {
+    const editor = hook.editor();
+    editor.setContent(`<details><summary>hoy</summary><p>tiny</p></details>`);
+    TinyAssertions.assertContentPresence(editor, { 'details[data-mce-selected="1"]': 0 });
+    TinySelections.setCursor(editor, [ 0, 0 ], 0);
+    TinyAssertions.assertContentPresence(editor, { 'details[data-mce-selected="1"]': 1 });
   });
 });

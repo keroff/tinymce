@@ -14,7 +14,7 @@ export interface Sizers {
   readonly southeast: () => Box;
   readonly hide: () => void;
   readonly show: () => void;
-  readonly update: (target: SugarElement) => void;
+  readonly update: (target: SugarElement<HTMLElement>) => void;
   readonly destroy: () => void;
 }
 
@@ -53,12 +53,12 @@ export const Sizers = (): Sizers => {
   const southeast = box();
   Css.set(southeast.element(), 'cursor', 'se-resize');
 
-  const update = (target: SugarElement) => {
+  const update = (target: SugarElement<HTMLElement>) => {
     const loc = SugarLocation.viewport(target);
     const w = Width.get(target);
     const h = Height.get(target);
     const minx = loc.left;
-    const maxx = loc.left + w ;
+    const maxx = loc.left + w;
     const midx = loc.left + w / 2;
 
     const y = loc.top;

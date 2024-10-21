@@ -6,12 +6,11 @@ import { assert } from 'chai';
 import Editor from 'tinymce/core/api/Editor';
 import { BlobCache, BlobInfo } from 'tinymce/core/api/file/BlobCache';
 import ImageUploader, { UploadResult } from 'tinymce/core/api/util/ImageUploader';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.util.ImageUploaderTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ]);
+  }, []);
   let image1: BlobInfo;
   let image2: BlobInfo;
 
@@ -41,41 +40,41 @@ describe('browser.tinymce.core.util.ImageUploaderTest', () => {
     Arr.each(uploadResults, (uploadResult) => {
       assert.isFalse(uploadResult.status, 'Upload result status is false upon failure');
       assert.equal(uploadResult.url, '', 'Url is empty string upon failure');
-      assert.equal(uploadResult.error.message, errorMsg, 'Upload result error message matches failure message');
+      assert.equal(uploadResult.error?.message, errorMsg, 'Upload result error message matches failure message');
     });
   };
 
   it('TINY-4601: Image upload success', async () => {
     const editor = hook.editor();
-    editor.settings.images_upload_handler = (_blobInfo: BlobInfo, success) => success('https://tiny.cloud/image.png');
+    editor.options.set('images_upload_handler', (_blobInfo: BlobInfo) => Promise.resolve('https://tiny.cloud/image.png'));
     const uploadResults = await uploadImages(editor, [ image1 ], true);
     assertUploadResultSuccess(uploadResults, 1, 'https://tiny.cloud/image.png');
   });
 
   it('TINY-4601: Multiple image upload success', async () => {
     const editor = hook.editor();
-    editor.settings.images_upload_handler = (_blobInfo: BlobInfo, success) => success('https://tiny.cloud/image.png');
+    editor.options.set('images_upload_handler', (_blobInfo: BlobInfo) => Promise.resolve('https://tiny.cloud/image.png'));
     const uploadResults = await uploadImages(editor, [ image1, image2 ], true);
     assertUploadResultSuccess(uploadResults, 2, 'https://tiny.cloud/image.png');
   });
 
   it('TINY-4601: Image upload failure', async () => {
     const editor = hook.editor();
-    editor.settings.images_upload_handler = (_blobInfo: BlobInfo, _success, failure) => failure('Error msg');
+    editor.options.set('images_upload_handler', (_blobInfo: BlobInfo) => Promise.reject('Error msg'));
     const uploadResults = await uploadImages(editor, [ image1 ], true);
     assertUploadResultFailure(uploadResults, 1, 'Error msg');
   });
 
   it('TINY-4601: Image upload failure for empty array', async () => {
     const editor = hook.editor();
-    editor.settings.images_upload_handler = (_blobInfo: BlobInfo, _success, failure) => failure('Error msg');
+    editor.options.set('images_upload_handler', (_blobInfo: BlobInfo) => Promise.reject('Error msg'));
     const uploadResults = await uploadImages(editor, [], true);
     assertUploadResultFailure(uploadResults, 0, 'Error msg');
   });
 
   it('TINY-4601: Multiple image upload failure', async () => {
     const editor = hook.editor();
-    editor.settings.images_upload_handler = (_blobInfo: BlobInfo, _success, failure) => failure('Error msg');
+    editor.options.set('images_upload_handler', (_blobInfo: BlobInfo) => Promise.reject('Error msg'));
     const uploadResults = await uploadImages(editor, [ image1, image2 ], true);
     assertUploadResultFailure(uploadResults, 2, 'Error msg');
   });

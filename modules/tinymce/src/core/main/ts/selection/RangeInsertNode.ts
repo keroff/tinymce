@@ -1,16 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Optional } from '@ephox/katamari';
 
 import DOMUtils from '../api/dom/DOMUtils';
 import * as NodeType from '../dom/NodeType';
 
-const trimEmptyTextNode = (dom: DOMUtils, node: Node) => {
+const trimEmptyTextNode = (dom: DOMUtils, node: Node | null) => {
   if (NodeType.isText(node) && node.data.length === 0) {
     dom.remove(node);
   }

@@ -1,23 +1,14 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Fun, Optional } from '@ephox/katamari';
 import { Focus, SugarElement } from '@ephox/sugar';
 
 import * as EditorView from '../EditorView';
-import { NotificationManagerImpl } from '../ui/NotificationManagerImpl';
+import NotificationManagerImpl from '../ui/NotificationManagerImpl';
 import Editor from './Editor';
-import * as Settings from './Settings';
-import Delay from './util/Delay';
+import * as Options from './Options';
 
 export interface NotificationManagerImpl {
-  open: (spec: NotificationSpec, closeCallback?: () => void) => NotificationApi;
+  open: (spec: NotificationSpec, closeCallback: () => void) => NotificationApi;
   close: <T extends NotificationApi>(notification: T) => void;
-  reposition: <T extends NotificationApi>(notifications: T[]) => void;
   getArgs: <T extends NotificationApi>(notification: T) => NotificationSpec;
 }
 
@@ -36,8 +27,7 @@ export interface NotificationApi {
     value: (percent: number) => void;
   };
   text: (text: string) => void;
-  moveTo: (x: number, y: number) => void;
-  moveRel: (element: Element, rel: 'tc-tc' | 'bc-bc' | 'bc-tc' | 'tc-bc' | 'banner') => void;
+  reposition: () => void;
   getEl: () => HTMLElement;
   settings: NotificationSpec;
 }
@@ -55,8 +45,8 @@ interface NotificationManager {
  * @example
  * // Opens a new notification of type "error" with text "An error occurred."
  * tinymce.activeEditor.notificationManager.open({
- *    text: 'An error occurred.',
- *    type: 'error'
+ *   text: 'An error occurred.',
+ *   type: 'error'
  * });
  */
 
@@ -77,9 +67,9 @@ const NotificationManager = (editor: Editor): NotificationManager => {
   };
 
   const reposition = () => {
-    if (notifications.length > 0) {
-      getImplementation().reposition(notifications);
-    }
+    Arr.each(notifications, (notification) => {
+      notification.reposition();
+    });
   };
 
   const addNotification = (notification: NotificationApi) => {
@@ -96,15 +86,15 @@ const NotificationManager = (editor: Editor): NotificationManager => {
     });
   };
 
-  const open = (spec: NotificationSpec, fireEvent: boolean = true) => {
+  const open = (spec: NotificationSpec, fireEvent: boolean = true): NotificationApi => {
     // Never open notification if editor has been removed.
     if (editor.removed || !EditorView.isEditorAttachedToDom(editor)) {
-      return;
+      return {} as NotificationApi;
     }
 
     // fire event to allow notification spec to be mutated before display
     if (fireEvent) {
-      editor.fire('BeforeOpenNotification', { notification: spec });
+      editor.dispatch('BeforeOpenNotification', { notification: spec });
     }
 
     return Arr.find(notifications, (notification) => {
@@ -127,7 +117,7 @@ const NotificationManager = (editor: Editor): NotificationManager => {
       reposition();
 
       // Ensure notification is not passed by reference to prevent mutation
-      editor.fire('OpenNotification', { notification: { ...notification }});
+      editor.dispatch('OpenNotification', { notification: { ...notification }});
       return notification;
     });
   };
@@ -144,7 +134,7 @@ const NotificationManager = (editor: Editor): NotificationManager => {
 
   const registerEvents = (editor: Editor) => {
     editor.on('SkinLoaded', () => {
-      const serviceMessage = Settings.getServiceMessage(editor);
+      const serviceMessage = Options.getServiceMessage(editor);
 
       if (serviceMessage) {
         // Ensure we pass false for fireEvent so that service message cannot be altered.
@@ -163,7 +153,7 @@ const NotificationManager = (editor: Editor): NotificationManager => {
     // NodeChange is needed for inline mode and autoresize as the positioning is done
     // from the bottom up, which changes when the content in the editor changes.
     editor.on('show ResizeEditor ResizeWindow NodeChange', () => {
-      Delay.requestAnimationFrame(reposition);
+      requestAnimationFrame(reposition);
     });
 
     editor.on('remove', () => {
@@ -182,7 +172,7 @@ const NotificationManager = (editor: Editor): NotificationManager => {
      * @method open
      * @param {Object} args A <code>name: value</code> collection containing settings such as: <code>timeout</code>, <code>type</code>, and message (<code>text</code>).
      * <br /><br />
-     * For information on the available settings, see: <a href="https://www.tiny.cloud/docs/advanced/creating-custom-notifications/">Create custom notifications</a>.
+     * For information on the available settings, see: <a href="https://www.tiny.cloud/docs/tinymce/6/creating-custom-notifications/">Create custom notifications</a>.
      */
     open,
 

@@ -1,47 +1,25 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Attribute, Class, SugarElement } from '@ephox/sugar';
+import { Optional, Strings } from '@ephox/katamari';
+import { Attribute, Class, DomEvent, SugarElement } from '@ephox/sugar';
 
 import DOMUtils from '../api/dom/DOMUtils';
 import Editor from '../api/Editor';
 import Env from '../api/Env';
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import { TranslatedString } from '../api/util/I18n';
-import * as Uuid from '../util/Uuid';
 import * as InitContentBody from './InitContentBody';
+
+interface BoxInfo {
+  readonly editorContainer: HTMLElement | null;
+  readonly iframeContainer: HTMLElement;
+}
 
 const DOM = DOMUtils.DOM;
 
-const relaxDomain = (editor: Editor, ifr) => {
-  // Domain relaxing is required since the user has messed around with document.domain
-  // This only applies to IE 11 other browsers including Edge seems to handle document.domain
-  if (document.domain !== window.location.hostname && Env.browser.isIE()) {
-    const bodyUuid = Uuid.uuid('mce');
-
-    editor[bodyUuid] = () => {
-      InitContentBody.initContentBody(editor);
-    };
-
-    /* eslint no-script-url:0 */
-    const domainRelaxUrl = 'javascript:(function(){' +
-      'document.open();document.domain="' + document.domain + '";' +
-      'var ed = window.parent.tinymce.get("' + editor.id + '");document.write(ed.iframeHTML);' +
-      'document.close();ed.' + bodyUuid + '(true);})()';
-
-    DOM.setAttrib(ifr, 'src', domainRelaxUrl);
-    return true;
-  }
-
-  return false;
-};
-
-const createIframeElement = (id: string, title: TranslatedString, height: number, customAttrs: {}) => {
+const createIframeElement = (id: string, title: TranslatedString, customAttrs: {}, tabindex: Optional<number>) => {
   const iframe = SugarElement.fromTag('iframe');
+
+  // This can also be explicitly set by customAttrs, so do this first
+  tabindex.each((t) => Attribute.set(iframe, 'tabindex', t));
 
   Attribute.setAll(iframe, customAttrs);
 
@@ -58,22 +36,22 @@ const createIframeElement = (id: string, title: TranslatedString, height: number
 };
 
 const getIframeHtml = (editor: Editor) => {
-  let iframeHTML = Settings.getDocType(editor) + '<html><head>';
+  let iframeHTML = Options.getDocType(editor) + '<html><head>';
 
   // We only need to override paths if we have to
   // IE has a bug where it remove site absolute urls to relative ones if this is specified
-  if (Settings.getDocumentBaseUrl(editor) !== editor.documentBaseUrl) {
+  if (Options.getDocumentBaseUrl(editor) !== editor.documentBaseUrl) {
     iframeHTML += '<base href="' + editor.documentBaseURI.getURI() + '" />';
   }
 
   iframeHTML += '<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />';
 
-  const bodyId = Settings.getBodyId(editor);
-  const bodyClass = Settings.getBodyClass(editor);
-  const translatedAriaText = editor.translate(Settings.getIframeAriaText(editor));
+  const bodyId = Options.getBodyId(editor);
+  const bodyClass = Options.getBodyClass(editor);
+  const translatedAriaText = editor.translate(Options.getIframeAriaText(editor));
 
-  if (Settings.getContentSecurityPolicy(editor)) {
-    iframeHTML += '<meta http-equiv="Content-Security-Policy" content="' + Settings.getContentSecurityPolicy(editor) + '" />';
+  if (Options.getContentSecurityPolicy(editor)) {
+    iframeHTML += '<meta http-equiv="Content-Security-Policy" content="' + Options.getContentSecurityPolicy(editor) + '" />';
   }
 
   iframeHTML += '</head>' +
@@ -84,39 +62,64 @@ const getIframeHtml = (editor: Editor) => {
   return iframeHTML;
 };
 
-const createIframe = (editor: Editor, o) => {
+const createIframe = (editor: Editor, boxInfo: BoxInfo) => {
   const iframeTitle = editor.translate('Rich Text Area');
-  const ifr = createIframeElement(editor.id, iframeTitle, o.height, Settings.getIframeAttrs(editor)).dom;
+  const tabindex = Attribute.getOpt(SugarElement.fromDom(editor.getElement()), 'tabindex').bind(Strings.toInt);
+  const ifr = createIframeElement(editor.id, iframeTitle, Options.getIframeAttrs(editor), tabindex).dom;
 
   ifr.onload = () => {
     ifr.onload = null;
-    editor.fire('load');
+    editor.dispatch('load');
   };
 
-  const isDomainRelaxed = relaxDomain(editor, ifr);
-
-  editor.contentAreaContainer = o.iframeContainer;
+  editor.contentAreaContainer = boxInfo.iframeContainer;
   editor.iframeElement = ifr;
   editor.iframeHTML = getIframeHtml(editor);
-  DOM.add(o.iframeContainer, ifr);
-
-  return isDomainRelaxed;
+  DOM.add(boxInfo.iframeContainer, ifr);
 };
 
-const init = (editor: Editor, boxInfo) => {
-  const isDomainRelaxed = createIframe(editor, boxInfo);
+const setupIframeBody = (editor: Editor): void => {
+  // Setup iframe body
+  const iframe = editor.iframeElement as HTMLIFrameElement;
+  const ready = () => {
+    // Set the content document, now that it is available
+    editor.contentDocument = iframe.contentDocument as Document;
+
+    // Continue to init the editor
+    InitContentBody.contentBodyLoaded(editor);
+  };
+
+  // TINY-8916: Firefox has a bug in its srcdoc implementation that prevents cookies being sent so unfortunately we need
+  // to fallback to legacy APIs to load the iframe content. See https://bugzilla.mozilla.org/show_bug.cgi?id=1741489
+  if (Options.shouldUseDocumentWrite(editor) || Env.browser.isFirefox()) {
+    const doc = editor.getDoc();
+    doc.open();
+    doc.write(editor.iframeHTML as string);
+    doc.close();
+    ready();
+  } else {
+    const binder = DomEvent.bind(SugarElement.fromDom(iframe), 'load', () => {
+      binder.unbind();
+      ready();
+    });
+    iframe.srcdoc = editor.iframeHTML as string;
+  }
+};
+
+const init = (editor: Editor, boxInfo: BoxInfo): void => {
+  createIframe(editor, boxInfo);
 
   if (boxInfo.editorContainer) {
-    DOM.get(boxInfo.editorContainer).style.display = editor.orgDisplay;
+    boxInfo.editorContainer.style.display = editor.orgDisplay;
     editor.hidden = DOM.isHidden(boxInfo.editorContainer);
   }
 
   editor.getElement().style.display = 'none';
   DOM.setAttrib(editor.id, 'aria-hidden', 'true');
+  // Restore visibility on target element
+  editor.getElement().style.visibility = editor.orgVisibility as string;
 
-  if (!isDomainRelaxed) {
-    InitContentBody.initContentBody(editor);
-  }
+  setupIframeBody(editor);
 };
 
 export {

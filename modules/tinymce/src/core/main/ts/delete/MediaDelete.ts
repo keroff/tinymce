@@ -1,11 +1,4 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Optional } from '@ephox/katamari';
+import { Optional, Type } from '@ephox/katamari';
 import { SugarElement } from '@ephox/sugar';
 
 import Editor from '../api/Editor';
@@ -16,13 +9,18 @@ import * as NodeType from '../dom/NodeType';
 import * as InlineUtils from '../keyboard/InlineUtils';
 import * as DeleteElement from './DeleteElement';
 
-const deleteElement = (editor: Editor, forward: boolean, element: Node): boolean => {
-  editor._selectionOverrides.hideFakeCaret();
-  DeleteElement.deleteElement(editor, forward, SugarElement.fromDom(element));
-  return true;
+const deleteElement = (editor: Editor, forward: boolean, element: Node | undefined): Optional<() => void> => {
+  if (Type.isNonNullable(element)) {
+    return Optional.some(() => {
+      editor._selectionOverrides.hideFakeCaret();
+      DeleteElement.deleteElement(editor, forward, SugarElement.fromDom(element));
+    });
+  } else {
+    return Optional.none();
+  }
 };
 
-const deleteCaret = (editor: Editor, forward: boolean): boolean => {
+const deleteCaret = (editor: Editor, forward: boolean): Optional<() => void> => {
   const isNearMedia = forward ? isBeforeMedia : isAfterMedia;
   const direction = forward ? HDirection.Forwards : HDirection.Backwards;
   const fromPos = CaretUtils.getNormalizedRangeEndPoint(direction, editor.getBody(), editor.selection.getRng());
@@ -32,16 +30,16 @@ const deleteCaret = (editor: Editor, forward: boolean): boolean => {
   } else {
     return Optional.from(InlineUtils.normalizePosition(forward, fromPos))
       .filter((pos) => isNearMedia(pos) && CaretUtils.isMoveInsideSameBlock(fromPos, pos))
-      .exists((pos) => deleteElement(editor, forward, pos.getNode(!forward)));
+      .bind((pos) => deleteElement(editor, forward, pos.getNode(!forward)));
   }
 };
 
-const deleteRange = (editor: Editor, forward: boolean): boolean => {
+const deleteRange = (editor: Editor, forward: boolean): Optional<() => void> => {
   const selectedNode = editor.selection.getNode();
-  return NodeType.isMedia(selectedNode) ? deleteElement(editor, forward, selectedNode) : false;
+  return NodeType.isMedia(selectedNode) ? deleteElement(editor, forward, selectedNode) : Optional.none();
 };
 
-const backspaceDelete = (editor: Editor, forward: boolean): boolean =>
+const backspaceDelete = (editor: Editor, forward: boolean): Optional<() => void> =>
   editor.selection.isCollapsed() ? deleteCaret(editor, forward) : deleteRange(editor, forward);
 
 export {

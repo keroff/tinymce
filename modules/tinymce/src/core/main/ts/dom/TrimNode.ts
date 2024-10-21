@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Type } from '@ephox/katamari';
 import { SugarElement } from '@ephox/sugar';
 
@@ -67,7 +60,7 @@ const trimNode = <T extends Node>(dom: DOMUtils, node: T, root?: Node): T => {
   if (NodeType.isElement(node)) {
     const currentChildren = node.childNodes;
     if (currentChildren.length === 1 && isBookmarkNode(currentChildren[0])) {
-      node.parentNode.insertBefore(currentChildren[0], node);
+      node.parentNode?.insertBefore(currentChildren[0], node);
     }
   }
 

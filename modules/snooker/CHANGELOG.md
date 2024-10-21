@@ -6,6 +6,39 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## 11.0.9 - 2023-03-15
+
+### Fixed
+- TableResize.on/off functions will now toggle the mouseover resize bar refresh state.
+- The `TableFill.cellOperations` function incorrectly declared the mutate element types as generic when they should have been a `CellElement`.
+
+## 11.0.3 - 2022-06-29
+
+### Fixed
+- Copying one or more columns with a cell with colspan which starts outside of the selected area will no longer result in a copy with one or more cells missing.
+- Pasting a column into a table with a colspan cell will no longer result in missing cells.
+
+## 11.0.2 - 2022-03-18
+
+### Fixed
+- The `CopySelected` module was incorrectly extracting the selected cells in a table that contained colgroups.
+
+## 11.0.0 - 2022-03-03
+
+### Added
+- Added new `refreshBars` API to `TableResize`.
+
+### Changed
+- Upgraded to Katamari 9.0, which includes breaking changes to the `Optional` API used in this module.
+- `RunOperation.run` no longer requires the `wire` to be provided, instead the resize bars should be refreshed after the run operation if required.
+
+### Fixed
+- All `th` rows in `tfoot` sections were incorrectly detected as header rows.
+- `OtherCells.getOtherCells` would incorrectly return `col` elements for `colgroup` tables.
+
+### Removed
+- Removed support for Microsoft Internet Explorer and legacy Microsoft Edge.
+
 ## 10.0.0 - 2021-10-11
 
 ### Changed

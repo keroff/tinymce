@@ -3,7 +3,6 @@ import { TinyHooks } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/media/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as Utils from '../module/test/Utils';
 
@@ -11,14 +10,14 @@ describe('browser.tinymce.plugins.media.core.MediaEmbedTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     plugins: [ 'media' ],
     toolbar: 'media',
-    media_url_resolver: (data, resolve) => {
+    media_url_resolver: (data: { url: string }, resolve: (response: { html: string }) => void) => {
       resolve({
         html: '<video width="300" height="150" ' +
           'controls="controls">\n<source src="' + data.url + '" />\n</video>'
       });
     },
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ]);
+  }, [ Plugin ]);
 
   it('TBA: Embed content, open dialog, set size and assert custom media_url_resolver formatting', async () => {
     const editor = hook.editor();

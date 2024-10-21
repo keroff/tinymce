@@ -1,9 +1,9 @@
+// Tests always run in a browser, but some we run headless
 const runsHeadless = [
   '@ephox/alloy',
   '@ephox/mcagar',
   '@ephox/katamari',
   '@ephox/katamari-test',
-  '@ephox/imagetools',
   '@ephox/jax'
 ];
 
@@ -41,7 +41,7 @@ const filterChangesNot = (changes, badTests) => {
  *  All other projects need their tests in src/test/ts
  */
 const testFolders = (tests, auto) => tests.flatMap((test) => {
-  const testTypes = ['atomic', 'browser', 'phantom'].concat(auto ? ['webdriver'] : []);
+  const testTypes = ['atomic', 'browser', 'headless'].concat(auto ? ['webdriver'] : []);
   const bases = test.name === "tinymce" ? ["src/*/test/ts", "src/*/*/test/ts"] : ["src/test/ts"];
   return bases.flatMap(base => testTypes.map(tt => `${test.location}/${base}/${tt}/**/*Test.ts`));
 });
@@ -51,7 +51,6 @@ const bedrockDefaults = {
   customRoutes: 'modules/tinymce/src/core/test/json/routes.json',
   overallTimeout: 180000,
   singleTimeout: 60000,
-  polyfills: [ 'Promise', 'Symbol' ],
 };
 
 const bedrockHeadless = (tests, browser, auto) => {
@@ -65,6 +64,8 @@ const bedrockHeadless = (tests, browser, auto) => {
         browser,
         useSelenium: true,
         testfiles: testFolders(tests, auto),
+
+        // we have a few tests that don't play nicely when combined together in the monorepo
         retries: 3
       }
     }

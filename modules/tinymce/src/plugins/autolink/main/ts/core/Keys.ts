@@ -1,226 +1,147 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
+import { Fun, Obj, Strings, Type, Unicode } from '@ephox/katamari';
 
-import { Strings } from '@ephox/katamari';
-
+import TextSeeker from 'tinymce/core/api/dom/TextSeeker';
 import Editor from 'tinymce/core/api/Editor';
-import Env from 'tinymce/core/api/Env';
 
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
+import { findChar, freefallRtl, hasProtocol, isBracketOrSpace, isPunctuation } from './Utils';
 
-const rangeEqualsBracketOrSpace = (rangeString: string): boolean =>
-  /^[(\[{ \u00a0]$/.test(rangeString);
+interface ParseResult {
+  readonly rng: Range;
+  readonly url: string;
+}
 
-const isTextNode = (node: Node): node is Text =>
-  node.nodeType === 3;
-
-const isElement = (node: Node): node is Element =>
-  node.nodeType === 1;
-
-const handleBracket = (editor: Editor): void =>
-  parseCurrentLine(editor, -1);
-
-const handleSpacebar = (editor: Editor): void =>
-  parseCurrentLine(editor, 0);
-
-const handleEnter = (editor: Editor): void =>
-  parseCurrentLine(editor, -1);
-
-const scopeIndex = (container: Node, index: number): number => {
-  if (index < 0) {
-    index = 0;
-  }
-
-  if (isTextNode(container)) {
-    const len = container.data.length;
-
-    if (index > len) {
-      index = len;
-    }
-  }
-
-  return index;
-};
-
-const setStart = (rng: Range, container: Node, offset: number): void => {
-  if (!isElement(container) || container.hasChildNodes()) {
-    rng.setStart(container, scopeIndex(container, offset));
-  } else {
-    rng.setStartBefore(container);
-  }
-};
-
-const setEnd = (rng: Range, container: Node, offset: number): void => {
-  if (!isElement(container) || container.hasChildNodes()) {
-    rng.setEnd(container, scopeIndex(container, offset));
-  } else {
-    rng.setEndAfter(container);
-  }
-};
-
-// Note: This is similar to the Polaris protocol detection, except it also handles `mailto` and any length scheme
-const hasProtocol = (url: string): boolean =>
-  /^([A-Za-z][A-Za-z\d.+-]*:\/\/)|mailto:/.test(url);
-
-// A limited list of punctuation characters that might be used after a link
-const isPunctuation = (char: string) =>
-  /[?!,.;:]/.test(char);
-
-const parseCurrentLine = (editor: Editor, endOffset: number): void => {
-  let end, endContainer, bookmark, text, prev, len, rngText;
-  const autoLinkPattern = Settings.getAutoLinkPattern(editor);
-  const defaultLinkTarget = Settings.getDefaultLinkTarget(editor);
+const parseCurrentLine = (editor: Editor, offset: number): ParseResult | null => {
+  const voidElements = editor.schema.getVoidElements();
+  const autoLinkPattern = Options.getAutoLinkPattern(editor);
+  const { dom, selection } = editor;
 
   // Never create a link when we are inside a link
-  if (editor.dom.getParent(editor.selection.getNode(), 'a[href]') !== null) {
-    return;
+  if (dom.getParent(selection.getNode(), 'a[href]') !== null) {
+    return null;
   }
 
-  // We need at least five characters to form a URL,
-  // hence, at minimum, five characters from the beginning of the line.
-  const rng = editor.selection.getRng().cloneRange();
-  if (rng.startOffset < 5) {
-    // During testing, the caret is placed between two text nodes.
-    // The previous text node contains the URL.
-    prev = rng.endContainer.previousSibling;
-    if (!prev) {
-      if (!rng.endContainer.firstChild || !rng.endContainer.firstChild.nextSibling) {
-        return;
-      }
+  const rng = selection.getRng();
+  const textSeeker = TextSeeker(dom, (node) => {
+    return dom.isBlock(node) || Obj.has(voidElements, node.nodeName.toLowerCase()) || dom.getContentEditable(node) === 'false';
+  });
 
-      prev = rng.endContainer.firstChild.nextSibling;
-    }
+  // Descend down the end container to find the text node
+  const { container: endContainer, offset: endOffset } = freefallRtl(rng.endContainer, rng.endOffset);
 
-    len = prev.length;
-    setStart(rng, prev, len);
-    setEnd(rng, prev, len);
+  // Find the root container to use when walking
+  const root = dom.getParent(endContainer, dom.isBlock) ?? dom.getRoot();
 
-    if (rng.endOffset < 5) {
-      return;
-    }
+  // Move the selection backwards to the start of the potential URL to account for the pressed character
+  // while also excluding the last full stop from a word like "www.site.com."
+  const endSpot = textSeeker.backwards(endContainer, endOffset + offset, (node, offset) => {
+    const text = node.data;
+    const idx = findChar(text, offset, Fun.not(isBracketOrSpace));
+    // Move forward one so the offset is after the found character unless the found char is a punctuation char
+    return idx === -1 || isPunctuation(text[idx]) ? idx : idx + 1;
+  }, root);
 
-    end = rng.endOffset;
-    endContainer = prev;
+  if (!endSpot) {
+    return null;
+  }
+
+  // Walk backwards until we find a boundary or a bracket/space
+  let lastTextNode = endSpot.container;
+  const startSpot = textSeeker.backwards(endSpot.container, endSpot.offset, (node, offset) => {
+    lastTextNode = node;
+    const idx = findChar(node.data, offset, isBracketOrSpace);
+    // Move forward one so that the offset is after the bracket/space
+    return idx === -1 ? idx : idx + 1;
+  }, root);
+
+  const newRng = dom.createRng();
+  if (!startSpot) {
+    newRng.setStart(lastTextNode, 0);
   } else {
-    endContainer = rng.endContainer;
-
-    // Get a text node
-    if (!isTextNode(endContainer) && endContainer.firstChild) {
-      while (!isTextNode(endContainer) && endContainer.firstChild) {
-        endContainer = endContainer.firstChild;
-      }
-
-      // Move range to text node
-      if (isTextNode(endContainer)) {
-        setStart(rng, endContainer, 0);
-        setEnd(rng, endContainer, endContainer.nodeValue.length);
-      }
-    }
-
-    if (rng.endOffset === 1) {
-      end = 2;
-    } else {
-      end = rng.endOffset - 1 - endOffset;
-    }
+    newRng.setStart(startSpot.container, startSpot.offset);
   }
+  newRng.setEnd(endSpot.container, endSpot.offset);
 
-  const start = end;
-
-  do {
-    // Move the selection one character backwards.
-    setStart(rng, endContainer, end >= 2 ? end - 2 : 0);
-    setEnd(rng, endContainer, end >= 1 ? end - 1 : 0);
-    end -= 1;
-    rngText = rng.toString();
-
-    // Loop until one of the following is found: a blank space, &nbsp;, bracket, (end-2) >= 0
-  } while (!rangeEqualsBracketOrSpace(rngText) && (end - 2) >= 0);
-
-  if (rangeEqualsBracketOrSpace(rng.toString())) {
-    setStart(rng, endContainer, end);
-    setEnd(rng, endContainer, start);
-    end += 1;
-  } else if (rng.startOffset === 0) {
-    setStart(rng, endContainer, 0);
-    setEnd(rng, endContainer, start);
-  } else {
-    setStart(rng, endContainer, end);
-    setEnd(rng, endContainer, start);
-  }
-
-  // Exclude last . from word like "www.site.com."
-  text = rng.toString();
-  if (isPunctuation(text.charAt(text.length - 1))) {
-    setEnd(rng, endContainer, start - 1);
-  }
-
-  text = rng.toString().trim();
-  const matches = text.match(autoLinkPattern);
-
-  const protocol = Settings.getDefaultLinkProtocol(editor);
-
+  const rngText = Unicode.removeZwsp(newRng.toString());
+  const matches = rngText.match(autoLinkPattern);
   if (matches) {
     let url = matches[0];
     if (Strings.startsWith(url, 'www.')) {
+      const protocol = Options.getDefaultLinkProtocol(editor);
       url = protocol + '://' + url;
     } else if (Strings.contains(url, '@') && !hasProtocol(url)) {
       url = 'mailto:' + url;
     }
 
-    bookmark = editor.selection.getBookmark();
+    return { rng: newRng, url };
+  } else {
+    return null;
+  }
+};
 
-    editor.selection.setRng(rng);
-    editor.execCommand('createlink', false, url);
+const convertToLink = (editor: Editor, result: ParseResult): void => {
+  const { dom, selection } = editor;
+  const { rng, url } = result;
 
-    if (defaultLinkTarget !== false) {
-      editor.dom.setAttrib(editor.selection.getNode(), 'target', defaultLinkTarget);
+  const bookmark = selection.getBookmark();
+  selection.setRng(rng);
+
+  // Needs to be a native createlink command since this is executed in a keypress event handler
+  // so the pending character that is to be inserted needs to be inserted after the link. That will not
+  // happen if we use the formatter create link version. Since we're using the native command
+  // then we also need to ensure the exec command events are fired for backwards compatibility.
+  const command = 'createlink';
+  const args = { command, ui: false, value: url };
+  const beforeExecEvent = editor.dispatch('BeforeExecCommand', args);
+  if (!beforeExecEvent.isDefaultPrevented()) {
+    editor.getDoc().execCommand(command, false, url);
+    editor.dispatch('ExecCommand', args);
+
+    const defaultLinkTarget = Options.getDefaultLinkTarget(editor);
+    if (Type.isString(defaultLinkTarget)) {
+      const anchor = selection.getNode();
+      dom.setAttrib(anchor, 'target', defaultLinkTarget);
+
+      // Ensure noopener is added for blank targets to prevent window opener attacks
+      if (defaultLinkTarget === '_blank' && !Options.allowUnsafeLinkTarget(editor)) {
+        dom.setAttrib(anchor, 'rel', 'noopener');
+      }
     }
+  }
 
-    editor.selection.moveToBookmark(bookmark);
-    editor.nodeChanged();
+  selection.moveToBookmark(bookmark);
+  editor.nodeChanged();
+};
+
+const handleSpacebar = (editor: Editor): void => {
+  const result = parseCurrentLine(editor, -1);
+  if (Type.isNonNullable(result)) {
+    convertToLink(editor, result);
+  }
+};
+
+const handleBracket = handleSpacebar;
+
+const handleEnter = (editor: Editor): void => {
+  const result = parseCurrentLine(editor, 0);
+  if (Type.isNonNullable(result)) {
+    convertToLink(editor, result);
   }
 };
 
 const setup = (editor: Editor): void => {
-  let autoUrlDetectState: boolean | undefined;
-
   editor.on('keydown', (e) => {
-    if (e.keyCode === 13) {
-      return handleEnter(editor);
-    }
-  });
-
-  // Internet Explorer has built-in automatic linking for most cases
-  if (Env.browser.isIE()) {
-    editor.on('focus', () => {
-      if (!autoUrlDetectState) {
-        autoUrlDetectState = true;
-
-        try {
-          editor.execCommand('AutoUrlDetect', false, true);
-        } catch (ex) {
-          // Ignore
-        }
-      }
-    });
-
-    return;
-  }
-
-  editor.on('keypress', (e) => {
-    // One of the closing bracket keys: ), ] or }
-    if (e.keyCode === 41 || e.keyCode === 93 || e.keyCode === 125) {
-      return handleBracket(editor);
+    if (e.keyCode === 13 && !e.isDefaultPrevented()) {
+      handleEnter(editor);
     }
   });
 
   editor.on('keyup', (e) => {
     if (e.keyCode === 32) {
-      return handleSpacebar(editor);
+      handleSpacebar(editor);
+    // One of the closing bracket keys: ), ] or }
+    } else if (e.keyCode === 48 && e.shiftKey || e.keyCode === 221) {
+      handleBracket(editor);
     }
   });
 };

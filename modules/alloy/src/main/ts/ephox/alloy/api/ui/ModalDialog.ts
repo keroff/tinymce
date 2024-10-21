@@ -1,7 +1,6 @@
-import { Id, Singleton } from '@ephox/katamari';
+import { Fun, Id, Singleton } from '@ephox/katamari';
 import { Traverse } from '@ephox/sugar';
 
-import * as AriaDescribe from '../../aria/AriaDescribe';
 import * as AriaLabel from '../../aria/AriaLabel';
 import * as AlloyParts from '../../parts/AlloyParts';
 import * as ModalDialogSchema from '../../ui/schema/ModalDialogSchema';
@@ -43,7 +42,7 @@ const factory: CompositeSketchFactory<ModalDialogDetail, ModalDialogSpec> = (det
         AddEventsBehaviour.config('dialog-blocker-events', [
           // Ensure we use runOnSource otherwise this would cause an infinite loop, as `focusIn` would fire a `focusin` which would then get responded to and so forth
           AlloyEvents.runOnSource(NativeEvents.focusin(), () => {
-            Keying.focusIn(dialog);
+            Blocking.isBlocked(dialog) ? Fun.noop() : Keying.focusIn(dialog);
           })
         ])
       ])
@@ -64,7 +63,7 @@ const factory: CompositeSketchFactory<ModalDialogDetail, ModalDialogSpec> = (det
 
   const getDialogBody = (dialog: AlloyComponent) => AlloyParts.getPartOrDie(dialog, detail, 'body');
 
-  const getDialogFooter = (dialog: AlloyComponent) => AlloyParts.getPartOrDie(dialog, detail, 'footer');
+  const getDialogFooter = (dialog: AlloyComponent) => AlloyParts.getPart(dialog, detail, 'footer');
 
   const setBusy = (dialog: AlloyComponent, getBusySpec: GetBusySpec) => {
     Blocking.block(dialog, getBusySpec);
@@ -107,7 +106,8 @@ const factory: CompositeSketchFactory<ModalDialogDetail, ModalDialogSpec> = (det
           mode: 'cyclic',
           onEnter: detail.onExecute,
           onEscape: detail.onEscape,
-          useTabstopAt: detail.useTabstopAt
+          useTabstopAt: detail.useTabstopAt,
+          firstTabstop: detail.firstTabstop
         }),
         Blocking.config({
           getRoot: dialogComp.get
@@ -115,7 +115,6 @@ const factory: CompositeSketchFactory<ModalDialogDetail, ModalDialogSpec> = (det
         AddEventsBehaviour.config(modalEventsId, [
           AlloyEvents.runOnAttached((c) => {
             AriaLabel.labelledBy(c.element, AlloyParts.getPartOrDie(c, detail, 'title').element);
-            AriaDescribe.describedBy(c.element, AlloyParts.getPartOrDie(c, detail, 'body').element);
           })
         ])
       ]

@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import Editor from 'tinymce/core/api/Editor';
 
 export interface DomModifier {
@@ -15,29 +8,23 @@ export interface DomModifier {
 
 // The get node is required here because it can be transformed
 // when switching between tags (e.g. th and td)
-const modifiers = (testTruthy: boolean) => (editor: Editor, node: Node): DomModifier => {
+const normal = (editor: Editor, element: Element): DomModifier => {
   const dom = editor.dom;
 
   const setAttrib = (attr: string, value: string) => {
-    if (!testTruthy || value) {
-      dom.setAttrib(node, attr, value);
-    }
+    dom.setAttrib(element, attr, value);
   };
 
   const setStyle = (prop: string, value: string) => {
-    if (!testTruthy || value) {
-      dom.setStyle(node, prop, value);
-    }
+    dom.setStyle(element, prop, value);
   };
 
   const setFormat = (formatName: string, value: string) => {
-    if (!testTruthy || value) {
-      // Remove format if given an empty string
-      if (value === '') {
-        editor.formatter.remove(formatName, { value: null }, node, true);
-      } else {
-        editor.formatter.apply(formatName, { value }, node);
-      }
+    // Remove format if given an empty string
+    if (value === '') {
+      editor.formatter.remove(formatName, { value: null }, element, true);
+    } else {
+      editor.formatter.apply(formatName, { value }, element);
     }
   };
 
@@ -49,6 +36,5 @@ const modifiers = (testTruthy: boolean) => (editor: Editor, node: Node): DomModi
 };
 
 export const DomModifier = {
-  normal: modifiers(false),
-  ifTruthy: modifiers(true)
+  normal
 };

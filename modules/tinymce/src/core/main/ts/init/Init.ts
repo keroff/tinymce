@@ -1,19 +1,14 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
+import { Arr, Fun, Obj, Optional, Type } from '@ephox/katamari';
 
-import { Fun, Obj, Optional, Type } from '@ephox/katamari';
-
+import { AddOnConstructor } from '../api/AddOnManager';
 import DOMUtils from '../api/dom/DOMUtils';
 import Editor from '../api/Editor';
 import IconManager from '../api/IconManager';
+import ModelManager, { Model } from '../api/ModelManager';
+import * as Options from '../api/Options';
+import { ThemeInitFunc } from '../api/OptionTypes';
 import PluginManager from '../api/PluginManager';
-import * as Settings from '../api/Settings';
-import { ThemeInitFunc } from '../api/SettingsTypes';
-import ThemeManager from '../api/ThemeManager';
+import ThemeManager, { Theme } from '../api/ThemeManager';
 import { EditorUiApi } from '../api/ui/Ui';
 import Tools from '../api/util/Tools';
 import * as ErrorReporter from '../ErrorReporter';
@@ -29,20 +24,16 @@ const initPlugin = (editor: Editor, initializedPlugins: string[], plugin: string
   const pluginUrl = PluginManager.urls[plugin] || editor.documentBaseUrl.replace(/\/$/, '');
   plugin = Tools.trim(plugin);
   if (Plugin && Tools.inArray(initializedPlugins, plugin) === -1) {
-    Tools.each(PluginManager.dependencies(plugin), (dep) => {
-      initPlugin(editor, initializedPlugins, dep);
-    });
-
     if (editor.plugins[plugin]) {
       return;
     }
 
     try {
-      const pluginInstance = new Plugin(editor, pluginUrl, editor.$);
+      const pluginInstance = Plugin(editor, pluginUrl) || {};
 
       editor.plugins[plugin] = pluginInstance;
 
-      if (pluginInstance.init) {
+      if (Type.isFunction(pluginInstance.init)) {
         pluginInstance.init(editor, pluginUrl);
         initializedPlugins.push(plugin);
       }
@@ -58,15 +49,15 @@ const trimLegacyPrefix = (name: string) => {
 };
 
 const initPlugins = (editor: Editor) => {
-  const initializedPlugins = [];
+  const initializedPlugins: string[] = [];
 
-  Tools.each(Settings.getPlugins(editor).split(/[ ,]/), (name) => {
+  Arr.each(Options.getPlugins(editor), (name) => {
     initPlugin(editor, initializedPlugins, trimLegacyPrefix(name));
   });
 };
 
 const initIcons = (editor: Editor) => {
-  const iconPackName: string = Tools.trim(Settings.getIconPackName(editor));
+  const iconPackName: string = Tools.trim(Options.getIconPackName(editor));
   const currentIcons = editor.ui.registry.getAll().icons;
 
   const loadIcons = {
@@ -83,16 +74,14 @@ const initIcons = (editor: Editor) => {
 };
 
 const initTheme = (editor: Editor) => {
-  const theme = Settings.getTheme(editor);
+  const theme = Options.getTheme(editor);
 
   if (Type.isString(theme)) {
-    editor.settings.theme = trimLegacyPrefix(theme); // Kept until a proper API can be made. TINY-6142
+    const Theme = ThemeManager.get(theme) as AddOnConstructor<Theme>;
+    editor.theme = Theme(editor, ThemeManager.urls[theme]) || {};
 
-    const Theme = ThemeManager.get(theme);
-    editor.theme = new Theme(editor, ThemeManager.urls[theme]);
-
-    if (editor.theme.init) {
-      editor.theme.init(editor, ThemeManager.urls[theme] || editor.documentBaseUrl.replace(/\/$/, ''), editor.$);
+    if (Type.isFunction(editor.theme.init)) {
+      editor.theme.init(editor, ThemeManager.urls[theme] || editor.documentBaseUrl.replace(/\/$/, ''));
     }
   } else {
     // Theme set to false or null doesn't produce a theme api
@@ -100,14 +89,21 @@ const initTheme = (editor: Editor) => {
   }
 };
 
+const initModel = (editor: Editor) => {
+  const model = Options.getModel(editor);
+  const Model = ModelManager.get(model) as AddOnConstructor<Model>;
+  editor.model = Model(editor, ModelManager.urls[model]);
+};
+
 const renderFromLoadedTheme = (editor: Editor) => {
   // Render UI
-  return editor.theme.renderUI();
+  const render = editor.theme.renderUI;
+  return render ? render() : renderThemeFalse(editor);
 };
 
 const renderFromThemeFunc = (editor: Editor) => {
   const elm = editor.getElement();
-  const theme = Settings.getTheme(editor) as ThemeInitFunc;
+  const theme = Options.getTheme(editor) as ThemeInitFunc;
   const info = theme(editor, elm);
 
   if (info.editorContainer.nodeType) {
@@ -123,10 +119,10 @@ const renderFromThemeFunc = (editor: Editor) => {
   return info;
 };
 
-const createThemeFalseResult = (element: HTMLElement) => {
+const createThemeFalseResult = (element: HTMLElement | null, iframe?: HTMLElement) => {
   return {
     editorContainer: element,
-    iframeContainer: element,
+    iframeContainer: iframe,
     api: {}
   };
 };
@@ -136,7 +132,7 @@ const renderThemeFalseIframe = (targetElement: Element) => {
 
   DOM.insertAfter(iframeContainer, targetElement);
 
-  return createThemeFalseResult(iframeContainer);
+  return createThemeFalseResult(iframeContainer, iframeContainer);
 };
 
 const renderThemeFalse = (editor: Editor) => {
@@ -149,9 +145,9 @@ const renderThemeUi = (editor: Editor) => {
 
   editor.orgDisplay = elm.style.display;
 
-  if (Type.isString(Settings.getTheme(editor))) {
+  if (Type.isString(Options.getTheme(editor))) {
     return renderFromLoadedTheme(editor);
-  } else if (Type.isFunction(Settings.getTheme(editor))) {
+  } else if (Type.isFunction(Options.getTheme(editor))) {
     return renderFromThemeFunc(editor);
   } else {
     return renderThemeFalse(editor);
@@ -162,37 +158,35 @@ const augmentEditorUiApi = (editor: Editor, api: Partial<EditorUiApi>) => {
   const uiApiFacade: EditorUiApi = {
     show: Optional.from(api.show).getOr(Fun.noop),
     hide: Optional.from(api.hide).getOr(Fun.noop),
-    disable: Optional.from(api.disable).getOr(Fun.noop),
-    isDisabled: Optional.from(api.isDisabled).getOr(Fun.never),
-    enable: () => {
+    isEnabled: Optional.from(api.isEnabled).getOr(Fun.always),
+    setEnabled: (state) => {
       if (!editor.mode.isReadOnly()) {
-        Optional.from(api.enable).map(Fun.call);
+        Optional.from(api.setEnabled).each((f) => f(state));
       }
     }
   };
   editor.ui = { ...editor.ui, ...uiApiFacade };
 };
 
-const init = (editor: Editor) => {
-  editor.fire('ScriptsLoaded');
+const init = async (editor: Editor): Promise<void> => {
+  editor.dispatch('ScriptsLoaded');
 
   initIcons(editor);
   initTheme(editor);
+  initModel(editor);
   initPlugins(editor);
-  const renderInfo = renderThemeUi(editor);
+  const renderInfo = await renderThemeUi(editor);
   augmentEditorUiApi(editor, Optional.from(renderInfo.api).getOr({}));
-  const boxInfo = {
-    editorContainer: renderInfo.editorContainer,
-    iframeContainer: renderInfo.iframeContainer
-  };
-  editor.editorContainer = boxInfo.editorContainer ? boxInfo.editorContainer : null;
+  editor.editorContainer = renderInfo.editorContainer as HTMLElement;
   appendContentCssFromSettings(editor);
 
-  // Content editable mode ends here
   if (editor.inline) {
-    return InitContentBody.initContentBody(editor);
+    InitContentBody.contentBodyLoaded(editor);
   } else {
-    return InitIframe.init(editor, boxInfo);
+    InitIframe.init(editor, {
+      editorContainer: renderInfo.editorContainer,
+      iframeContainer: renderInfo.iframeContainer as HTMLElement
+    });
   }
 };
 

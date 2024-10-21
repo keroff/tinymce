@@ -3,7 +3,6 @@ import { TinyAssertions, TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/anchor/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import { pAddAnchor, pAssertAnchorPresence } from '../module/Helpers';
 
@@ -12,7 +11,7 @@ describe('browser.tinymce.plugins.anchor.AnchorSanityTest', () => {
     plugins: 'anchor',
     toolbar: 'anchor',
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ], true);
+  }, [ Plugin ], true);
 
   it('TBA: Add text and anchor, then check if that anchor is present in the editor', async () => {
     const editor = hook.editor();
@@ -45,9 +44,11 @@ describe('browser.tinymce.plugins.anchor.AnchorSanityTest', () => {
     await pAddAnchor(editor, 'abc');
     await pAssertAnchorPresence(editor, 1);
     TinyAssertions.assertContent(editor, '<p><a id="abc"></a></p>');
+    TinyAssertions.assertCursor(editor, [ 0, 1 ], 1);
     await pAddAnchor(editor, 'def');
     await pAssertAnchorPresence(editor, 2);
     TinyAssertions.assertContent(editor, '<p><a id="abc"></a><a id="def"></a></p>');
+    TinyAssertions.assertCursor(editor, [ 0, 2 ], 1);
   });
 
   it('TINY-6236: Check bare anchor can be converted to a named anchor', async () => {

@@ -4,8 +4,6 @@ import { Arr } from '@ephox/katamari';
 import { TinyAssertions, TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import Env from 'tinymce/core/api/Env';
-import Theme from 'tinymce/themes/silver/Theme';
 
 interface Selection {
   readonly startPath: number[];
@@ -24,10 +22,14 @@ describe('browser.tinymce.core.fmt.TextDecorationColorTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     toolbar: 'forecolor backcolor | bold italic underline strikethrough',
     formats: {
-      custom_format: { inline: 'span', classes: 'abc', styles: { textDecoration: 'underline' }}
+      custom_format: { inline: 'span', classes: 'abc', styles: { textDecoration: 'underline' }},
+      // Overwrite the default strikethrough format from an "s" tag to the "span" variant to be able to test the merging logic in RemoveFormat.ts
+      strikethrough: [
+        { inline: 'span', styles: { textDecoration: 'line-through' }, exact: true }
+      ],
     },
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ], true);
+  }, [], true);
 
   const pApplyForecolor = async (editor: Editor) => {
     TinyUiActions.clickOnToolbar(editor, '[aria-label="Text color"] > .tox-tbtn + .tox-split-button__chevron');
@@ -54,9 +56,7 @@ describe('browser.tinymce.core.fmt.TextDecorationColorTest', () => {
         ApproxStructure.fromHtml(content)
       ]
     }));
-    // IE11 and approx structure do not work properly with colors
-    // Cannot just use sAssertContent for other browsers as style properties can be in a different order
-    return Env.ie === 11 ? TinyAssertions.assertContent(editor, content) : TinyAssertions.assertContentStructure(editor, contentStructure);
+    TinyAssertions.assertContentStructure(editor, contentStructure);
   };
 
   const mergeForecolorAndTextDecoration = (toolbarLabel: string, textDecoration: string, text: Text, selection: Selection) => {

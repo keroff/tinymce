@@ -1,17 +1,11 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Obj } from '@ephox/katamari';
 
 import { isReadOnly, processReadonlyEvents } from '../mode/Readonly';
 import DOMUtils from './dom/DOMUtils';
+import { EventUtilsCallback } from './dom/EventUtils';
 import Editor from './Editor';
 import { EditorEventMap } from './EventTypes';
-import * as Settings from './Settings';
+import * as Options from './Options';
 import Observable from './util/Observable';
 import Tools from './util/Tools';
 
@@ -24,10 +18,10 @@ import Tools from './util/Tools';
  */
 
 const DOM = DOMUtils.DOM;
-let customEventRootDelegates;
+let customEventRootDelegates: Record<string, EventUtilsCallback<any>> | null;
 
 /**
- * Returns the event target so for the specified event. Some events fire
+ * Returns the event target for the specified event. Some events fire
  * only on document, some fire on documentElement etc. This also handles the
  * custom event root setting where it returns that element instead of the body.
  *
@@ -43,12 +37,12 @@ const getEventTarget = (editor: Editor, eventName: string): Node => {
 
   // Need to bind mousedown/mouseup etc to document not body in iframe mode
   // Since the user might click on the HTML element not the BODY
-  if (!editor.inline && /^mouse|touch|click|contextmenu|drop|dragover|dragend/.test(eventName)) {
+  if (!editor.inline && /^(?:mouse|touch|click|contextmenu|drop|dragover|dragend)/.test(eventName)) {
     return editor.getDoc().documentElement;
   }
 
   // Bind to event root instead of body if it's defined
-  const eventRoot = Settings.getEventRoot(editor);
+  const eventRoot = Options.getEventRoot(editor);
 
   if (eventRoot) {
     if (!editor.eventRoot) {
@@ -65,7 +59,7 @@ const isListening = (editor: Editor) => !editor.hidden && !isReadOnly(editor);
 
 const fireEvent = (editor: Editor, eventName: string, e: Event) => {
   if (isListening(editor)) {
-    editor.fire(eventName, e);
+    editor.dispatch(eventName, e);
   } else if (isReadOnly(editor)) {
     processReadonlyEvents(editor, e);
   }
@@ -80,8 +74,6 @@ const fireEvent = (editor: Editor, eventName: string, e: Event) => {
  * @param {String} eventName Name of the event for example "click".
  */
 const bindEventDelegate = (editor: Editor, eventName: string) => {
-  let delegate;
-
   if (!editor.delegates) {
     editor.delegates = {};
   }
@@ -92,7 +84,7 @@ const bindEventDelegate = (editor: Editor, eventName: string) => {
 
   const eventRootElm = getEventTarget(editor, eventName);
 
-  if (Settings.getEventRoot(editor)) {
+  if (Options.getEventRoot(editor)) {
     if (!customEventRootDelegates) {
       customEventRootDelegates = {};
       editor.editorManager.on('removeEditor', () => {
@@ -112,7 +104,7 @@ const bindEventDelegate = (editor: Editor, eventName: string) => {
       return;
     }
 
-    delegate = (e) => {
+    const delegate: EventUtilsCallback<any> = (e) => {
       const target = e.target;
       const editors = editor.editorManager.get();
       let i = editors.length;
@@ -129,7 +121,7 @@ const bindEventDelegate = (editor: Editor, eventName: string) => {
     customEventRootDelegates[eventName] = delegate;
     DOM.bind(eventRootElm, eventName, delegate);
   } else {
-    delegate = (e) => {
+    const delegate: EventUtilsCallback<any> = (e) => {
       fireEvent(editor, eventName, e);
     };
 
@@ -140,7 +132,7 @@ const bindEventDelegate = (editor: Editor, eventName: string) => {
 
 interface EditorObservable extends Observable<EditorEventMap> {
   bindPendingEventDelegates (this: Editor): void;
-  toggleNativeEvent (this: Editor, name: string, state: boolean);
+  toggleNativeEvent (this: Editor, name: string, state: boolean): void;
   unbindAllNativeEvents (this: Editor): void;
 }
 
@@ -189,7 +181,7 @@ const EditorObservable: EditorObservable = {
           self._pendingNativeEvents.push(name);
         }
       }
-    } else if (self.initialized) {
+    } else if (self.initialized && self.delegates) {
       self.dom.unbind(getEventTarget(self, name), name, self.delegates[name]);
       delete self.delegates[name];
     }

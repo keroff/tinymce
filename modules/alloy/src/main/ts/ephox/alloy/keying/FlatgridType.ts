@@ -25,12 +25,12 @@ const schema = [
 ];
 
 const focusIn = (component: AlloyComponent, gridConfig: FlatgridConfig, _gridState: FlatgridState): void => {
-  SelectorFind.descendant(component.element, gridConfig.selector).each((first: SugarElement) => {
+  SelectorFind.descendant<HTMLElement>(component.element, gridConfig.selector).each((first) => {
     gridConfig.focusManager.set(component, first);
   });
 };
 
-const findCurrent = (component: AlloyComponent, gridConfig: FlatgridConfig): Optional<SugarElement> =>
+const findCurrent = (component: AlloyComponent, gridConfig: FlatgridConfig): Optional<SugarElement<HTMLElement>> =>
   gridConfig.focusManager.get(component).bind((elem) => SelectorFind.closest(elem, gridConfig.selector));
 
 const execute = (
@@ -73,13 +73,13 @@ const getKeydownRules: () => Array<KeyRules.KeyRule<FlatgridConfig, FlatgridStat
   KeyRules.rule(KeyMatch.inSet(Keys.DOWN), DomMovement.south(moveSouth)),
   KeyRules.rule(KeyMatch.and([ KeyMatch.isShift, KeyMatch.inSet(Keys.TAB) ]), handleTab),
   KeyRules.rule(KeyMatch.and([ KeyMatch.isNotShift, KeyMatch.inSet(Keys.TAB) ]), handleTab),
-  KeyRules.rule(KeyMatch.inSet(Keys.ESCAPE), doEscape),
 
   // Probably should make whether space is used configurable
   KeyRules.rule(KeyMatch.inSet(Keys.SPACE.concat(Keys.ENTER)), execute)
 ]);
 
 const getKeyupRules: () => Array<KeyRules.KeyRule<FlatgridConfig, FlatgridState>> = Fun.constant([
+  KeyRules.rule(KeyMatch.inSet(Keys.ESCAPE), doEscape),
   KeyRules.rule(KeyMatch.inSet(Keys.SPACE), KeyingTypes.stopEventForFirefox)
 ]);
 

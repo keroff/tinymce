@@ -3,14 +3,13 @@ import { TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.FormatterClosestTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ], true);
+  }, [], true);
 
-  const assertClosest = (names: string[], expectedName: string) => {
+  const assertClosest = (names: string[], expectedName: string | null) => {
     const actualName = hook.editor().formatter.closest(names);
     assert.equal(actualName, expectedName, 'Should match expected format name');
   };

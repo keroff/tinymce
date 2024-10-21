@@ -1,30 +1,24 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Fun } from '@ephox/katamari';
-import { Focus, SugarElement, SugarShadowDom } from '@ephox/sugar';
+import { Class, Focus, SugarElement, SugarShadowDom } from '@ephox/sugar';
 
 import DOMUtils from '../api/dom/DOMUtils';
 import Editor from '../api/Editor';
 import EditorManager from '../api/EditorManager';
 import FocusManager from '../api/FocusManager';
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import Delay from '../api/util/Delay';
+import * as NodeType from '../dom/NodeType';
 import * as SelectionRestore from '../selection/SelectionRestore';
 
-let documentFocusInHandler;
+let documentFocusInHandler: ((e: FocusEvent) => void) | null;
 const DOM = DOMUtils.DOM;
 
-const isEditorUIElement = (elm: Element) => {
+const isEditorUIElement = (elm: Node): boolean => {
   // Since this can be overridden by third party we need to use the API reference here
-  return FocusManager.isEditorUIElement(elm);
+  return NodeType.isElement(elm) && FocusManager.isEditorUIElement(elm);
 };
 
-const isEditorContentAreaElement = (elm: Element) => {
+const isEditorContentAreaElement = (elm: Element): boolean => {
   const classList = elm.classList;
   if (classList !== undefined) {
     // tox-edit-area__iframe === iframe container element
@@ -35,8 +29,8 @@ const isEditorContentAreaElement = (elm: Element) => {
   }
 };
 
-const isUIElement = (editor: Editor, elm: Node) => {
-  const customSelector = Settings.getCustomUiSelector(editor);
+const isUIElement = (editor: Editor, elm: Node): boolean => {
+  const customSelector = Options.getCustomUiSelector(editor);
   const parent = DOM.getParent(elm, (elm) => {
     return (
       isEditorUIElement(elm) ||
@@ -65,17 +59,29 @@ const registerEvents = (editorManager: EditorManager, e: { editor: Editor }) => 
 
   SelectionRestore.register(editor);
 
+  const toggleContentAreaOnFocus = (editor: Editor, fn: (element: SugarElement<Element>, clazz: string) => void) => {
+    // Inline editors have a different approach to highlight the content area on focus
+    if (Options.shouldHighlightOnFocus(editor) && editor.inline !== true) {
+      const contentArea = SugarElement.fromDom(editor.getContainer());
+      fn(contentArea, 'tox-edit-focus');
+    }
+  };
+
   editor.on('focusin', () => {
     const focusedEditor = editorManager.focusedEditor;
 
+    if (isEditorContentAreaElement(getActiveElement(editor))) {
+      toggleContentAreaOnFocus(editor, Class.add);
+    }
+
     if (focusedEditor !== editor) {
       if (focusedEditor) {
-        focusedEditor.fire('blur', { focusedEditor: editor });
+        focusedEditor.dispatch('blur', { focusedEditor: editor });
       }
 
       editorManager.setActive(editor);
       editorManager.focusedEditor = editor;
-      editor.fire('focus', { blurredEditor: focusedEditor });
+      editor.dispatch('focus', { blurredEditor: focusedEditor });
       editor.focus(true);
     }
   });
@@ -84,9 +90,14 @@ const registerEvents = (editorManager: EditorManager, e: { editor: Editor }) => 
     Delay.setEditorTimeout(editor, () => {
       const focusedEditor = editorManager.focusedEditor;
 
+      // Remove focus highlight when the content area is no longer the active editor element, or if the highlighted editor is not the current focused editor
+      if (!isEditorContentAreaElement(getActiveElement(editor)) || focusedEditor !== editor) {
+        toggleContentAreaOnFocus(editor, Class.remove);
+      }
+
       // Still the same editor the blur was outside any editor UI
       if (!isUIElement(editor, getActiveElement(editor)) && focusedEditor === editor) {
-        editor.fire('blur', { focusedEditor: null });
+        editor.dispatch('blur', { focusedEditor: null });
         editorManager.focusedEditor = null;
       }
     });
@@ -99,11 +110,12 @@ const registerEvents = (editorManager: EditorManager, e: { editor: Editor }) => 
       const activeEditor = editorManager.activeEditor;
 
       if (activeEditor) {
-        SugarShadowDom.getOriginalEventTarget(e).each((target: Element) => {
-          if (target.ownerDocument === document) {
+        SugarShadowDom.getOriginalEventTarget(e).each((target) => {
+          const elem = (target as Node);
+          if (elem.ownerDocument === document) {
             // Fire a blur event if the element isn't a UI element
-            if (target !== document.body && !isUIElement(activeEditor, target) && editorManager.focusedEditor === activeEditor) {
-              activeEditor.fire('blur', { focusedEditor: null });
+            if (elem !== document.body && !isUIElement(activeEditor, elem) && editorManager.focusedEditor === activeEditor) {
+              activeEditor.dispatch('blur', { focusedEditor: null });
               editorManager.focusedEditor = null;
             }
           }
@@ -120,13 +132,13 @@ const unregisterDocumentEvents = (editorManager: EditorManager, e: { editor: Edi
     editorManager.focusedEditor = null;
   }
 
-  if (!editorManager.activeEditor) {
+  if (!editorManager.activeEditor && documentFocusInHandler) {
     DOM.unbind(document, 'focusin', documentFocusInHandler);
     documentFocusInHandler = null;
   }
 };
 
-const setup = (editorManager: EditorManager) => {
+const setup = (editorManager: EditorManager): void => {
   editorManager.on('AddEditor', Fun.curry(registerEvents, editorManager));
   editorManager.on('RemoveEditor', Fun.curry(unregisterDocumentEvents, editorManager));
 };

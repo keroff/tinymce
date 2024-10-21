@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Fun, Optional } from '@ephox/katamari';
 
 import * as NodeType from '../dom/NodeType';
@@ -70,7 +63,7 @@ const navigate = (forward: boolean, root: Node, from: CaretPosition): Optional<C
 
 const navigateIgnore = (
   forward: boolean,
-  root: Element,
+  root: Node,
   from: CaretPosition,
   ignoreFilter: (pos: CaretPosition) => boolean
 ): Optional<CaretPosition> => navigate(forward, root, from)

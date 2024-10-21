@@ -1,18 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Optional } from '@ephox/katamari';
-import { PlatformDetection } from '@ephox/sand';
 import { Compare, SimRange, SimSelection, SugarElement, SugarNode, SugarText, Traverse } from '@ephox/sugar';
 
 import Editor from '../api/Editor';
+import Env from '../api/Env';
 import * as NodeType from '../dom/NodeType';
-
-const browser = PlatformDetection.detect().browser;
 
 const clamp = (offset: number, element: SugarElement<Node>): number => {
   const max = SugarNode.isText(element) ? SugarText.get(element).length : Traverse.children(element).length + 1;
@@ -40,7 +31,8 @@ const isOrContains = (root: SugarElement<Node>, elm: SugarElement<Node>): boolea
 const isRngInRoot = (root: SugarElement<Node>) => (rng: SimRange): boolean =>
   isOrContains(root, rng.start) && isOrContains(root, rng.finish);
 
-const shouldStore = (editor: Editor) => editor.inline === true || browser.isIE();
+// TINY-9259: We need to store the selection on Firefox since if the editor is hidden the selection.getRng() api will not work as expected.
+const shouldStore = (editor: Editor) => editor.inline || Env.browser.isFirefox();
 
 const nativeRangeToSelectionRange = (r: Range): SimRange =>
   SimSelection.range(SugarElement.fromDom(r.startContainer), r.startOffset, SugarElement.fromDom(r.endContainer), r.endOffset);
@@ -76,13 +68,13 @@ const bookmarkToNativeRng = (bookmark: SimRange): Optional<Range> => {
   }
 };
 
-const store = (editor: Editor) => {
+const store = (editor: Editor): void => {
   const newBookmark = shouldStore(editor) ? getBookmark(SugarElement.fromDom(editor.getBody())) : Optional.none<SimRange>();
 
   editor.bookmark = newBookmark.isSome() ? newBookmark : editor.bookmark;
 };
 
-const storeNative = (editor: Editor, rng: Range) => {
+const storeNative = (editor: Editor, rng: Range): void => {
   const root = SugarElement.fromDom(editor.getBody());
   const range = shouldStore(editor) ? Optional.from(rng) : Optional.none<Range>();
 
@@ -93,14 +85,14 @@ const storeNative = (editor: Editor, rng: Range) => {
 };
 
 const getRng = (editor: Editor): Optional<Range> => {
-  const bookmark = editor.bookmark ? editor.bookmark : Optional.none<SimRange>();
+  const bookmark: Optional<SimRange> = editor.bookmark ? editor.bookmark : Optional.none();
 
   return bookmark
     .bind((x) => validate(SugarElement.fromDom(editor.getBody()), x))
     .bind(bookmarkToNativeRng);
 };
 
-const restore = (editor: Editor) => {
+const restore = (editor: Editor): void => {
   getRng(editor).each((rng) => editor.selection.setRng(rng));
 };
 

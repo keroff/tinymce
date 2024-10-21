@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Cell, Optional, Singleton, Throttler } from '@ephox/katamari';
 
 import Editor from '../api/Editor';
@@ -33,12 +26,12 @@ const isFarEnough = (touch: Touch, data: TouchHistoryData): boolean => {
   return distX > SIGNIFICANT_MOVE || distY > SIGNIFICANT_MOVE;
 };
 
-const setup = (editor: Editor) => {
+const setup = (editor: Editor): void => {
   const startData = Singleton.value<TouchHistoryData>();
   const longpressFired = Cell<boolean>(false);
 
   const debounceLongpress = Throttler.last((e) => {
-    editor.fire('longpress', { ...e, type: 'longpress' });
+    editor.dispatch('longpress', { ...e, type: 'longpress' });
     longpressFired.set(true);
   }, LONGPRESS_DELAY);
 
@@ -65,7 +58,7 @@ const setup = (editor: Editor) => {
         if (isFarEnough(touch, data)) {
           startData.clear();
           longpressFired.set(false);
-          editor.fire('longpresscancel');
+          editor.dispatch('longpresscancel');
         }
       });
     });
@@ -85,7 +78,7 @@ const setup = (editor: Editor) => {
         if (longpressFired.get()) {
           e.preventDefault();
         } else {
-          editor.fire('tap', { ...e, type: 'tap' });
+          editor.dispatch('tap', { ...e, type: 'tap' });
         }
       });
   }, true);

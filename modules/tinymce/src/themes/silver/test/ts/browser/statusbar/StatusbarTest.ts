@@ -3,38 +3,65 @@ import { before, describe, it } from '@ephox/bedrock-client';
 import { McEditor, TinyDom } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import { RawEditorSettings } from 'tinymce/core/api/SettingsTypes';
+import { RawEditorOptions } from 'tinymce/core/api/OptionTypes';
 import WordcountPlugin from 'tinymce/plugins/wordcount/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.themes.silver.statusbar.StatusbarTest', () => {
   before(() => {
-    Theme();
     WordcountPlugin(5);
   });
+
+  const elementPathSpec: ApproxStructure.Builder<StructAssert> = (s, str, arr) =>
+    s.element('div', {
+      classes: [ arr.has('tox-statusbar__path') ],
+      children: [
+        s.element('div', { children: [ s.text(str.is('p')) ] }),
+        s.element('div', { children: [ s.text(str.is(' › ')) ] }),
+        s.element('div', { children: [ s.text(str.is('strong')) ] }),
+        s.element('div', { children: [ s.text(str.is(' › ')) ] }),
+        s.element('div', { children: [ s.text(str.is('em')) ] })
+      ]
+    });
+
+  const brandingSpec: ApproxStructure.Builder<StructAssert> = (s, str, arr) =>
+    s.element('span', {
+      classes: [ arr.has('tox-statusbar__branding') ],
+      children: [
+        s.element('a', {
+          attrs: {
+            'aria-label': str.is('Powered by Tiny')
+          },
+          children: [
+            s.element('svg', {})
+          ]
+        })
+      ]
+    });
+
+  const helpTextSpec: ApproxStructure.Builder<StructAssert> = (s, _, arr) =>
+    s.element('div', {
+      classes: [ arr.has('tox-statusbar__help-text') ]
+    });
+
+  const rightContainerSpec: ApproxStructure.Builder<StructAssert> = (s, str, arr) =>
+    s.element('div', {
+      classes: [ arr.has('tox-statusbar__right-container') ],
+      children: [
+        s.element('button', {
+          classes: [ arr.has('tox-statusbar__wordcount') ],
+          children: [ s.text(str.is('2 words')) ]
+        }),
+        brandingSpec(s, str, arr)
+      ]
+    });
 
   const fullStatusbarSpec: ApproxStructure.Builder<StructAssert[]> = (s, str, arr) => [
     s.element('div', {
       classes: [ arr.has('tox-statusbar__text-container') ],
       children: [
-        s.element('div', {
-          classes: [ arr.has('tox-statusbar__path') ],
-          children: [
-            s.element('div', { children: [ s.text(str.is('p')) ] }),
-            s.element('div', { children: [ s.text(str.is(' » ')) ] }),
-            s.element('div', { children: [ s.text(str.is('strong')) ] })
-          ]
-        }),
-        s.element('button', {
-          classes: [ arr.has('tox-statusbar__wordcount') ],
-          children: [ s.text(str.is('2 words')) ]
-        }),
-        s.element('span', {
-          classes: [ arr.has('tox-statusbar__branding') ],
-          children: [
-            s.element('a', { children: [ s.text(str.is('Powered by Tiny')) ] })
-          ]
-        })
+        elementPathSpec(s, str, arr),
+        helpTextSpec(s, str, arr),
+        rightContainerSpec(s, str, arr)
       ]
     }),
     s.element('div', {
@@ -46,19 +73,10 @@ describe('browser.tinymce.themes.silver.statusbar.StatusbarTest', () => {
     s.element('div', {
       classes: [ arr.has('tox-statusbar__text-container') ],
       children: [
+        elementPathSpec(s, str, arr),
         s.element('div', {
-          classes: [ arr.has('tox-statusbar__path') ],
-          children: [
-            s.element('div', { children: [ s.text(str.is('p')) ] }),
-            s.element('div', { children: [ s.text(str.is(' » ')) ] }),
-            s.element('div', { children: [ s.text(str.is('strong')) ] })
-          ]
-        }),
-        s.element('span', {
-          classes: [ arr.has('tox-statusbar__branding') ],
-          children: [
-            s.element('a', { children: [ s.text(str.is('Powered by Tiny')) ] })
-          ]
+          classes: [ arr.has('tox-statusbar__right-container') ],
+          children: [ brandingSpec(s, str, arr) ]
         })
       ]
     }),
@@ -71,45 +89,72 @@ describe('browser.tinymce.themes.silver.statusbar.StatusbarTest', () => {
     s.element('div', {
       classes: [ arr.has('tox-statusbar__text-container') ],
       children: [
+        elementPathSpec(s, str, arr),
         s.element('div', {
-          classes: [ arr.has('tox-statusbar__path') ],
-          children: [
-            s.element('div', { children: [ s.text(str.is('p')) ] }),
-            s.element('div', { children: [ s.text(str.is(' » ')) ] }),
-            s.element('div', { children: [ s.text(str.is('strong')) ] })
-          ]
-        }),
-        s.element('span', {
-          classes: [ arr.has('tox-statusbar__branding') ],
-          children: [
-            s.element('a', { children: [ s.text(str.is('Powered by Tiny')) ] })
-          ]
+          classes: [ arr.has('tox-statusbar__right-container') ],
+          children: [ brandingSpec(s, str, arr) ]
         })
       ]
     })
   ];
 
-  const makeTest = (config: RawEditorSettings, structureLabel: string, editorStructure: StructAssert) => async () => {
+  const statusbarResizeHandleLabelSpec = (label: string): ApproxStructure.Builder<StructAssert> =>
+    (s, str, arr) => s.element('div', {
+      classes: [ arr.has('tox-tinymce') ],
+      children: [
+        s.element('div', {
+          classes: [ arr.has('tox-editor-container') ],
+          children: [
+            s.anything(),
+            s.anything(),
+            s.anything(),
+            s.element('div', {
+              classes: [ arr.has('tox-statusbar') ],
+              children: [
+                s.anything(),
+                s.element('div', {
+                  classes: [ arr.has('tox-statusbar__resize-handle') ],
+                  attrs: {
+                    'title': str.is('Resize'),
+                    'aria-label': str.is(label)
+                  }
+                })
+              ]
+            })
+          ]
+        }),
+        s.theRest()
+      ]
+    });
+
+  const makeTest = (config: RawEditorOptions, structureLabel: string, editorStructure: StructAssert) => async () => {
     const editor = await McEditor.pFromSettings<Editor>({
       base_url: '/project/tinymce/js/tinymce',
       ...config
     });
     editor.focus();
-    editor.setContent('<p><strong>hello world</strong></p>');
+    editor.setContent('<p><strong><em>hello world</em></strong></p>');
     await Waiter.pTryUntil('Wait for editor structure', () => Assertions.assertStructure(structureLabel, editorStructure, TinyDom.container(editor)));
     McEditor.remove(editor);
   };
 
   it('TBA: Full statusbar', makeTest(
-    { plugins: 'wordcount' },
+    { plugins: 'wordcount help' },
     'Full statusbar structure',
     ApproxStructure.build((s, str, arr) => s.element('div', {
       classes: [ arr.has('tox-tinymce') ],
       children: [
-        s.anything(),
         s.element('div', {
-          classes: [ arr.has('tox-statusbar') ],
-          children: fullStatusbarSpec(s, str, arr)
+          classes: [ arr.has('tox-editor-container') ],
+          children: [
+            s.anything(),
+            s.anything(),
+            s.anything(),
+            s.element('div', {
+              classes: [ arr.has('tox-statusbar') ],
+              children: fullStatusbarSpec(s, str, arr)
+            })
+          ]
         }),
         s.theRest()
       ]
@@ -122,10 +167,51 @@ describe('browser.tinymce.themes.silver.statusbar.StatusbarTest', () => {
     ApproxStructure.build((s, str, arr) => s.element('div', {
       classes: [ arr.has('tox-tinymce') ],
       children: [
-        s.anything(),
         s.element('div', {
-          classes: [ arr.has('tox-statusbar') ],
-          children: statusbarWithoutWordcountSpec(s, str, arr)
+          classes: [ arr.has('tox-editor-container') ],
+          children: [
+            s.anything(),
+            s.anything(),
+            s.anything(),
+            s.element('div', {
+              classes: [ arr.has('tox-statusbar') ],
+              children: statusbarWithoutWordcountSpec(s, str, arr)
+            })
+          ]
+        }),
+        s.theRest()
+      ]
+    }))
+  ));
+
+  it('TINY-9379: Full statusbar with help_accessibility option set to false', makeTest(
+    { plugins: 'wordcount help', help_accessibility: false },
+    'Full statusbar structure',
+    ApproxStructure.build((s, str, arr) => s.element('div', {
+      classes: [ arr.has('tox-tinymce') ],
+      children: [
+        s.element('div', {
+          classes: [ arr.has('tox-editor-container') ],
+          children: [
+            s.anything(),
+            s.anything(),
+            s.anything(),
+            s.element('div', {
+              classes: [ arr.has('tox-statusbar') ],
+              children: [
+                s.element('div', {
+                  classes: [ arr.has('tox-statusbar__text-container') ],
+                  children: [
+                    elementPathSpec(s, str, arr),
+                    rightContainerSpec(s, str, arr)
+                  ]
+                }),
+                s.element('div', {
+                  classes: [ arr.has('tox-statusbar__resize-handle') ]
+                })
+              ]
+            })
+          ]
         }),
         s.theRest()
       ]
@@ -138,10 +224,17 @@ describe('browser.tinymce.themes.silver.statusbar.StatusbarTest', () => {
     ApproxStructure.build((s, str, arr) => s.element('div', {
       classes: [ arr.has('tox-tinymce') ],
       children: [
-        s.anything(),
         s.element('div', {
-          classes: [ arr.has('tox-statusbar') ],
-          children: statusbarWithoutResizeSpec(s, str, arr)
+          classes: [ arr.has('tox-editor-container') ],
+          children: [
+            s.anything(),
+            s.anything(),
+            s.anything(),
+            s.element('div', {
+              classes: [ arr.has('tox-statusbar') ],
+              children: statusbarWithoutResizeSpec(s, str, arr)
+            })
+          ]
         }),
         s.theRest()
       ]
@@ -154,7 +247,12 @@ describe('browser.tinymce.themes.silver.statusbar.StatusbarTest', () => {
     ApproxStructure.build((s, str, arr) => s.element('div', {
       classes: [ arr.has('tox-tinymce') ],
       children: [
-        s.anything(),
+        s.element('div', {
+          classes: [ arr.has('tox-editor-container') ]
+        }),
+        s.element('div', {
+          classes: [ arr.has('tox-view-wrap') ]
+        }),
         s.element('div', {
           classes: [ arr.has('tox-throbber') ]
         })
@@ -178,19 +276,26 @@ describe('browser.tinymce.themes.silver.statusbar.StatusbarTest', () => {
       ApproxStructure.build((s, str, arr) => s.element('div', {
         classes: [ arr.has('tox-tinymce') ],
         children: [
-          s.anything(),
           s.element('div', {
-            classes: [ arr.has('tox-statusbar') ],
+            classes: [ arr.has('tox-editor-container') ],
             children: [
+              s.anything(),
+              s.anything(),
+              s.anything(),
               s.element('div', {
-                classes: [ arr.has('tox-statusbar__text-container') ],
+                classes: [ arr.has('tox-statusbar') ],
                 children: [
                   s.element('div', {
-                    classes: [ arr.has('tox-statusbar__path') ],
+                    classes: [ arr.has('tox-statusbar__text-container') ],
                     children: [
-                      s.element('div', { children: [ s.text(str.is('p')) ] }),
-                      s.element('div', { children: [ s.text(str.is(' » ')) ] }),
-                      s.element('div', { children: [ s.text(str.is('strong')) ] })
+                      s.element('div', {
+                        classes: [ arr.has('tox-statusbar__path') ],
+                        children: [
+                          s.element('div', { children: [ s.text(str.is('p')) ] }),
+                          s.element('div', { children: [ s.text(str.is(' › ')) ] }),
+                          s.element('div', { children: [ s.text(str.is('strong')) ] })
+                        ]
+                      })
                     ]
                   })
                 ]
@@ -203,28 +308,35 @@ describe('browser.tinymce.themes.silver.statusbar.StatusbarTest', () => {
       editorContainer
     ));
 
-    const button = UiFinder.findIn(editorContainer, 'button[aria-label="Bold"]').getOrDie();
+    const button = UiFinder.findIn<HTMLButtonElement>(editorContainer, 'button[aria-label="Bold"]').getOrDie();
     Mouse.trueClick(button);
     await Waiter.pTryUntil('', () => Assertions.assertStructure(
       'Check p element path',
       ApproxStructure.build((s, str, arr) => s.element('div', {
         classes: [ arr.has('tox-tinymce') ],
         children: [
-          s.anything(),
           s.element('div', {
-            classes: [ arr.has('tox-statusbar') ],
+            classes: [ arr.has('tox-editor-container') ],
             children: [
+              s.anything(),
+              s.anything(),
+              s.anything(),
               s.element('div', {
-                classes: [ arr.has('tox-statusbar__text-container') ],
+                classes: [ arr.has('tox-statusbar') ],
                 children: [
                   s.element('div', {
-                    classes: [ arr.has('tox-statusbar__path') ],
+                    classes: [ arr.has('tox-statusbar__text-container') ],
                     children: [
-                      s.element('div', { children: [ s.text(str.is('p')) ] })
+                      s.element('div', {
+                        classes: [ arr.has('tox-statusbar__path') ],
+                        children: [
+                          s.element('div', { children: [ s.text(str.is('p')) ] })
+                        ]
+                      })
                     ]
                   })
                 ]
-              })
+              }),
             ]
           }),
           s.theRest()
@@ -235,4 +347,20 @@ describe('browser.tinymce.themes.silver.statusbar.StatusbarTest', () => {
 
     McEditor.remove(editor);
   });
+
+  it('TINY-9793: Resize handle has correct announcement when true', makeTest(
+    { resize: true },
+    'Resize vertical only',
+    ApproxStructure.build(statusbarResizeHandleLabelSpec(
+      'Press the Up and Down arrow keys to resize the editor.'
+    ))
+  ));
+
+  it('TINY-9793: Resize handle has correct announcement when both', makeTest(
+    { resize: 'both' },
+    'Resize both',
+    ApproxStructure.build(statusbarResizeHandleLabelSpec(
+      'Press the arrow keys to resize the editor.'
+    ))
+  ));
 });

@@ -1,11 +1,5 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import * as NodeType from '../dom/NodeType';
+import * as PaddingBr from '../dom/PaddingBr';
 import * as Zwsp from '../text/Zwsp';
 import { CaretPosition } from './CaretPosition';
 
@@ -20,7 +14,7 @@ import { CaretPosition } from './CaretPosition';
 const isElement = NodeType.isElement;
 const isText = NodeType.isText;
 
-const isCaretContainerBlock = (node: Node | null): node is Element => {
+const isCaretContainerBlock = (node: Node | null | undefined): node is Text | Element => {
   if (isText(node)) {
     node = node.parentNode;
   }
@@ -28,17 +22,17 @@ const isCaretContainerBlock = (node: Node | null): node is Element => {
   return isElement(node) && node.hasAttribute('data-mce-caret');
 };
 
-const isCaretContainerInline = (node: Node | null): node is Text =>
+const isCaretContainerInline = (node: Node | null | undefined): node is Text =>
   isText(node) && Zwsp.isZwsp(node.data);
 
-const isCaretContainer = (node: Node | null): boolean =>
+const isCaretContainer = (node: Node | null | undefined): boolean =>
   isCaretContainerBlock(node) || isCaretContainerInline(node);
 
 const hasContent = (node: Node): boolean =>
   node.firstChild !== node.lastChild || !NodeType.isBr(node.firstChild);
 
-const insertInline = (node: Node, before: boolean): Node => {
-  const doc = node.ownerDocument;
+const insertInline = (node: Node, before: boolean): Text => {
+  const doc = node.ownerDocument ?? document;
   const textNode = doc.createTextNode(Zwsp.ZWSP);
   const parentNode = node.parentNode;
 
@@ -56,9 +50,9 @@ const insertInline = (node: Node, before: boolean): Node => {
     }
 
     if (node.nextSibling) {
-      parentNode.insertBefore(textNode, node.nextSibling);
+      parentNode?.insertBefore(textNode, node.nextSibling);
     } else {
-      parentNode.appendChild(textNode);
+      parentNode?.appendChild(textNode);
     }
   } else {
     const sibling = node.previousSibling;
@@ -72,7 +66,7 @@ const insertInline = (node: Node, before: boolean): Node => {
       }
     }
 
-    parentNode.insertBefore(textNode, node);
+    parentNode?.insertBefore(textNode, node);
   }
 
   return textNode;
@@ -90,7 +84,7 @@ const prependInline = (node: Node | null): Node | null => {
   }
 };
 
-const appendInline = (node: Node | null): Node | null => {
+const appendInline = (node: Node | null): Text | null => {
   if (NodeType.isText(node)) {
     const data = node.data;
     if (data.length > 0 && data.charAt(data.length - 1) !== Zwsp.ZWSP) {
@@ -122,28 +116,22 @@ const isAfterInline = (pos: CaretPosition): boolean => {
   return container.data.charAt(pos.offset() - 1) === Zwsp.ZWSP || pos.isAtEnd() && isCaretContainerInline(container.nextSibling);
 };
 
-const createBogusBr = (): Element => {
-  const br = document.createElement('br');
-  br.setAttribute('data-mce-bogus', '1');
-  return br;
-};
-
-const insertBlock = (blockName: string, node: Node, before: boolean): Node => {
-  const doc = node.ownerDocument;
+const insertBlock = (blockName: string, node: Node, before: boolean): HTMLElement => {
+  const doc = node.ownerDocument ?? document;
   const blockNode = doc.createElement(blockName);
   blockNode.setAttribute('data-mce-caret', before ? 'before' : 'after');
   blockNode.setAttribute('data-mce-bogus', 'all');
-  blockNode.appendChild(createBogusBr());
+  blockNode.appendChild(PaddingBr.createPaddingBr().dom);
   const parentNode = node.parentNode;
 
   if (!before) {
     if (node.nextSibling) {
-      parentNode.insertBefore(blockNode, node.nextSibling);
+      parentNode?.insertBefore(blockNode, node.nextSibling);
     } else {
-      parentNode.appendChild(blockNode);
+      parentNode?.appendChild(blockNode);
     }
   } else {
-    parentNode.insertBefore(blockNode, node);
+    parentNode?.insertBefore(blockNode, node);
   }
 
   return blockNode;
@@ -159,7 +147,7 @@ const trimBogusBr = (elm: Element): void => {
   const brs = elm.getElementsByTagName('br');
   const lastBr = brs[brs.length - 1];
   if (NodeType.isBogus(lastBr)) {
-    lastBr.parentNode.removeChild(lastBr);
+    lastBr.parentNode?.removeChild(lastBr);
   }
 };
 
@@ -169,6 +157,7 @@ const showCaretContainerBlock = (caretContainer: Element): Element | null => {
     caretContainer.removeAttribute('data-mce-caret');
     caretContainer.removeAttribute('data-mce-bogus');
     caretContainer.removeAttribute('style');
+    caretContainer.removeAttribute('data-mce-style');
     caretContainer.removeAttribute('_moz_abspos');
     return caretContainer;
   }

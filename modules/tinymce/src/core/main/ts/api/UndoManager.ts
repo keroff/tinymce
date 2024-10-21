@@ -1,14 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Cell, Singleton } from '@ephox/katamari';
+import { Arr, Cell, Singleton } from '@ephox/katamari';
 
 import { Bookmark } from '../bookmark/BookmarkTypes';
+import * as GetBookmark from '../bookmark/GetBookmark';
 import * as Rtc from '../Rtc';
+import * as Levels from '../undo/Levels';
 import { addKeyboardShortcuts, registerEvents } from '../undo/Setup';
 import { Index, Locks, UndoLevel, UndoManager } from '../undo/UndoManagerTypes';
 import Editor from './Editor';
@@ -51,10 +46,25 @@ const UndoManager = (editor: Editor): UndoManager => {
      * @method add
      * @param {Object} level Optional undo level object to add.
      * @param {DOMEvent} event Optional event responsible for the creation of the undo level.
-     * @return {Object} Undo level that got added or null it a level wasn't needed.
+     * @return {Object} Undo level that got added or null if a level wasn't needed.
      */
-    add: (level?: UndoLevel, event?: Event): UndoLevel => {
+    add: (level?: Partial<UndoLevel>, event?: Event): UndoLevel | null => {
       return Rtc.addUndoLevel(editor, undoManager, index, locks, beforeBookmark, level, event);
+    },
+
+    /**
+     * Dispatch a change event with current editor status as level and current undoManager layer as lastLevel
+     *
+     * @method dispatchChange
+     */
+    dispatchChange: (): void => {
+      editor.setDirty(true);
+      const level = Levels.createFromEditor(editor) as UndoLevel;
+      level.bookmark = GetBookmark.getUndoBookmark(editor.selection);
+      editor.dispatch('change', {
+        level,
+        lastLevel: Arr.get(undoManager.data, index.get()).getOrUndefined()
+      });
     },
 
     /**
@@ -63,7 +73,7 @@ const UndoManager = (editor: Editor): UndoManager => {
      * @method undo
      * @return {Object} Undo level or null if no undo was performed.
      */
-    undo: (): UndoLevel => {
+    undo: (): UndoLevel | undefined => {
       return Rtc.undo(editor, undoManager, locks, index);
     },
 
@@ -73,7 +83,7 @@ const UndoManager = (editor: Editor): UndoManager => {
      * @method redo
      * @return {Object} Redo level or null if no redo was performed.
      */
-    redo: (): UndoLevel => {
+    redo: (): UndoLevel | undefined => {
       return Rtc.redo(editor, index, undoManager.data);
     },
 
@@ -122,10 +132,10 @@ const UndoManager = (editor: Editor): UndoManager => {
      * be ignored. So a translation can include calls to execCommand or editor.insertContent.
      *
      * @method transact
-     * @param {function} callback Function that gets executed and has dom manipulation logic in it.
+     * @param {Function} callback Function that gets executed and has dom manipulation logic in it.
      * @return {Object} Undo level that got added or null it a level wasn't needed.
      */
-    transact: (callback: () => void): UndoLevel => {
+    transact: (callback: () => void): UndoLevel | null => {
       return Rtc.transact(editor, undoManager, locks, callback);
     },
 
@@ -135,7 +145,7 @@ const UndoManager = (editor: Editor): UndoManager => {
      * include calls to execCommand or editor.insertContent.
      *
      * @method ignore
-     * @param {function} callback Function that gets executed and has dom manipulation logic in it.
+     * @param {Function} callback Function that gets executed and has dom manipulation logic in it.
      */
     ignore: (callback: () => void) => {
       Rtc.ignore(editor, locks, callback);
@@ -147,8 +157,8 @@ const UndoManager = (editor: Editor): UndoManager => {
      * undo level that the user doesn't see until they undo.
      *
      * @method extra
-     * @param {function} callback1 Function that does mutation but gets stored as a "hidden" extra undo level.
-     * @param {function} callback2 Function that does mutation but gets displayed to the user.
+     * @param {Function} callback1 Function that does mutation but gets stored as a "hidden" extra undo level.
+     * @param {Function} callback2 Function that does mutation but gets displayed to the user.
      */
     extra: (callback1: () => void, callback2: () => void) => {
       Rtc.extra(editor, undoManager, index, callback1, callback2);

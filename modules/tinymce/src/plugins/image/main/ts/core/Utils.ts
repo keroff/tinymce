@@ -1,19 +1,10 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Type } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
 import { StyleMap } from 'tinymce/core/api/html/Styles';
-import Promise from 'tinymce/core/api/util/Promise';
 import URI from 'tinymce/core/api/util/URI';
-import XHR from 'tinymce/core/api/util/XHR';
 
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import { UserListItem } from '../ui/DialogTypes';
 import { ImageData } from './ImageData';
 
@@ -112,15 +103,15 @@ const mergeMargins = (css: StyleMap): StyleMap => {
 
 // TODO: Input on this callback should really be validated
 const createImageList = (editor: Editor, callback: (imageList: false | UserListItem[]) => void): void => {
-  const imageList = Settings.getImageList(editor);
+  const imageList = Options.getImageList(editor);
 
   if (Type.isString(imageList)) {
-    XHR.send({
-      url: imageList,
-      success: (text) => {
-        callback(JSON.parse(text));
-      }
-    });
+    fetch(imageList)
+      .then((res) => {
+        if (res.ok) {
+          res.json().then(callback);
+        }
+      });
   } else if (Type.isFunction(imageList)) {
     imageList(callback);
   } else {
@@ -139,7 +130,7 @@ const waitLoadImage = (editor: Editor, data: ImageData, imgElm: HTMLElement): vo
   };
 
   imgElm.onload = () => {
-    if (!data.width && !data.height && Settings.hasDimensions(editor)) {
+    if (!data.width && !data.height && Options.hasDimensions(editor)) {
       editor.dom.setAttribs(imgElm, {
         width: String(imgElm.clientWidth),
         height: String(imgElm.clientHeight)
@@ -158,7 +149,7 @@ const blobToDataUri = (blob: Blob): Promise<string> => new Promise((resolve, rej
     resolve(reader.result as string);
   };
   reader.onerror = () => {
-    reject(reader.error.message);
+    reject(reader.error?.message);
   };
   reader.readAsDataURL(blob);
 });
@@ -166,8 +157,14 @@ const blobToDataUri = (blob: Blob): Promise<string> => new Promise((resolve, rej
 const isPlaceholderImage = (imgElm: Element): imgElm is HTMLImageElement =>
   imgElm.nodeName === 'IMG' && (imgElm.hasAttribute('data-mce-object') || imgElm.hasAttribute('data-mce-placeholder'));
 
-const isSafeImageUrl = (editor: Editor, src: string): boolean =>
-  URI.isDomSafe(src, 'img', editor.settings);
+const isSafeImageUrl = (editor: Editor, src: string): boolean => {
+  const getOption = editor.options.get;
+  return URI.isDomSafe(src, 'img', {
+    allow_html_data_urls: getOption('allow_html_data_urls'),
+    allow_script_urls: getOption('allow_script_urls'),
+    allow_svg_data_urls: getOption('allow_svg_data_urls')
+  });
+};
 
 export {
   getImageSize,

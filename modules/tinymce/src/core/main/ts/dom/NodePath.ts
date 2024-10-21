@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import DOMUtils from '../api/dom/DOMUtils';
 
 /**
@@ -17,8 +10,8 @@ import DOMUtils from '../api/dom/DOMUtils';
 const create = (rootNode: Node, targetNode: Node, normalized?: boolean): number[] => {
   const path: number[] = [];
 
-  for (; targetNode && targetNode !== rootNode; targetNode = targetNode.parentNode) {
-    path.push(DOMUtils.nodeIndex(targetNode, normalized));
+  for (let node: Node | null = targetNode; node && node !== rootNode; node = node.parentNode) {
+    path.push(DOMUtils.nodeIndex(node, normalized));
   }
 
   return path;

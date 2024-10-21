@@ -1,21 +1,14 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Optional } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
 import { Dialog } from 'tinymce/core/api/ui/Ui';
 
-import { getCellClassList } from '../api/Settings';
+import * as Options from '../api/Options';
 import { verticalAlignValues } from './CellAlignValues';
 import * as UiUtils from './UiUtils';
 
 const getClassList = (editor: Editor): Optional<Dialog.ListBoxSpec> => {
-  const classes = UiUtils.buildListItems(getCellClassList(editor));
+  const classes = UiUtils.buildListItems(Options.getCellClassList(editor));
   if (classes.length > 0) {
     return Optional.some({
       name: 'class',

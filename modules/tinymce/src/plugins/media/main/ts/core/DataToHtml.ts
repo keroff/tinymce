@@ -1,26 +1,22 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import Editor from 'tinymce/core/api/Editor';
 import Tools from 'tinymce/core/api/util/Tools';
 
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import * as HtmlToData from './HtmlToData';
 import * as Mime from './Mime';
 import { MediaData } from './Types';
 import * as UpdateHtml from './UpdateHtml';
 import * as UrlPatterns from './UrlPatterns';
-import * as VideoScript from './VideoScript';
 
 export type DataToHtmlCallback = (data: MediaData) => string;
 
-const getIframeHtml = (data: MediaData): string => {
-  const allowFullscreen = data.allowfullscreen ? ' allowFullscreen="1"' : '';
-  return '<iframe src="' + data.source + '" width="' + data.width + '" height="' + data.height + '"' + allowFullscreen + '></iframe>';
+const getIframeHtml = (data: MediaData, iframeTemplateCallback: DataToHtmlCallback | undefined): string => {
+  if (iframeTemplateCallback) {
+    return iframeTemplateCallback(data);
+  } else {
+    const allowFullscreen = data.allowfullscreen ? ' allowFullscreen="1"' : '';
+    return '<iframe src="' + data.source + '" width="' + data.width + '" height="' + data.height + '"' + allowFullscreen + '></iframe>';
+  }
 };
 
 const getFlashHtml = (data: MediaData): string => {
@@ -35,7 +31,7 @@ const getFlashHtml = (data: MediaData): string => {
   return html;
 };
 
-const getAudioHtml = (data: MediaData, audioTemplateCallback: DataToHtmlCallback): string => {
+const getAudioHtml = (data: MediaData, audioTemplateCallback: DataToHtmlCallback | undefined): string => {
   if (audioTemplateCallback) {
     return audioTemplateCallback(data);
   } else {
@@ -51,7 +47,7 @@ const getAudioHtml = (data: MediaData, audioTemplateCallback: DataToHtmlCallback
   }
 };
 
-const getVideoHtml = (data: MediaData, videoTemplateCallback: DataToHtmlCallback): string => {
+const getVideoHtml = (data: MediaData, videoTemplateCallback: DataToHtmlCallback | undefined): string => {
   if (videoTemplateCallback) {
     return videoTemplateCallback(data);
   } else {
@@ -68,15 +64,11 @@ const getVideoHtml = (data: MediaData, videoTemplateCallback: DataToHtmlCallback
   }
 };
 
-const getScriptHtml = (data: MediaData): string => {
-  return '<script src="' + data.source + '"></script>';
-};
-
 const dataToHtml = (editor: Editor, dataIn: MediaData): string => {
   const data: MediaData = Tools.extend({}, dataIn);
 
   if (!data.source) {
-    Tools.extend(data, HtmlToData.htmlToData(Settings.getScripts(editor), data.embed));
+    Tools.extend(data, HtmlToData.htmlToData(data.embed ?? '', editor.schema));
     if (!data.source) {
       return '';
     }
@@ -107,33 +99,25 @@ const dataToHtml = (editor: Editor, dataIn: MediaData): string => {
   }
 
   if (data.embed) {
-    return UpdateHtml.updateHtml(data.embed, data, true);
+    return UpdateHtml.updateHtml(data.embed, data, true, editor.schema);
   } else {
-    const videoScript = VideoScript.getVideoScriptMatch(Settings.getScripts(editor), data.source);
-    if (videoScript) {
-      data.type = 'script';
-      data.width = String(videoScript.width);
-      data.height = String(videoScript.height);
-    }
-
-    const audioTemplateCallback = Settings.getAudioTemplateCallback(editor);
-    const videoTemplateCallback = Settings.getVideoTemplateCallback(editor);
+    const audioTemplateCallback = Options.getAudioTemplateCallback(editor);
+    const videoTemplateCallback = Options.getVideoTemplateCallback(editor);
+    const iframeTemplateCallback = Options.getIframeTemplateCallback(editor);
 
     data.width = data.width || '300';
     data.height = data.height || '150';
 
     Tools.each(data, (value, key) => {
-      data[key] = editor.dom.encode('' + value);
+      (data as Record<string, string>)[key] = editor.dom.encode('' + value);
     });
 
     if (data.type === 'iframe') {
-      return getIframeHtml(data);
+      return getIframeHtml(data, iframeTemplateCallback);
     } else if (data.sourcemime === 'application/x-shockwave-flash') {
       return getFlashHtml(data);
     } else if (data.sourcemime.indexOf('audio') !== -1) {
       return getAudioHtml(data, audioTemplateCallback);
-    } else if (data.type === 'script') {
-      return getScriptHtml(data);
     } else {
       return getVideoHtml(data, videoTemplateCallback);
     }

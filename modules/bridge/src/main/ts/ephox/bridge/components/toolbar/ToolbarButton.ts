@@ -1,8 +1,10 @@
-import { FieldSchema, StructureSchema } from '@ephox/boulder';
-import { Fun, Optional, Result } from '@ephox/katamari';
+import { StructureSchema } from '@ephox/boulder';
+import { Optional, Result } from '@ephox/katamari';
+
+import * as ComponentSchema from '../../core/ComponentSchema';
 
 export interface BaseToolbarButtonSpec<I extends BaseToolbarButtonInstanceApi> {
-  disabled?: boolean;
+  enabled?: boolean;
   tooltip?: string;
   icon?: string;
   text?: string;
@@ -10,8 +12,10 @@ export interface BaseToolbarButtonSpec<I extends BaseToolbarButtonInstanceApi> {
 }
 
 export interface BaseToolbarButtonInstanceApi {
-  isDisabled: () => boolean;
-  setDisabled: (state: boolean) => void;
+  isEnabled: () => boolean;
+  setEnabled: (state: boolean) => void;
+  setText: (text: string) => void;
+  setIcon: (icon: string) => void;
 }
 
 export interface ToolbarButtonSpec extends BaseToolbarButtonSpec<ToolbarButtonInstanceApi> {
@@ -25,7 +29,7 @@ export interface ToolbarButtonInstanceApi extends BaseToolbarButtonInstanceApi {
 }
 
 export interface BaseToolbarButton<I extends BaseToolbarButtonInstanceApi> {
-  disabled: boolean;
+  enabled: boolean;
   tooltip: Optional<string>;
   icon: Optional<string>;
   text: Optional<string>;
@@ -38,16 +42,16 @@ export interface ToolbarButton extends BaseToolbarButton<ToolbarButtonInstanceAp
 }
 
 export const baseToolbarButtonFields = [
-  FieldSchema.defaultedBoolean('disabled', false),
-  FieldSchema.optionString('tooltip'),
-  FieldSchema.optionString('icon'),
-  FieldSchema.optionString('text'),
-  FieldSchema.defaultedFunction('onSetup', () => Fun.noop)
+  ComponentSchema.enabled,
+  ComponentSchema.optionalTooltip,
+  ComponentSchema.optionalIcon,
+  ComponentSchema.optionalText,
+  ComponentSchema.onSetup
 ];
 
 export const toolbarButtonSchema = StructureSchema.objOf([
-  FieldSchema.requiredString('type'),
-  FieldSchema.requiredFunction('onAction')
+  ComponentSchema.type,
+  ComponentSchema.onAction
 ].concat(baseToolbarButtonFields));
 
 export const createToolbarButton = (spec: ToolbarButtonSpec): Result<ToolbarButton, StructureSchema.SchemaError<any>> =>

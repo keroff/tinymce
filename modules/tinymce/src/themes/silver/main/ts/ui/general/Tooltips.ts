@@ -1,18 +1,13 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Tooltipping } from '@ephox/alloy';
+import { GuiFactory, Tooltipping } from '@ephox/alloy';
 
 import { UiFactoryBackstageShared } from '../../backstage/Backstage';
+
+type TooltippingBehaviour = ReturnType<typeof Tooltipping['config']>;
 
 // TODO: Consider using this once we fix the delayed attempt to appear after it's gone problem.
 
 // TODO: Make the arrow configurable.
-const upConfig = (item, sharedBackstage: UiFactoryBackstageShared) => Tooltipping.config({
+const upConfig = (item: { text: string }, sharedBackstage: UiFactoryBackstageShared): TooltippingBehaviour => Tooltipping.config({
   delay: 200,
   exclusive: true,
   lazySink: sharedBackstage.getSink,
@@ -29,9 +24,11 @@ const upConfig = (item, sharedBackstage: UiFactoryBackstageShared) => Tooltippin
     {
       dom: {
         tag: 'div',
-        classes: [ 'tox-tooltip__body' ],
-        innerHtml: item.text
-      }
+        classes: [ 'tox-tooltip__body' ]
+      },
+      components: [
+        GuiFactory.text(item.text)
+      ]
     },
     {
       dom: {

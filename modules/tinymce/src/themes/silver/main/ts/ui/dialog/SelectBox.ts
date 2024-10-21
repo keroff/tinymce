@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import {
   AddEventsBehaviour, AlloyEvents, AlloySpec, AlloyTriggers, Behaviour, Disabling, FormField as AlloyFormField, HtmlSelect as AlloyHtmlSelect,
   NativeEvents, SimpleSpec, SketchSpec, Tabstopping
@@ -21,7 +14,7 @@ import { formChangeEvent } from '../general/FormEvents';
 
 type SelectBoxSpec = Omit<Dialog.SelectBox, 'type'>;
 
-export const renderSelectBox = (spec: SelectBoxSpec, providersBackstage: UiFactoryBackstageProviders): SketchSpec => {
+export const renderSelectBox = (spec: SelectBoxSpec, providersBackstage: UiFactoryBackstageProviders, initialData: Optional<string>): SketchSpec => {
   const translatedOptions = Arr.map(spec.items, (item) => ({
     text: providersBackstage.translate(item.text),
     value: item.value
@@ -33,6 +26,7 @@ export const renderSelectBox = (spec: SelectBoxSpec, providersBackstage: UiFacto
   const pField = AlloyFormField.parts.field({
     // TODO: Alloy should not allow dom changing of an HTML select!
     dom: { },
+    ...initialData.map((data) => ({ data })).getOr({}),
     selectAttributes: {
       size: spec.size
     },
@@ -40,7 +34,7 @@ export const renderSelectBox = (spec: SelectBoxSpec, providersBackstage: UiFacto
     factory: AlloyHtmlSelect,
     selectBehaviours: Behaviour.derive([
       Disabling.config({
-        disabled: () => spec.disabled || providersBackstage.isDisabled()
+        disabled: () => !spec.enabled || providersBackstage.isDisabled()
       }),
       Tabstopping.config({ }),
       AddEventsBehaviour.config('selectbox-change', [
@@ -70,7 +64,7 @@ export const renderSelectBox = (spec: SelectBoxSpec, providersBackstage: UiFacto
     components: Arr.flatten<AlloySpec>([ pLabel.toArray(), [ selectWrap ]]),
     fieldBehaviours: Behaviour.derive([
       Disabling.config({
-        disabled: () => spec.disabled || providersBackstage.isDisabled(),
+        disabled: () => !spec.enabled || providersBackstage.isDisabled(),
         onDisabled: (comp) => {
           AlloyFormField.getField(comp).each(Disabling.disable);
         },

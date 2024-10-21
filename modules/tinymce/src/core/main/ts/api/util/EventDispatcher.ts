@@ -1,16 +1,9 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Fun, Obj } from '@ephox/katamari';
 
 import * as EventUtils from '../../events/EventUtils';
 import Tools from './Tools';
 
-export type MappedEvent<T, K extends string> = K extends keyof T ? T[K] : any;
+export type MappedEvent<T extends {}, K extends string> = K extends keyof T ? T[K] : any;
 
 export interface NativeEventMap {
   'beforepaste': Event;
@@ -63,7 +56,7 @@ export interface EventDispatcherSettings {
   beforeFire?: <T>(args: EditorEvent<T>) => void;
 }
 
-export interface EventDispatcherConstructor<T extends NativeEventMap> {
+export interface EventDispatcherConstructor<T extends {}> {
   readonly prototype: EventDispatcher<T>;
 
   new (settings?: EventDispatcherSettings): EventDispatcher<T>;
@@ -72,15 +65,15 @@ export interface EventDispatcherConstructor<T extends NativeEventMap> {
 }
 
 /**
- * This class lets you add/remove and fire events by name on the specified scope. This makes
+ * This class lets you add/remove and dispatch events by name on the specified scope. This makes
  * it easy to add event listener logic to any class.
  *
  * @class tinymce.util.EventDispatcher
  * @example
- *  var eventDispatcher = new EventDispatcher();
+ * const eventDispatcher = new EventDispatcher();
  *
- *  eventDispatcher.on('click', function() {console.log('data');});
- *  eventDispatcher.fire('click', {data: 123});
+ * eventDispatcher.on('click', () => console.log('data'));
+ * eventDispatcher.dispatch('click', { data: 123 });
  */
 
 const nativeEvents = Tools.makeMap(
@@ -91,17 +84,17 @@ const nativeEvents = Tools.makeMap(
   ' '
 );
 
-interface Binding<T, K extends string> {
-  func: (event: EditorEvent<MappedEvent<T, K>>) => void;
+interface Binding<T extends {}, K extends string> {
+  func: (event: EditorEvent<MappedEvent<T, K>>) => void | boolean;
   removed: boolean;
   once?: true;
 }
 
-type Bindings<T> = {
+type Bindings<T extends {}> = {
   [K in string]?: Binding<T, K>[];
 };
 
-class EventDispatcher<T> {
+class EventDispatcher<T extends {}> {
   /**
    * Returns true/false if the specified event name is a native browser event or not.
    *
@@ -114,12 +107,12 @@ class EventDispatcher<T> {
     return !!nativeEvents[name.toLowerCase()];
   }
 
-  private readonly settings: Record<string, any>;
-  private readonly scope: {};
+  private readonly settings: EventDispatcherSettings;
+  private readonly scope: any;
   private readonly toggleEvent: (name: string, toggle: boolean) => void;
   private bindings: Bindings<T> = {};
 
-  public constructor(settings?: Record<string, any>) {
+  public constructor(settings?: EventDispatcherSettings) {
     this.settings = settings || {};
     this.scope = this.settings.scope || this;
     this.toggleEvent = this.settings.toggleEvent || Fun.never;
@@ -127,17 +120,34 @@ class EventDispatcher<T> {
 
   /**
    * Fires the specified event by name.
+   * <br>
+   * <em>Deprecated in TinyMCE 6.0 and has been marked for removal in TinyMCE 7.0. Use <code>dispatch</code> instead.</em>
    *
    * @method fire
    * @param {String} name Name of the event to fire.
    * @param {Object?} args Event arguments.
    * @return {Object} Event args instance passed in.
+   * @deprecated Use dispatch() instead
    * @example
    * instance.fire('event', {...});
    */
   public fire <K extends string, U extends MappedEvent<T, K>>(name: K, args?: U): EditorEvent<U> {
+    return this.dispatch(name, args);
+  }
+
+  /**
+   * Dispatches the specified event by name.
+   *
+   * @method dispatch
+   * @param {String} name Name of the event to dispatch
+   * @param {Object?} args Event arguments.
+   * @return {Object} Event args instance passed in.
+   * @example
+   * instance.dispatch('event', {...});
+   */
+  public dispatch <K extends string, U extends MappedEvent<T, K>>(name: K, args?: U): EditorEvent<U> {
     const lcName = name.toLowerCase();
-    const event = EventUtils.normalize<U>(lcName, args || {} as U, this.scope);
+    const event = EventUtils.normalize(lcName, args ?? {}, this.scope) as EventUtils.NormalizedEvent<U>;
 
     if (this.settings.beforeFire) {
       this.settings.beforeFire(event);
@@ -183,22 +193,22 @@ class EventDispatcher<T> {
    *
    * @method on
    * @param {String} name Event name or space separated list of events to bind.
-   * @param {callback} callback Callback to be executed when the event occurs.
+   * @param {Function} callback Callback to be executed when the event occurs.
    * @param {Boolean} prepend Optional flag if the event should be prepended. Use this with care.
    * @return {Object} Current class instance.
    * @example
-   * instance.on('event', function(e) {
-   *     // Callback logic
+   * instance.on('event', (e) => {
+   *   // Callback logic
    * });
    */
-  public on <K extends string>(name: K, callback: false | ((event: EditorEvent<MappedEvent<T, K>>) => void), prepend?: boolean, extra?: {}): this {
+  public on <K extends string>(name: K, callback: false | ((event: EditorEvent<MappedEvent<T, K>>) => void | boolean), prepend?: boolean, extra?: {}): this {
     if (callback === false) {
       callback = Fun.never;
     }
 
     if (callback) {
-      const wrappedCallback = {
-        func: callback,
+      const wrappedCallback: Binding<T, string> = {
+        func: callback as (event: EditorEvent<MappedEvent<T, string>>) => void | boolean,
         removed: false
       };
 
@@ -234,7 +244,7 @@ class EventDispatcher<T> {
    *
    * @method off
    * @param {String?} name Name of the event to unbind.
-   * @param {callback?} callback Callback to unbind.
+   * @param {Function?} callback Callback to unbind.
    * @return {Object} Current class instance.
    * @example
    * // Unbind specific callback
@@ -302,12 +312,12 @@ class EventDispatcher<T> {
    *
    * @method once
    * @param {String} name Event name or space separated list of events to bind.
-   * @param {callback} callback Callback to be executed when the event occurs.
+   * @param {Function} callback Callback to be executed when the event occurs.
    * @param {Boolean} prepend Optional flag if the event should be prepended. Use this with care.
    * @return {Object} Current class instance.
    * @example
-   * instance.once('event', function(e) {
-   *     // Callback logic
+   * instance.once('event', (e) => {
+   *   // Callback logic
    * });
    */
   public once <K extends string>(name: K, callback: (event: EditorEvent<MappedEvent<T, K>>) => void, prepend?: boolean): this {
@@ -323,7 +333,8 @@ class EventDispatcher<T> {
    */
   public has(name: string): boolean {
     name = name.toLowerCase();
-    return !(!this.bindings[name] || this.bindings[name].length === 0);
+    const binding = this.bindings[name];
+    return !(!binding || binding.length === 0);
   }
 }
 

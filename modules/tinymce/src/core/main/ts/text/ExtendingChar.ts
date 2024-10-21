@@ -1,18 +1,12 @@
 /**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-/**
  * This class contains logic for detecting extending characters.
  *
  * @private
  * @class tinymce.text.ExtendingChar
  * @example
- * var isExtending = ExtendingChar.isExtendingChar('a');
+ * const isExtending = ExtendingChar.isExtendingChar('a');
  */
+import { Type } from '@ephox/katamari';
 
 // Generated from: http://www.unicode.org/Public/UNIDATA/DerivedCoreProperties.txt
 // Only includes the characters in that fit into UCS-2 16 bit
@@ -40,7 +34,8 @@ const extendingChars = new RegExp(
   '\uAAEC-\uAAED\uAAF6\uABE5\uABE8\uABED\uFB1E\uFE00-\uFE0F\uFE20-\uFE2F\uFF9E-\uFF9F]'
 );
 
-const isExtendingChar = (ch: string) => typeof ch === 'string' && ch.charCodeAt(0) >= 768 && extendingChars.test(ch);
+const isExtendingChar = (ch: string | undefined): boolean =>
+  Type.isString(ch) && ch.charCodeAt(0) >= 768 && extendingChars.test(ch);
 
 export {
   isExtendingChar

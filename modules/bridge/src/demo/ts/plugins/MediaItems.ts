@@ -3,15 +3,15 @@ import { Fun } from '@ephox/katamari';
 import { getDemoRegistry } from '../buttons/DemoRegistry';
 
 const editor = {
-  on: (_s, _f) => { }
+  on: (_s: string, _f: Function) => { }
 };
 
 export const registerMediaItems = (): void => {
   getDemoRegistry().addToggleButton('media', {
     type: 'togglebutton',
-    disabled: false,
+    enabled: true,
     onSetup: (buttonApi) => {
-      editor.on('nodeChange', (e) => {
+      editor.on('NodeChange', (e: any) => {
         buttonApi.setActive(e);
         // sets active state based on selection
       });

@@ -1,4 +1,4 @@
-import { assert, UnitTest } from '@ephox/bedrock-client';
+import { Assert, UnitTest } from '@ephox/bedrock-client';
 import { Arr, Fun, Result } from '@ephox/katamari';
 import { SugarElement } from '@ephox/sugar';
 
@@ -7,9 +7,19 @@ import * as Structs from 'ephox/snooker/api/Structs';
 import * as Fitment from 'ephox/snooker/test/Fitment';
 import * as TableMerge from 'ephox/snooker/test/TableMerge';
 
+interface InvTest {
+  readonly test: () => void;
+}
+
+interface Spec {
+  readonly rows: number;
+  readonly cols: number;
+  readonly grid: Structs.ElementNew[][];
+}
+
 UnitTest.test('FitmentIVTest', () => {
   const en = (fakeElement: any, isNew: boolean) =>
-    Structs.elementnew(fakeElement as SugarElement, isNew, false);
+    Structs.elementnew(fakeElement as SugarElement<any>, isNew, false);
 
   // Spend 5 seconds running as many iterations as we can (there are three cycles, so 15s total)
   const CYCLE_TIME = 5000;
@@ -45,7 +55,6 @@ UnitTest.test('FitmentIVTest', () => {
   const rand = (min: number, max: number) =>
     Math.floor(Math.random() * (max - min + 1)) + min;
 
-  interface InvTest { test: () => void }
   const inVariantRunner = <T extends InvTest> (label: string, mvTest: () => T, timelimit: number): number => {
     let times = 0;
     const startTime = Date.now();
@@ -171,8 +180,6 @@ UnitTest.test('FitmentIVTest', () => {
       }
     };
 
-    interface Spec { rows: number; cols: number; grid: Structs.ElementNew[][] }
-
     const queryliser2000 = (
       result: Result<Structs.RowCells[], string>,
       s: Structs.Address,
@@ -201,10 +208,10 @@ UnitTest.test('FitmentIVTest', () => {
           })();
 
           if (expected === '?') {
-            assert.eq(true, '?_' === (cell.element as unknown as string).substring(0, 2));
+            Assert.eq('', true, '?_' === (cell.element as unknown as string).substring(0, 2));
           } else {
-            assert.eq(expected.isNew, cell.isNew);
-            assert.eq(expected.element, cell.element);
+            Assert.eq('', expected.isNew, cell.isNew);
+            Assert.eq('', expected.element, cell.element);
           }
         });
       });

@@ -1,35 +1,30 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Behaviour, Replacing, SimpleOrSketchSpec } from '@ephox/alloy';
+import { Behaviour, GuiFactory, Replacing, SimpleSpec } from '@ephox/alloy';
 
 import { UiFactoryBackstageProviders } from '../../backstage/Backstage';
 import * as Icons from '../icons/Icons';
 import { ToolbarButtonClasses } from '../toolbar/button/ButtonClasses';
 
-const renderIcon = (iconName: string, iconsProvider: Icons.IconProvider, behaviours: Array<Behaviour.NamedConfiguredBehaviour<any, any, any>>): SimpleOrSketchSpec =>
+const renderIcon = (iconName: string, iconsProvider: Icons.IconProvider, behaviours: Array<Behaviour.NamedConfiguredBehaviour<any, any, any>>): SimpleSpec =>
   Icons.render(iconName, {
     tag: 'span',
     classes: [ ToolbarButtonClasses.Icon, ToolbarButtonClasses.IconWrap ],
     behaviours
   }, iconsProvider);
 
-const renderIconFromPack = (iconName: string, iconsProvider: Icons.IconProvider): SimpleOrSketchSpec =>
+const renderIconFromPack = (iconName: string, iconsProvider: Icons.IconProvider): SimpleSpec =>
   renderIcon(iconName, iconsProvider, []);
 
-const renderReplacableIconFromPack = (iconName: string, iconsProvider: Icons.IconProvider): SimpleOrSketchSpec =>
+const renderReplaceableIconFromPack = (iconName: string, iconsProvider: Icons.IconProvider): SimpleSpec =>
   renderIcon(iconName, iconsProvider, [ Replacing.config({ }) ]);
 
-const renderLabel = (text: string, prefix: string, providersBackstage: UiFactoryBackstageProviders) => ({
+const renderLabel = (text: string, prefix: string, providersBackstage: UiFactoryBackstageProviders): SimpleSpec => ({
   dom: {
     tag: 'span',
-    innerHtml: providersBackstage.translate(text),
     classes: [ `${prefix}__select-label` ]
   },
+  components: [
+    GuiFactory.text(providersBackstage.translate(text))
+  ],
   behaviours: Behaviour.derive([
     Replacing.config({ })
   ])
@@ -37,6 +32,6 @@ const renderLabel = (text: string, prefix: string, providersBackstage: UiFactory
 
 export {
   renderIconFromPack,
-  renderReplacableIconFromPack,
+  renderReplaceableIconFromPack,
   renderLabel
 };

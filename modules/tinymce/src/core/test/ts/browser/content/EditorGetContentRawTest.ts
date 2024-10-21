@@ -36,19 +36,19 @@ describe('browser.tinymce.core.content.EditorGetContentRawTest', () => {
       '<p>test0</p><!----><!-- test2 --><!---->'));
 
   Arr.each([ 'noscript', 'style', 'script', 'xmp', 'iframe', 'noembed', 'noframes' ], (parent) => {
-    it(`TINY-10337: getContent raw should empty unescaped text nodes containing ZWNBSP within ${parent}`,
+    it(`TINY-10305: getContent raw should empty unescaped text nodes containing ZWNBSP within ${parent}`,
       testGetContentRaw(
         `<p>test0</p><${parent}>te\uFEFFst1</${parent}><${parent}>test2</${parent}><${parent}>te\uFEFFst3</${parent}>`,
         `<p>test0</p><${parent}></${parent}><${parent}>test2</${parent}><${parent}></${parent}>`
       ));
   });
 
-  it('TINY-10337: getContent raw should empty unescaped text nodes containing ZWNBSP within plaintext', () => {
+  it('TINY-10305: getContent raw should empty unescaped text nodes containing ZWNBSP within plaintext', () => {
     const editor = hook.editor();
     const initial = '<p>test0</p><plaintext>te\uFEFFst1 test2<p>te\uFEFFst3</p>';
     TinyApis(editor).setRawContent(initial);
     assert.strictEqual(editor.getContent({ format: 'raw' }), '<p>test0</p><plaintext></plaintext>', 'Should be expected html');
-    // TINY-10337: Modern browsers add a closing plaintext tag to end of body. Safari escapes text nodes within <plaintext>.
+    // TINY-10305: Modern browsers add a closing plaintext tag to end of body. Safari escapes text nodes within <plaintext>.
     TinyAssertions.assertRawContent(editor,
       isSafari ? '<p>test0</p><plaintext>te\uFEFFst1 test2&lt;p&gt;te\uFEFFst3&lt;/p&gt;</plaintext>' : `${initial}</plaintext>`);
   });
@@ -73,11 +73,11 @@ describe('browser.tinymce.core.content.EditorGetContentRawTest', () => {
     it('TINY-10236: Excluding temporary attributes does not cause mXSS',
       testGetContentRawMxss(`<!--data-mce-selected="x"><iframe onload="window.${xssFnName}();">->`));
 
-    it('TINY-10236: Excluding ZWNBSP ion comment nodes does not cause mXSS',
+    it('TINY-10236: Excluding ZWNBSP in comment nodes does not cause mXSS',
       testGetContentRawMxss(`<!--\uFEFF><iframe onload="window.${xssFnName}();">->`));
 
     Arr.each([ 'noscript', 'style', 'script', 'xmp', 'iframe', 'noembed', 'noframes' ], (parent) => {
-      it(`TINY-10337: Excluding ZWNBSP in ${parent} does not cause mXSS`,
+      it(`TINY-10305: Excluding ZWNBSP in ${parent} does not cause mXSS`,
         testGetContentRawMxss(`<${parent}><\uFEFF/${parent}><\uFEFFiframe onload="window.${xssFnName}();"></${parent}>`));
     });
   });

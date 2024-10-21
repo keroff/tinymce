@@ -3,10 +3,9 @@ import { Arr, Fun } from '@ephox/katamari';
 import { Css, Focus, Scroll, SugarBody, SugarDocument, SugarElement } from '@ephox/sugar';
 import { assert } from 'chai';
 
-import PromisePolyfill from 'tinymce/core/api/util/Promise';
-import { ToolbarLocation } from 'tinymce/themes/silver/api/Settings';
+import { ToolbarLocation } from 'tinymce/themes/silver/api/Options';
 
-const staticPartsOuter = (s: ApproxStructure.StructApi, _str: ApproxStructure.StringApi, arr: ApproxStructure.ArrayApi): StructAssert[] =>
+const staticPartsOuter = (s: ApproxStructure.StructApi, arr: ApproxStructure.ArrayApi): StructAssert[] =>
   // should not change
   [
     s.element('div', {
@@ -14,7 +13,23 @@ const staticPartsOuter = (s: ApproxStructure.StructApi, _str: ApproxStructure.St
     })
   ];
 
-const staticPartsInner = (s: ApproxStructure.StructApi, _str: ApproxStructure.StringApi, arr: ApproxStructure.ArrayApi): StructAssert[] =>
+const statusbar = (s: ApproxStructure.StructApi, arr: ApproxStructure.ArrayApi): StructAssert[] =>
+  // should not change
+  [
+    s.element('div', {
+      classes: [ arr.has('tox-statusbar') ]
+    })
+  ];
+
+const bottomAnchorbar = (s: ApproxStructure.StructApi, arr: ApproxStructure.ArrayApi): StructAssert[] =>
+  // should not change
+  [
+    s.element('div', {
+      classes: [ arr.has('tox-bottom-anchorbar') ]
+    })
+  ];
+
+const staticPartsInner = (s: ApproxStructure.StructApi, arr: ApproxStructure.ArrayApi): StructAssert[] =>
   // should not change
   [
     s.element('div', {
@@ -31,11 +46,11 @@ const expectedScrollEventBound = (s: ApproxStructure.StructApi, str: ApproxStruc
     classes: [
       arr.has('tox-editor-header')
     ],
-    children: staticPartsInner(s, str, arr)
+    children: staticPartsInner(s, arr)
   })
 ];
 
-const pAssertHeaderDocked = async (assertDockedTop: boolean) => {
+const pAssertHeaderDocked = async (assertDockedTop: boolean): Promise<void> => {
   const header = UiFinder.findIn(SugarBody.body(), '.tox-editor-header').getOrDie();
   await Waiter.pTryUntil(
     'Wait for header structure',
@@ -62,10 +77,10 @@ const expectedHalfView = (s: ApproxStructure.StructApi, str: ApproxStructure.Str
     ],
     styles: {
       position: str.contains('fixed'),
-      width: str.is('398px') // 400px - 1px for each border
+      width: str.is('496px') // 500px - 2px for each border
       // testing left value maybe flaky
     },
-    children: staticPartsInner(s, str, arr)
+    children: staticPartsInner(s, arr)
   })
 ];
 
@@ -78,14 +93,14 @@ const expectedEditorHidden = (s: ApproxStructure.StructApi, str: ApproxStructure
     ],
     styles: {
       position: str.contains('fixed'),
-      width: str.is('398px') // 400px - 1px for each border
+      width: str.is('496px') // 500px - 2px for each border
       // testing left value maybe flaky
     },
-    children: staticPartsInner(s, str, arr)
+    children: staticPartsInner(s, arr)
   })
 ];
 
-const expectedInFullView = (s, str, arr): StructAssert[] => [
+const expectedInFullView = (s: ApproxStructure.StructApi, str: ApproxStructure.StringApi, arr: ApproxStructure.ArrayApi): StructAssert[] => [
   s.element('div', {
     classes: [
       arr.has('tox-editor-header'),
@@ -95,17 +110,17 @@ const expectedInFullView = (s, str, arr): StructAssert[] => [
       position: str.none(),
       width: str.none()
     },
-    children: staticPartsInner(s, str, arr)
+    children: staticPartsInner(s, arr)
   })
 ];
 
-const scrollRelativeEditor = (delta: number, scrollRelativeTop: boolean) => {
+const scrollRelativeEditor = (delta: number, scrollRelativeTop: boolean): void => {
   const container = UiFinder.findIn(SugarBody.body(), '.tox-tinymce').getOrDie();
   container.dom.scrollIntoView(scrollRelativeTop);
   Scroll.to(0, window.pageYOffset + (scrollRelativeTop ? delta : -delta));
 };
 
-const pAssertSinkVisibility = async (label: string, expectedVisibility: 'hidden' | 'visible') => {
+const pAssertSinkVisibility = async (label: string, expectedVisibility: 'hidden' | 'visible'): Promise<void> => {
   const sink = UiFinder.findIn(SugarBody.body(), '.tox-tinymce-aux').getOrDie();
   await Waiter.pTryUntil(`Wait for sink visibility to be ${expectedVisibility}`, () => {
     const visibility = Css.get(sink, 'visibility');
@@ -113,7 +128,7 @@ const pAssertSinkVisibility = async (label: string, expectedVisibility: 'hidden'
   });
 };
 
-const pAssertMenuStructure = (label: string, container: SugarElement<HTMLElement>, position: string) => Waiter.pTryUntil(
+const pAssertMenuStructure = (label: string, container: SugarElement<HTMLElement>, position: string): Promise<void> => Waiter.pTryUntil(
   `Wait until menus become ${position} positioned`,
   () => Assertions.assertStructure(
     label,
@@ -128,8 +143,8 @@ const pAssertMenuStructure = (label: string, container: SugarElement<HTMLElement
 );
 
 // Assume editor height 400
-const pTestMenuScroll = async (top: boolean) => {
-  const menu = UiFinder.findIn(SugarBody.body(), '[role="menu"]').getOrDie();
+const pTestMenuScroll = async (top: boolean): Promise<void> => {
+  const menu = UiFinder.findIn<HTMLElement>(SugarBody.body(), '[role="menu"]').getOrDie();
   await pAssertMenuStructure('Checking the opened menus default positioning', menu, 'absolute');
   scrollRelativeEditor(200, top);
   await pAssertMenuStructure('When the top of the editor scrolls off screen, menus should become sticky', menu, 'fixed');
@@ -142,7 +157,7 @@ const pTestMenuScroll = async (top: boolean) => {
   await pAssertMenuStructure('When the editor is in full view, menus and toolbars should not be sticky', menu, 'absolute');
 };
 
-const pAssertEditorContainer = async (isToolbarTop: boolean, expectedPart: ApproxStructure.Builder<StructAssert[]>) => {
+const pAssertEditorContainer = async (isToolbarTop: boolean, expectedPart: ApproxStructure.Builder<StructAssert[]>): Promise<void> => {
   const container = UiFinder.findIn(SugarBody.body(), '.tox-editor-container').getOrDie();
   await Waiter.pTryUntil('Wait for editor structure',
     () => Assertions.assertStructure(
@@ -150,15 +165,15 @@ const pAssertEditorContainer = async (isToolbarTop: boolean, expectedPart: Appro
       ApproxStructure.build((s, str, arr) => s.element('div', {
         classes: [ arr.has('tox-editor-container') ],
         children: isToolbarTop ?
-          expectedPart(s, str, arr).concat(staticPartsOuter(s, str, arr)) :
-          staticPartsOuter(s, str, arr).concat(expectedPart(s, str, arr))
+          expectedPart(s, str, arr).concat(staticPartsOuter(s, arr)).concat(bottomAnchorbar(s, arr)).concat(statusbar(s, arr)) :
+          staticPartsOuter(s, arr).concat(expectedPart(s, str, arr)).concat(bottomAnchorbar(s, arr)).concat(statusbar(s, arr))
       })),
       container
     )
   );
 };
 
-const pScrollAndAssertStructure = async (isToolbarTop: boolean, scrollYDelta: number, expectedPart: ApproxStructure.Builder<StructAssert[]>) => {
+const pScrollAndAssertStructure = async (isToolbarTop: boolean, scrollYDelta: number, expectedPart: ApproxStructure.Builder<StructAssert[]>): Promise<void> => {
   scrollRelativeEditor(scrollYDelta, isToolbarTop);
   const container = UiFinder.findIn(SugarBody.body(), '.tox-editor-container').getOrDie();
   await Waiter.pTryUntil('Wait until editor docking updated',
@@ -167,15 +182,15 @@ const pScrollAndAssertStructure = async (isToolbarTop: boolean, scrollYDelta: nu
       ApproxStructure.build((s, str, arr) => s.element('div', {
         classes: [ arr.has('tox-editor-container') ],
         children: isToolbarTop ?
-          expectedPart(s, str, arr).concat(staticPartsOuter(s, str, arr)) :
-          staticPartsOuter(s, str, arr).concat(expectedPart(s, str, arr))
+          expectedPart(s, str, arr).concat(staticPartsOuter(s, arr)).concat(bottomAnchorbar(s, arr)).concat(statusbar(s, arr)) :
+          staticPartsOuter(s, arr).concat(expectedPart(s, str, arr)).concat(bottomAnchorbar(s, arr)).concat(statusbar(s, arr))
       })),
       container
     )
   );
 };
 
-const assertEditorClasses = (docked: boolean) => {
+const assertEditorClasses = (docked: boolean): void => {
   const container = UiFinder.findIn(SugarBody.body(), '.tox-tinymce').getOrDie();
   Assertions.assertStructure('Check root container classes', ApproxStructure.build((s, _str, arr) => s.element('div', {
     classes: [
@@ -185,7 +200,7 @@ const assertEditorClasses = (docked: boolean) => {
   })), container);
 };
 
-const pAssertHeaderPosition = async (toolbarLocation: ToolbarLocation, value: number) => {
+const pAssertHeaderPosition = async (toolbarLocation: ToolbarLocation, value: number): Promise<void> => {
   const isToolbarTop = toolbarLocation === ToolbarLocation.top;
   scrollRelativeEditor(-100, isToolbarTop);
   await Waiter.pWait(100);
@@ -206,14 +221,14 @@ const pCloseMenus = (numOpenedMenus: number) => {
       assert.isTrue(Focus.search(menuElem).isSome(), 'Assert menu item is focused');
     });
     const focusedElem = Focus.active(SugarDocument.getDocument()).getOrDie('Could not find active menu item');
-    Keyboard.keydown(Keys.escape(), { }, focusedElem);
+    Keyboard.keyup(Keys.escape(), { }, focusedElem);
     await Waiter.pTryUntil('Wait for menu to be closed', () => {
       assert.isFalse(SugarBody.inBody(menuElem), 'Assert menu has been closed');
     });
-  }), PromisePolyfill.resolve());
+  }), Promise.resolve());
 };
 
-const pOpenMenuAndTestScrolling = async (pOpenMenu: () => Promise<void>, numMenusToClose: number, top: boolean) => {
+const pOpenMenuAndTestScrolling = async (pOpenMenu: () => Promise<void>, numMenusToClose: number, top: boolean): Promise<void> => {
   await pOpenMenu();
   await pTestMenuScroll(top);
   await pCloseMenus(numMenusToClose);

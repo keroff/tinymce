@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Optional } from '@ephox/katamari';
 
 import { Dialog } from 'tinymce/core/api/ui/Ui';
@@ -40,27 +33,29 @@ export interface ImageDialogInfo {
   readonly prependURL: Optional<string>;
 }
 
+export interface ImageMeta {
+  text?: string;
+  width?: string;
+  height?: string;
+  alt?: string | null;
+  title?: string;
+  class?: string;
+  style?: string;
+  caption?: boolean;
+  vspace?: string;
+  border?: string;
+  hspace?: string;
+  borderstyle?: string;
+  isDecorative?: boolean;
+}
+
 export interface ImageDialogData {
   src: {
     value: string;
-    meta?: {
-      text?: string;
-      width?: string;
-      height?: string;
-      alt?: string;
-      title?: string;
-      class?: string;
-      style?: string;
-      caption?: boolean;
-      vspace?: string;
-      border?: string;
-      hspace?: string;
-      borderstyle?: string;
-      isDecorative?: boolean;
-    };
+    meta?: ImageMeta;
   };
   images: string;
-  alt: string;
+  alt: string | null;
   title: string;
   dimensions: {
     width: string;

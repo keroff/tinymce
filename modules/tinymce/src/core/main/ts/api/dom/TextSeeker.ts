@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Optional } from '@ephox/katamari';
 
 import * as NodeType from '../../dom/NodeType';
@@ -27,8 +20,9 @@ interface TextSeeker {
  *
  * @class tinymce.dom.TextSeeker
  * @example
- * var startOfWord = TextSeeker(editor.dom).backwards(startNode, startOffset, function(textNode, offset, text) {
- *   var lastSpaceCharIndex = text.lastIndexOf(' ');
+ * const seeker = tinymce.dom.TextSeeker(editor.dom);
+ * const startOfWord = seeker.backwards(startNode, startOffset, (textNode, offset, text) => {
+ *   const lastSpaceCharIndex = text.lastIndexOf(' ');
  *   if (lastSpaceCharIndex !== -1) {
  *     return lastSpaceCharIndex + 1;
  *   } else {
@@ -61,8 +55,6 @@ const TextSeeker = (dom: DOMUtils, isBoundary?: (node: Node) => boolean): TextSe
 
   /**
    * Search backwards through text nodes until a match, boundary, or root node has been found.
-   * <br>
-   * <em>Added in TinyMCE 5.2</em>
    *
    * @method backwards
    * @param {Node} node The node to start searching from.
@@ -72,14 +64,12 @@ const TextSeeker = (dom: DOMUtils, isBoundary?: (node: Node) => boolean): TextSe
    * @return {Object} An object containing the matched text node and offset. If no match is found, null will be returned.
    */
   const backwards = (node: Node, offset: number, process: TextProcessCallback, root?: Node) => {
-    const walker = TextWalker(node, root, isBlockBoundary);
+    const walker = TextWalker(node, root ?? dom.getRoot(), isBlockBoundary);
     return walk(node, offset, () => walker.prev().map((prev) => ({ container: prev, offset: prev.length })), process).getOrNull();
   };
 
   /**
    * Search forwards through text nodes until a match, boundary, or root node has been found.
-   * <br>
-   * <em>Added in TinyMCE 5.2</em>
    *
    * @method forwards
    * @param {Node} node The node to start searching from.
@@ -89,7 +79,7 @@ const TextSeeker = (dom: DOMUtils, isBoundary?: (node: Node) => boolean): TextSe
    * @return {Object} An object containing the matched text node and offset. If no match is found, null will be returned.
    */
   const forwards = (node: Node, offset: number, process: TextProcessCallback, root?: Node) => {
-    const walker = TextWalker(node, root, isBlockBoundary);
+    const walker = TextWalker(node, root ?? dom.getRoot(), isBlockBoundary);
     return walk(node, offset, () => walker.next().map((next) => ({ container: next, offset: 0 })), process).getOrNull();
   };
 

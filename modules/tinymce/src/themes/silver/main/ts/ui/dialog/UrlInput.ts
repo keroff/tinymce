@@ -1,17 +1,10 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import {
-  AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloySpec, AlloyTriggers, Behaviour, Composing, CustomEvent, Disabling,
-  FormField as AlloyFormField, Invalidating, Memento, NativeEvents, Representing, SimpleOrSketchSpec, SketchSpec, SystemEvents, Tabstopping, Typeahead as AlloyTypeahead
+  AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloySpec, AlloyTriggers, Behaviour, Composing, CustomEvent, Disabling, FormField as AlloyFormField,
+  Invalidating, Memento, NativeEvents, Representing, SketchSpec, SimpleSpec, SystemEvents, Tabstopping, Typeahead as AlloyTypeahead
 } from '@ephox/alloy';
 import { Dialog } from '@ephox/bridge';
 import { Arr, Fun, Future, FutureResult, Id, Optional, Result } from '@ephox/katamari';
-import { Attribute, Traverse } from '@ephox/sugar';
+import { Attribute, Traverse, Value } from '@ephox/sugar';
 
 import { UiFactoryBackstage } from '../../backstage/Backstage';
 import { UiFactoryBackstageForUrlInput } from '../../backstage/UrlInputBackstage';
@@ -31,7 +24,7 @@ type UrlInputSpec = Omit<Dialog.UrlInput, 'type'>;
 
 const getItems = (fileType: 'image' | 'media' | 'file', input: AlloyComponent, urlBackstage: UiFactoryBackstageForUrlInput) => {
   const urlInputValue = Representing.getValue(input);
-  const term = urlInputValue.meta.text !== undefined ? urlInputValue.meta.text : urlInputValue.value;
+  const term = urlInputValue?.meta?.text ?? urlInputValue.value;
   const info = urlBackstage.getLinkInformation();
   return info.fold(
     () => [],
@@ -53,7 +46,12 @@ const getItems = (fileType: 'image' | 'media' | 'file', input: AlloyComponent, u
 
 const errorId = Id.generate('aria-invalid');
 
-export const renderUrlInput = (spec: UrlInputSpec, backstage: UiFactoryBackstage, urlBackstage: UiFactoryBackstageForUrlInput): SketchSpec => {
+export const renderUrlInput = (
+  spec: UrlInputSpec,
+  backstage: UiFactoryBackstage,
+  urlBackstage: UiFactoryBackstageForUrlInput,
+  initialData: Optional<Dialog.UrlInputData>
+): SketchSpec => {
   const providersBackstage = backstage.shared.providers;
 
   const updateHistory = (component: AlloyComponent): void => {
@@ -62,8 +60,8 @@ export const renderUrlInput = (spec: UrlInputSpec, backstage: UiFactoryBackstage
   };
 
   // TODO: Make alloy's typeahead only swallow enter and escape if menu is open
-  const pField = AlloyFormField.parts.field({
-    factory: AlloyTypeahead,
+  const typeaheadSpec: Parameters<typeof AlloyTypeahead['sketch']>[0] = {
+    ...initialData.map((initialData) => ({ initialData })).getOr({}),
     dismissOnBlur: true,
     inputClasses: [ 'tox-textfield' ],
     sandboxClasses: [ 'tox-dialog__popups' ],
@@ -73,9 +71,17 @@ export const renderUrlInput = (spec: UrlInputSpec, backstage: UiFactoryBackstage
     },
     minChars: 0,
     responseTime: 0,
-    fetch: (input: AlloyComponent) => {
+    fetch: (input) => {
       const items = getItems(spec.filetype, input, urlBackstage);
-      const tdata = NestedMenus.build(items, ItemResponse.BUBBLE_TO_SANDBOX, backstage, false);
+      const tdata = NestedMenus.build(
+        items,
+        ItemResponse.BUBBLE_TO_SANDBOX,
+        backstage,
+        {
+          isHorizontalMenu: false,
+          search: Optional.none()
+        }
+      );
       return Future.pure(tdata);
     },
 
@@ -86,10 +92,10 @@ export const renderUrlInput = (spec: UrlInputSpec, backstage: UiFactoryBackstage
       }
     },
 
-    typeaheadBehaviours: Behaviour.derive(Arr.flatten([
-      urlBackstage.getValidationHandler().map(
+    typeaheadBehaviours: Behaviour.derive([
+      ...urlBackstage.getValidationHandler().map(
         (handler) => Invalidating.config({
-          getRoot: (comp) => Traverse.parent(comp.element),
+          getRoot: (comp) => Traverse.parentElement(comp.element),
           invalidClass: 'tox-control-wrap--status-invalid',
           notify: {
             onInvalid: (comp: AlloyComponent, err: string) => {
@@ -117,31 +123,35 @@ export const renderUrlInput = (spec: UrlInputSpec, backstage: UiFactoryBackstage
           }
         })
       ).toArray(),
-      [
-        Disabling.config({
-          disabled: () => spec.disabled || providersBackstage.isDisabled()
-        }),
-        Tabstopping.config({}),
-        AddEventsBehaviour.config('urlinput-events', Arr.flatten([
-          // We want to get fast feedback for the link dialog, but not sure about others
-          spec.filetype === 'file' ? [
-            AlloyEvents.run(NativeEvents.input(), (comp) => {
+      Disabling.config({
+        disabled: () => !spec.enabled || providersBackstage.isDisabled()
+      }),
+      Tabstopping.config({}),
+      AddEventsBehaviour.config('urlinput-events',
+        // We want to get fast feedback for the link dialog, but not sure about others
+        [
+          AlloyEvents.run(NativeEvents.input(), (comp) => {
+            const currentValue = Value.get(comp.element);
+            const trimmedValue = currentValue.trim();
+            if (trimmedValue !== currentValue) {
+              Value.set(comp.element, trimmedValue);
+            }
+
+            if (spec.filetype === 'file') {
               AlloyTriggers.emitWith(comp, formChangeEvent, { name: spec.name });
-            })
-          ] : [ ],
-          [
-            AlloyEvents.run(NativeEvents.change(), (comp) => {
-              AlloyTriggers.emitWith(comp, formChangeEvent, { name: spec.name });
-              updateHistory(comp);
-            }),
-            AlloyEvents.run(SystemEvents.postPaste(), (comp) => {
-              AlloyTriggers.emitWith(comp, formChangeEvent, { name: spec.name });
-              updateHistory(comp);
-            })
-          ]
-        ]))
-      ]
-    ])),
+            }
+          }),
+          AlloyEvents.run(NativeEvents.change(), (comp) => {
+            AlloyTriggers.emitWith(comp, formChangeEvent, { name: spec.name });
+            updateHistory(comp);
+          }),
+          AlloyEvents.run(SystemEvents.postPaste(), (comp) => {
+            AlloyTriggers.emitWith(comp, formChangeEvent, { name: spec.name });
+            updateHistory(comp);
+          })
+        ]
+      )
+    ]),
 
     eventOrder: {
       [NativeEvents.input()]: [ 'streaming', 'urlinput-events', 'invalidating' ]
@@ -169,12 +179,16 @@ export const renderUrlInput = (spec: UrlInputSpec, backstage: UiFactoryBackstage
       updateHistory(typeahead);
       AlloyTriggers.emitWith(typeahead, formChangeEvent, { name: spec.name });
     }
+  };
+  const pField = AlloyFormField.parts.field({
+    ...typeaheadSpec,
+    factory: AlloyTypeahead
   });
 
   const pLabel = spec.label.map((label) => renderLabel(label, providersBackstage));
 
   // TODO: Consider a way of merging with Checkbox.
-  const makeIcon = (name, errId: Optional<string>, icon = name, label = name): SimpleOrSketchSpec =>
+  const makeIcon = (name: string, errId: Optional<string>, icon: string = name, label: string = name): SimpleSpec =>
     Icons.render(icon, {
       tag: 'div',
       classes: [ 'tox-icon', 'tox-control-wrap__status-icon-' + name ],
@@ -213,7 +227,7 @@ export const renderUrlInput = (spec: UrlInputSpec, backstage: UiFactoryBackstage
       components: [ pField, memStatus.asSpec() ],
       behaviours: Behaviour.derive([
         Disabling.config({
-          disabled: () => spec.disabled || providersBackstage.isDisabled()
+          disabled: () => !spec.enabled || providersBackstage.isDisabled()
         })
       ])
     }
@@ -223,8 +237,9 @@ export const renderUrlInput = (spec: UrlInputSpec, backstage: UiFactoryBackstage
     name: spec.name,
     icon: Optional.some('browse'),
     text: spec.label.getOr(''),
-    disabled: spec.disabled,
+    enabled: spec.enabled,
     primary: false,
+    buttonType: Optional.none(),
     borderless: true
   }, (component) => AlloyTriggers.emit(component, browseUrlEvent), providersBackstage, [], [ 'tox-browse-url' ]));
 
@@ -262,7 +277,7 @@ export const renderUrlInput = (spec: UrlInputSpec, backstage: UiFactoryBackstage
     ]),
     fieldBehaviours: Behaviour.derive([
       Disabling.config({
-        disabled: () => spec.disabled || providersBackstage.isDisabled(),
+        disabled: () => !spec.enabled || providersBackstage.isDisabled(),
         onDisabled: (comp) => {
           AlloyFormField.getField(comp).each(Disabling.disable);
           memUrlPickerButton.getOpt(comp).each(Disabling.disable);

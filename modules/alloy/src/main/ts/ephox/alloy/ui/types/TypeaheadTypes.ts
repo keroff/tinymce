@@ -6,9 +6,30 @@ import { SketchBehaviours } from '../../api/component/SketchBehaviours';
 import { AlloySpec } from '../../api/component/SpecTypes';
 import { CompositeSketch, CompositeSketchSpec } from '../../api/ui/Sketcher';
 import { CommonDropdownDetail } from './DropdownTypes';
-import { InputDetail } from './InputTypes';
+import { InputDetail, InputSpec } from './InputTypes';
 import { ItemDataTuple } from './ItemTypes';
 import { TieredData, TieredMenuSpec } from './TieredMenuTypes';
+
+/*
+ * Typeahead Model types
+ *
+ * * selectsOver - when selectsOver is true, then as the user types,
+ * if we can find matching "getDisplayText" in one of the items, we will
+ * automatically highlight that item, and copy the value from the item
+ * into the input, but select the characters from the start of where the user
+ * finished typing to the end of the value. This means that the next keystroke
+ * will replace the selected text, and the process will continue. In this way,
+ * a "selectsOver" model doesn't have much of a "previewing" mode"
+ *
+ * - populateFromBrowse: when populateFromBrowse is true, then as the user
+ * highlights (through hover or navigation ... i.e. not in previewing mode)
+ * an item, then the Typeahead input's value will immediately copy that item. It
+ * will copy the *value* of that item, not its displayText.
+ *
+ * - getDisplayText this is what is shown in the Typeahead to the user. It is all
+ * maintained by the rather convoluted DataSet Representing system. For more
+ * information, see Representing.
+ */
 
 export interface TypeaheadModelDetail {
   getDisplayText: (item: TypeaheadData) => string;
@@ -36,14 +57,20 @@ export interface TypeaheadDetail extends CommonDropdownDetail<TieredData>, Input
   markers: {
     openClass: string;
   };
+
+  // Generate fields that are created by bouldering (and don't exist in TypeaheadSpec)
   previewing: Cell<boolean>;
+  // This is required so that we can find the Typeahead from the TieredMenu. We can't rely on just
+  // looking up the Typeahead's uid from the system, because the TieredMenu and Input can be in
+  // different alloy systems / motherships.
+  lazyTypeaheadComp: Cell<Optional<AlloyComponent>>;
 }
 
 export interface TypeaheadData extends ItemDataTuple {
   [key: string]: any;
 }
 
-export interface TypeaheadSpec extends CompositeSketchSpec {
+export interface TypeaheadSpec extends CompositeSketchSpec, InputSpec {
   // TODO: Add everything else.
   uid?: string;
   lazySink?: (comp: AlloyComponent) => Result<AlloyComponent, Error>;
@@ -53,9 +80,6 @@ export interface TypeaheadSpec extends CompositeSketchSpec {
   sandboxClasses?: string[];
   sandboxBehaviours?: AlloyBehaviourRecord;
   getHotspot?: (comp: AlloyComponent) => Optional<AlloyComponent>;
-  inputClasses?: string[];
-  inputAttributes?: { };
-  inputStyles?: { };
 
   minChars?: number;
   responseTime?: number;
@@ -68,7 +92,7 @@ export interface TypeaheadSpec extends CompositeSketchSpec {
   model?: {
     getDisplayText?: (itemData: TypeaheadData) => string;
     selectsOver?: boolean;
-    populateFromBrowser?: boolean;
+    populateFromBrowse?: boolean;
   };
 
   parts: {

@@ -1,18 +1,13 @@
-import { ApproxStructure, Assertions, FocusTools, Keys, StructAssert, UiFinder, Waiter } from '@ephox/agar';
-import { TestHelpers } from '@ephox/alloy';
+import { ApproxStructure, Assertions, FocusTools, Keys, StructAssert, TestStore, UiFinder, Waiter } from '@ephox/agar';
 import { describe, it } from '@ephox/bedrock-client';
 import { Fun, Obj } from '@ephox/katamari';
-import { PlatformDetection } from '@ephox/sand';
 import { SugarBody, SugarDocument } from '@ephox/sugar';
 import { TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
-  const platform = PlatformDetection.detect();
-  const isIE = platform.browser.isIE();
-  const store = TestHelpers.TestStore();
+  const store = TestStore();
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce',
     setup: (ed: Editor) => {
@@ -24,9 +19,9 @@ describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
           onSetup: (buttonApi) => {
             const f = (evt: { active?: boolean; disable?: boolean }) => {
               if (Obj.has(evt, 'disable')) {
-                buttonApi.setDisabled(evt.disable);
+                buttonApi.setEnabled(!evt.disable as boolean);
               } else if (Obj.has(evt, 'active')) {
-                buttonApi.setActive(evt.active);
+                buttonApi.setActive(evt.active as boolean);
               }
             };
 
@@ -38,7 +33,7 @@ describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
           }
         },
 
-        predicate: (node) => node.nodeName && node.nodeName.toLowerCase() === 'a',
+        predicate: (node) => node.nodeName.toLowerCase() === 'a',
         commands: [
           {
             type: 'contextformbutton',
@@ -47,7 +42,7 @@ describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
             onSetup: (buttonApi) => {
               const f = (evt: { active?: boolean; disable?: boolean }) => {
                 if (Obj.has(evt, 'disable')) {
-                  buttonApi.setDisabled(evt.disable);
+                  buttonApi.setEnabled(!evt.disable);
                 }
               };
 
@@ -73,9 +68,9 @@ describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
             onSetup: (buttonApi) => {
               const f = (evt: { active?: boolean; disable?: boolean }) => {
                 if (Obj.has(evt, 'disable')) {
-                  buttonApi.setDisabled(evt.disable);
+                  buttonApi.setEnabled(!evt.disable as boolean);
                 } else if (Obj.has(evt, 'active')) {
-                  buttonApi.setActive(evt.active);
+                  buttonApi.setActive(evt.active as boolean);
                 }
               };
 
@@ -95,10 +90,10 @@ describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
         items: 'form:test-form'
       });
     }
-  }, [ Theme ], true);
+  }, [], true);
 
   const openToolbar = (editor: Editor, toolbarKey: string) => {
-    editor.fire('contexttoolbar-show', {
+    editor.dispatch('contexttoolbar-show', {
       toolbarKey
     });
   };
@@ -153,7 +148,7 @@ describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
     TinyUiActions.keydown(editor, Keys.enter());
     store.assertEq('B should have fired because it is primary', [ 'B.Words' ]);
     hasDialog('Immediate context form should have an inner dialog class');
-    TinyUiActions.keydown(editor, Keys.escape());
+    TinyUiActions.keyup(editor, Keys.escape());
     // Check that the context popup still exists;
     UiFinder.exists(SugarBody.body(), '.tox-pop');
     await Waiter.pTryUntil('Check that the editor still has focus', () => editor.hasFocus());
@@ -162,12 +157,7 @@ describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
     await pAssertNoPopDialog();
   });
 
-  // TODO FIXME DISABLED-TEST TINY-2724
-  // Disable reason: Focus does not return to the context toolbar after its context form is closed (by escape)
-  it('TBA: Launch a context form from a context toolbar', async function () {
-    if (isIE) {
-      this.skip();
-    }
+  it('TBA: Launch a context form from a context toolbar', async () => {
     const editor = hook.editor();
     const doc = SugarDocument.getDocument();
     openToolbar(editor, 'test-toolbar');
@@ -176,11 +166,10 @@ describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
     TinyUiActions.keydown(editor, Keys.enter());
     await FocusTools.pTryOnSelector('Focus should now be on input in context form that was launched by button', doc, 'input');
     hasDialog('Launched context form should have an inner dialog class');
-    TinyUiActions.keydown(editor, Keys.escape());
-    // IE fails here
+    TinyUiActions.keyup(editor, Keys.escape());
     await FocusTools.pTryOnSelector('Focus should have shifted back to the triggering toolbar', doc, '.tox-pop button');
     hasDialog('Restored context toolbar (esc from form) should have an inner dialog class');
-    TinyUiActions.keydown(editor, Keys.escape());
+    TinyUiActions.keyup(editor, Keys.escape());
     // Check that the context popup still exists;
     UiFinder.exists(SugarBody.body(), '.tox-pop');
     await Waiter.pTryUntil('Check that the editor still has focus', () => editor.hasFocus());
@@ -192,21 +181,21 @@ describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
   it('TBA: Launching context form does not work if the context toolbar launcher is disabled', () => {
     const editor = hook.editor();
     openToolbar(editor, 'test-toolbar');
-    editor.fire('test.updateButtonABC', { disable: true });
+    editor.dispatch('test.updateButtonABC', { disable: true });
     checkLastButtonGroup('Checking button is disabled after event', (s, str, arr) => [
       s.element('button', {
         classes: [ arr.has('tox-tbtn--disabled') ],
         attrs: { 'aria-disabled': str.is('true') }
       })
     ]);
-    editor.fire('test.updateButtonABC', { disable: false });
+    editor.dispatch('test.updateButtonABC', { disable: false });
     checkLastButtonGroup('Checking button is re-enabled after event', (s, _str, arr) => [
       s.element('button', {
         classes: [ arr.not('tox-tbtn--disabled') ]
       })
     ]);
 
-    editor.fire('test.updateButtonABC', { active: true });
+    editor.dispatch('test.updateButtonABC', { active: true });
     checkLastButtonGroup('Checking button is pressed after event', (s, str, _arr) => [
       s.element('button', {
         attrs: {
@@ -215,7 +204,7 @@ describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
       })
     ]);
 
-    editor.fire('test.updateButtonABC', { active: false });
+    editor.dispatch('test.updateButtonABC', { active: false });
     checkLastButtonGroup('Checking button is *not* pressed after event', (s, str, _arr) => [
       s.element('button', {
         attrs: {
@@ -228,8 +217,8 @@ describe('browser.tinymce.themes.silver.editor.ContextFormTest', () => {
   it('TBA: Checking that context form buttons have a working disabled/active api', () => {
     const editor = hook.editor();
     openToolbar(editor, 'test-form');
-    editor.fire('test.updateButtonA', { disable: true });
-    editor.fire('test.updateButtonC', { active: true });
+    editor.dispatch('test.updateButtonA', { disable: true });
+    editor.dispatch('test.updateButtonC', { active: true });
     checkLastButtonGroup('Checking buttons have right state', (s, str, arr) => [
       s.element('button', { classes: [ arr.has('tox-tbtn--disabled') ], attrs: { 'aria-disabled': str.is('true') }}),
       s.element('button', { classes: [ arr.not('tox-tbtn--disabled') ] }),

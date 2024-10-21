@@ -5,7 +5,6 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/autosave/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.plugins.autosave.AutoSavePluginTest', () => {
   const baseSettings = {
@@ -14,7 +13,7 @@ describe('browser.tinymce.plugins.autosave.AutoSavePluginTest', () => {
     base_url: '/project/tinymce/js/tinymce'
   };
 
-  const hook = TinyHooks.bddSetupLight<Editor>(baseSettings, [ Plugin, Theme ]);
+  const hook = TinyHooks.bddSetupLight<Editor>(baseSettings, [ Plugin ]);
 
   const checkIfEmpty = (editor: Editor, html: string, isEmpty: boolean): void => {
     const result = isEmpty ? 'empty.' : 'not empty.';
@@ -135,7 +134,7 @@ describe('browser.tinymce.plugins.autosave.AutoSavePluginTest', () => {
       testContentMxssOnRestoreDraft(`<!--\uFEFF><iframe onload="window.${xssFnName}();">->`));
 
     Arr.each([ 'noscript', 'script', 'xmp', 'iframe', 'noembed', 'noframes' ], (parent) => {
-      it(`TINY-10337: Excluding ZWNBSP in ${parent} does not cause mXSS`,
+      it(`TINY-10305: Excluding ZWNBSP in ${parent} does not cause mXSS`,
         testContentMxssOnRestoreDraft(`<${parent}><\uFEFF/${parent}><\uFEFFiframe onload="window.${xssFnName}();"></${parent}>`));
     });
   });

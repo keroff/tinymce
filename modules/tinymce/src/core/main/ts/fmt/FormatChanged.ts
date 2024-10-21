@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Cell, Obj, Optional, Type } from '@ephox/katamari';
 
 import Editor from '../api/Editor';
@@ -15,7 +8,7 @@ import { FormatVars } from './FormatTypes';
 import * as FormatUtils from './FormatUtils';
 import * as MatchFormat from './MatchFormat';
 
-export type FormatChangeCallback = (state: boolean, data: { node: Node; format: string; parents: any }) => void;
+export type FormatChangeCallback = (state: boolean, data: { node: Node; format: string; parents: Element[] }) => void;
 
 export type RegisteredFormats = Record<string, CallbackGroup>;
 
@@ -31,7 +24,7 @@ interface CallbackWithoutVars {
 
 interface CallbackWithVars {
   readonly state: Cell<boolean>;
-  readonly similar: boolean;
+  readonly similar: boolean | undefined;
   readonly vars: FormatVars;
   readonly callback: FormatChangeCallback;
 }
@@ -47,7 +40,7 @@ interface CallbackGroup {
 const hasVars = (value: CallbackWithVars | CallbackWithoutVars): value is CallbackWithVars =>
   Obj.has(value as CallbackWithVars, 'vars');
 
-const setup = (registeredFormatListeners: Cell<RegisteredFormats>, editor: Editor) => {
+const setup = (registeredFormatListeners: Cell<RegisteredFormats>, editor: Editor): void => {
   registeredFormatListeners.set({});
 
   editor.on('NodeChange', (e) => {
@@ -67,7 +60,7 @@ const setup = (registeredFormatListeners: Cell<RegisteredFormats>, editor: Edito
 const fallbackElement = (editor: Editor): Element =>
   editor.selection.getStart();
 
-const matchingNode = (editor: Editor, parents: Element[], format: string, similar: boolean, vars?: FormatVars): Optional<Element> => {
+const matchingNode = (editor: Editor, parents: Element[], format: string, similar?: boolean, vars?: FormatVars): Optional<Element> => {
   const isMatchingNode = (node: Element) => {
     const matchingFormat = editor.formatter.matchNode(node, format, vars ?? {}, similar);
     return !Type.isUndefined(matchingFormat);
@@ -89,7 +82,7 @@ const matchingNode = (editor: Editor, parents: Element[], format: string, simila
 
 const getParents = (editor: Editor, elm?: Element): Element[] => {
   const element = elm ?? fallbackElement(editor);
-  return Arr.filter(FormatUtils.getParents(editor.dom, element), (node) =>
+  return Arr.filter(FormatUtils.getParents(editor.dom, element), (node): node is Element =>
     NodeType.isElement(node) && !NodeType.isBogus(node)
   );
 };
@@ -132,12 +125,12 @@ const addListeners = (
     const group = Obj.get(formatChangeItems, format).getOrThunk(() => {
       const base: CallbackGroup = {
         withSimilar: {
-          state: Cell(false),
+          state: Cell<boolean>(false),
           similar: true,
           callbacks: []
         },
         withoutSimilar: {
-          state: Cell(false),
+          state: Cell<boolean>(false),
           similar: false,
           callbacks: []
         },
@@ -196,13 +189,9 @@ const formatChangedInternal = (
   registeredFormatListeners: Cell<RegisteredFormats>,
   formats: string,
   callback: FormatChangeCallback,
-  similar: boolean,
-  vars: FormatVars
+  similar?: boolean,
+  vars?: FormatVars
 ): UnbindFormatChanged => {
-  if (registeredFormatListeners.get() === null) {
-    setup(registeredFormatListeners, editor);
-  }
-
   addListeners(editor, registeredFormatListeners, formats, callback, similar, vars);
 
   return {
@@ -211,5 +200,6 @@ const formatChangedInternal = (
 };
 
 export {
+  setup,
   formatChangedInternal
 };

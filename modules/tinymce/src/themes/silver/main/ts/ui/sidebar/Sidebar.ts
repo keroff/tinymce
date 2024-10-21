@@ -1,18 +1,13 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import {
-  AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloyTriggers, Behaviour, Composing, CustomEvent, Focusing, Replacing, Sliding, SlotContainer,
+  AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloySpec, AlloyTriggers, Behaviour, Composing, CustomEvent, Focusing, Replacing, SketchSpec,
+  Sliding,
+  SlotContainer,
   SlotContainerTypes, SystemEvents, Tabstopping
 } from '@ephox/alloy';
 import { StructureSchema } from '@ephox/boulder';
 import { Sidebar as BridgeSidebar } from '@ephox/bridge';
-import { Arr, Cell, Fun, Id, Obj, Optional, Optionals } from '@ephox/katamari';
-import { Css, Width } from '@ephox/sugar';
+import { Arr, Cell, Fun, Id, Obj, Optional, Optionals, Type } from '@ephox/katamari';
+import { Attribute, Css, SugarElement, Width } from '@ephox/sugar';
 
 import Editor from 'tinymce/core/api/Editor';
 import { onControlAttached, onControlDetached } from 'tinymce/themes/silver/ui/controls/Controls';
@@ -22,7 +17,12 @@ import { SimpleBehaviours } from '../alien/SimpleBehaviours';
 
 export type SidebarConfig = Record<string, BridgeSidebar.SidebarSpec>;
 
-const setup = (editor: Editor) => {
+const enum SidebarStateRoleAttr {
+  Grown = 'region',
+  Shrunk = 'presentation'
+}
+
+const setup = (editor: Editor): void => {
   const { sidebars } = editor.ui.registry.getAll();
 
   // Setup each registered sidebar
@@ -37,6 +37,7 @@ const setup = (editor: Editor) => {
         buttonApi.setActive(isActive());
       },
       onSetup: (buttonApi) => {
+        buttonApi.setActive(isActive());
         const handleToggle = () => buttonApi.setActive(isActive());
         editor.on('ToggleSidebar', handleToggle);
         return () => {
@@ -101,12 +102,31 @@ const makeSidebar = (panelConfigs: SidebarConfig) => SlotContainer.sketch((parts
   ])
 }));
 
-const setSidebar = (sidebar: AlloyComponent, panelConfigs: SidebarConfig) => {
+const setSidebar = (sidebar: AlloyComponent, panelConfigs: SidebarConfig, showSidebar: string | undefined): void => {
   const optSlider = Composing.getCurrent(sidebar);
-  optSlider.each((slider) => Replacing.set(slider, [ makeSidebar(panelConfigs) ]));
+
+  optSlider.each((slider) => {
+    Replacing.set(slider, [ makeSidebar(panelConfigs) ]);
+
+    // Show the default sidebar
+    const configKey = showSidebar?.toLowerCase();
+    if (Type.isString(configKey) && Obj.has(panelConfigs, configKey)) {
+      Composing.getCurrent(slider).each((slotContainer) => {
+        SlotContainer.showSlot(slotContainer, configKey);
+        Sliding.immediateGrow(slider);
+        // TINY-8710: Remove the width as since the skins/styles won't have loaded yet, so it's going to be incorrect
+        Css.remove(slider.element, 'width');
+        updateSidebarRoleOnToggle(sidebar.element, SidebarStateRoleAttr.Grown);
+      });
+    }
+  });
 };
 
-const toggleSidebar = (sidebar: AlloyComponent, name: string) => {
+const updateSidebarRoleOnToggle = (sidebar: SugarElement<HTMLElement>, sidebarState: SidebarStateRoleAttr): void => {
+  Attribute.set(sidebar, 'role', sidebarState);
+};
+
+const toggleSidebar = (sidebar: AlloyComponent, name: string): void => {
   const optSlider = Composing.getCurrent(sidebar);
   optSlider.each((slider) => {
     const optSlotContainer = Composing.getCurrent(slider);
@@ -115,15 +135,18 @@ const toggleSidebar = (sidebar: AlloyComponent, name: string) => {
         if (SlotContainer.isShowing(slotContainer, name)) {
           // close the slider and then hide the slot after the animation finishes
           Sliding.shrink(slider);
+          updateSidebarRoleOnToggle(sidebar.element, SidebarStateRoleAttr.Shrunk);
         } else {
           SlotContainer.hideAllSlots(slotContainer);
           SlotContainer.showSlot(slotContainer, name);
+          updateSidebarRoleOnToggle(sidebar.element, SidebarStateRoleAttr.Grown);
         }
       } else {
         // Should already be hidden if the animation has finished but if it has not we hide them
         SlotContainer.hideAllSlots(slotContainer);
         SlotContainer.showSlot(slotContainer, name);
         Sliding.grow(slider);
+        updateSidebarRoleOnToggle(sidebar.element, SidebarStateRoleAttr.Grown);
       }
     });
   });
@@ -152,13 +175,13 @@ interface FixSizeEvent extends CustomEvent {
 const fixSize = Id.generate('FixSizeEvent');
 const autoSize = Id.generate('AutoSizeEvent');
 
-const renderSidebar = (spec) => ({
+const renderSidebar = (spec: SketchSpec): AlloySpec => ({
   uid: spec.uid,
   dom: {
     tag: 'div',
     classes: [ 'tox-sidebar' ],
     attributes: {
-      role: 'complementary'
+      role: SidebarStateRoleAttr.Shrunk
     }
   },
   components: [

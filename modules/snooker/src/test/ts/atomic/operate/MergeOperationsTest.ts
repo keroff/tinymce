@@ -1,4 +1,4 @@
-import { assert, UnitTest } from '@ephox/bedrock-client';
+import { Assert, UnitTest } from '@ephox/bedrock-client';
 import { Arr, Fun } from '@ephox/katamari';
 import { SugarElement } from '@ephox/sugar';
 
@@ -8,20 +8,20 @@ import * as MergingOperations from 'ephox/snooker/operate/MergingOperations';
 UnitTest.test('MergeOperationsTest', () => {
   const b = Structs.bounds;
   const r = Structs.rowcells;
-  const re = () => 'row' as unknown as SugarElement;
-  const en = (fakeElement: any, isNew: boolean) => Structs.elementnew(fakeElement as SugarElement, isNew, false);
+  const re = () => 'row' as unknown as SugarElement<any>;
+  const en = (fakeElement: any, isNew: boolean) => Structs.elementnew(fakeElement as SugarElement<any>, isNew, false);
 
   // Test basic merge.
   (() => {
     const check = (expected: Structs.RowCells[], grid: Structs.RowCells[], bounds: Structs.Bounds, lead: string) => {
-      const actual = MergingOperations.merge(grid, bounds, Fun.tripleEquals, Fun.constant(lead as unknown as SugarElement));
-      assert.eq(expected.length, actual.length);
+      const actual = MergingOperations.merge(grid, bounds, Fun.tripleEquals, Fun.constant(lead as unknown as SugarElement<any>));
+      Assert.eq('', expected.length, actual.length);
       Arr.each(expected, (row, i) => {
         Arr.each(row.cells, (cell, j) => {
-          assert.eq(cell.element, actual[i].cells[j].element);
-          assert.eq(cell.isNew, actual[i].cells[j].isNew);
+          Assert.eq('', cell.element, actual[i].cells[j].element);
+          Assert.eq('', cell.isNew, actual[i].cells[j].isNew);
         });
-        assert.eq(row.section, actual[i].section);
+        Assert.eq('', row.section, actual[i].section);
       });
     };
 
@@ -108,15 +108,15 @@ UnitTest.test('MergeOperationsTest', () => {
   // Test basic unmerge.
   (() => {
     const check = (expected: Structs.RowCells[], grid: Structs.RowCells[], target: string) => {
-      const actual = MergingOperations.unmerge(grid, target as unknown as SugarElement, Fun.tripleEquals, Fun.constant('?') as any);
-      assert.eq(expected.length, actual.length);
+      const actual = MergingOperations.unmerge(grid, target as unknown as SugarElement<any>, Fun.tripleEquals, Fun.constant('?') as any);
+      Assert.eq('', expected.length, actual.length);
       Arr.each(expected, (row, i) => {
         Arr.each(row.cells, (cell, j) => {
-          assert.eq(cell.element, actual[i].cells[j].element);
-          assert.eq(cell.isNew, actual[i].cells[j].isNew);
+          Assert.eq('', cell.element, actual[i].cells[j].element);
+          Assert.eq('', cell.isNew, actual[i].cells[j].isNew);
         });
-        assert.eq(row.section, actual[i].section, 'section type');
-        assert.eq(row.isNew, actual[i].isNew, 'is new row');
+        Assert.eq('section type', row.section, actual[i].section);
+        Assert.eq('is new row', row.isNew, actual[i].isNew);
       });
     };
 

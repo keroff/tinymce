@@ -3,7 +3,6 @@ import { Css } from '@ephox/sugar';
 import { McEditor, TinyDom } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import PromisePolyfill from 'tinymce/core/api/util/Promise';
 
 describe('browser.tinymce.themes.silver.editor.toolbar.MultipleInlineToolbarVisibilityTest', () => {
 
@@ -14,7 +13,7 @@ describe('browser.tinymce.themes.silver.editor.toolbar.MultipleInlineToolbarVisi
     base_url: '/project/tinymce/js/tinymce'
   };
 
-  const pWaitForFocus = (editor: Editor) => new PromisePolyfill((resolve) => {
+  const pWaitForFocus = (editor: Editor) => new Promise((resolve) => {
     editor.once('focus', resolve);
     editor.focus();
   });
@@ -25,7 +24,7 @@ describe('browser.tinymce.themes.silver.editor.toolbar.MultipleInlineToolbarVisi
     editorOne.setContent('<p id="number1"><strong>blarg</strong></p>');
     editorTwo.setContent('<p id="number2">blarg</p>');
 
-    await PromisePolyfill.all([
+    await Promise.all([
       pWaitForFocus(editorOne),
       pWaitForFocus(editorTwo)
     ]);

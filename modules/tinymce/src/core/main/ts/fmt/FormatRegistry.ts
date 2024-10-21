@@ -1,17 +1,11 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Obj, Type } from '@ephox/katamari';
 
 import Editor from '../api/Editor';
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import * as DefaultFormats from './DefaultFormats';
 import { Format, Formats } from './FormatTypes';
 import { isInlineFormat, isSelectorFormat } from './FormatUtils';
+import * as TableFormats from './TableFormats';
 
 export interface FormatRegistry {
   get: {
@@ -31,7 +25,7 @@ export const FormatRegistry = (editor: Editor): FormatRegistry => {
 
   const has = (name: string): boolean => Obj.has(formats, name);
 
-  const register = (name: string | Formats, format?: Format | Format[]) => {
+  const register = (name: string | Formats | undefined, format?: Format | Format[]) => {
     if (name) {
       if (!Type.isString(name)) {
         Obj.each(name, (format, name) => {
@@ -40,7 +34,7 @@ export const FormatRegistry = (editor: Editor): FormatRegistry => {
       } else {
         // Force format into array and add it to internal collection
         if (!Type.isArray(format)) {
-          format = [ format ];
+          format = [ format as Format ];
         }
 
         Arr.each(format, (format) => {
@@ -85,8 +79,9 @@ export const FormatRegistry = (editor: Editor): FormatRegistry => {
     return formats;
   };
 
-  register(DefaultFormats.get(editor.dom));
-  register(Settings.getFormats(editor));
+  register(DefaultFormats.get(editor));
+  register(TableFormats.get());
+  register(Options.getFormats(editor));
 
   return {
     get: get as FormatRegistry['get'],

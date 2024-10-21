@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { StructureSchema } from '@ephox/boulder';
 import { InlineContent, Toolbar } from '@ephox/bridge';
 import { Arr, Obj } from '@ephox/katamari';
@@ -30,7 +23,7 @@ const categorise = (contextToolbars: Record<string, ContextSpecType>, navigate: 
   const lookupTable: Record<string, ContextType> = { };
 
   const registerForm = (key: string, toolbarSpec: InlineContent.ContextFormSpec) => {
-    const contextForm = StructureSchema.getOrDie(InlineContent.createContextForm(toolbarSpec));
+    const contextForm: InlineContent.ContextForm = StructureSchema.getOrDie(InlineContent.createContextForm(toolbarSpec));
     forms[key] = contextForm;
     contextForm.launch.map((launch) => {
       // Use the original here (pre-boulder), because using as a the spec for toolbar buttons

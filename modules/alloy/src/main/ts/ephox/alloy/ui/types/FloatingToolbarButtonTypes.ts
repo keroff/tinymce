@@ -19,12 +19,15 @@ export interface FloatingToolbarButtonDetail extends CompositeSketchDetail, HasL
   markers: {
     toggledClass: string;
   };
+
+  onToggled: (comp: AlloyComponent, state: boolean) => void;
 }
 
 export interface FloatingToolbarButtonApis {
   setGroups: (floatingToolbarButton: AlloyComponent, groups: AlloySpec[]) => Optional<AlloyComponent>;
   reposition: (floatingToolbarButton: AlloyComponent) => void;
   toggle: (floatingToolbarButton: AlloyComponent) => void;
+  toggleWithoutFocusing: (floatingToolbarButton: AlloyComponent) => void;
   getToolbar: (floatingToolbarButton: AlloyComponent) => Optional<AlloyComponent>;
   isOpen: (floatingToolbarButton: AlloyComponent) => boolean;
 }
@@ -45,6 +48,8 @@ export interface FloatingToolbarButtonSpec extends CompositeSketchSpec, HasLayou
     'button': Partial<SimpleOrSketchSpec>;
     'toolbar': Partial<ToolbarSpec>;
   };
+
+  onToggled?: (comp: AlloyComponent, state: boolean) => void;
 }
 
 export interface FloatingToolbarButtonSketcher extends CompositeSketch<FloatingToolbarButtonSpec>, FloatingToolbarButtonApis { }

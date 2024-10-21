@@ -1,16 +1,16 @@
-import { describe, it } from '@ephox/bedrock-client';
+import { context, describe, it } from '@ephox/bedrock-client';
 import { TinyAssertions, TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/link/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.plugins.link.RemoveLinkTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     plugins: 'link',
     toolbar: 'unlink',
-    base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ]);
+    base_url: '/project/tinymce/js/tinymce',
+    indent: false
+  }, [ Plugin ]);
 
   it('TBA: Removing a link with a collapsed selection', async () => {
     const editor = hook.editor();
@@ -46,5 +46,25 @@ describe('browser.tinymce.plugins.link.RemoveLinkTest', () => {
     TinyUiActions.clickOnToolbar(editor, 'button[title="Remove link"]');
     TinyAssertions.assertContentPresence(editor, { a: 0 });
     TinyAssertions.assertSelection(editor, [ 0, 0 ], 1, [ 0, 4 ], 2);
+  });
+
+  context('Block links', () => {
+    it('TINY-9172: Removing root level link should convert it to regular text block', () => {
+      const editor = hook.editor();
+      editor.setContent('<a href="#"><p>tiny</p></a>');
+      TinySelections.setCursor(editor, [ 0, 0, 0 ], 1);
+      TinyUiActions.clickOnToolbar(editor, 'button[title="Remove link"]');
+      TinyAssertions.assertContent(editor, '<p>tiny</p>');
+      TinyAssertions.assertCursor(editor, [ 0, 0 ], 1);
+    });
+
+    it('TINY-9172: Removing wrapped block link should unwrap', () => {
+      const editor = hook.editor();
+      editor.setContent('<div><a href="#"><p>tiny</p></a></div>');
+      TinySelections.setCursor(editor, [ 0, 0, 0, 0 ], 1);
+      TinyUiActions.clickOnToolbar(editor, 'button[title="Remove link"]');
+      TinyAssertions.assertContent(editor, '<div><p>tiny</p></div>');
+      TinyAssertions.assertCursor(editor, [ 0, 0, 0 ], 1);
+    });
   });
 });

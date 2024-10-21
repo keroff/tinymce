@@ -1,14 +1,12 @@
-import { UiFinder, Waiter } from '@ephox/agar';
-import { TestHelpers } from '@ephox/alloy';
+import { TestStore, UiFinder, Waiter } from '@ephox/agar';
 import { describe, it } from '@ephox/bedrock-client';
 import { SugarBody } from '@ephox/sugar';
 import { TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarTest', () => {
-  const store = TestHelpers.TestStore();
+  const store = TestStore();
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce',
     setup: (ed: Editor) => {
@@ -17,11 +15,11 @@ describe('browser.tinymce.themes.silver.editor.contexttoolbar.ContextToolbarTest
         onAction: store.adder('alpha-exec')
       });
       ed.ui.registry.addContextToolbar('test-toolbar', {
-        predicate: (node) => node.nodeName && node.nodeName.toLowerCase() === 'a',
+        predicate: (node) => node.nodeName.toLowerCase() === 'a',
         items: 'alpha'
       });
     }
-  }, [ Theme ]);
+  }, []);
 
   it('TBA: Moving selection away from the context toolbar predicate should make it disappear', async () => {
     const editor = hook.editor();

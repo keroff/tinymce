@@ -5,7 +5,6 @@ import { TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/link/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import { TestLinkUi } from '../module/TestLinkUi';
 
@@ -14,12 +13,9 @@ describe('browser.tinymce.plugins.link.UrlProtocolTest', () => {
     plugins: 'link',
     toolbar: 'link',
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ]);
+  }, [ Plugin ]);
 
   const pTestProtocolConfirm = async (editor: Editor, url: string, expectedProtocol: string) => {
-    const presence = {};
-    presence[`a[href="${expectedProtocol}${url}"]:contains("Something")`] = 1;
-
     editor.setContent('<p>Something</p>');
     TinySelections.setSelection(editor, [ 0, 0 ], ''.length, [ 0, 0 ], 'Something'.length);
     await TestLinkUi.pOpenLinkDialog(editor);
@@ -34,13 +30,10 @@ describe('browser.tinymce.plugins.link.UrlProtocolTest', () => {
     await TestLinkUi.pClickSave(editor);
     await TinyUiActions.pWaitForDialog(editor, '[role="dialog"].tox-confirm-dialog');
     await TestLinkUi.pClickConfirmYes(editor);
-    await TestLinkUi.pAssertContentPresence(editor, presence);
+    await TestLinkUi.pAssertContentPresence(editor, { [`a[href="${expectedProtocol}${url}"]:contains("Something")`]: 1 });
   };
 
   const pTestNoProtocolConfirm = async (editor: Editor, url: string) => {
-    const presence = {};
-    presence[`a[href="${url}"]:contains("Something")`] = 1;
-
     editor.setContent('<p>Something</p>');
     TinySelections.setSelection(editor, [ 0, 0 ], ''.length, [ 0, 0 ], 'Something'.length);
     await TestLinkUi.pOpenLinkDialog(editor);
@@ -54,7 +47,7 @@ describe('browser.tinymce.plugins.link.UrlProtocolTest', () => {
     });
     await TestLinkUi.pClickSave(editor);
     UiFinder.notExists(SugarBody.body(), '[role="dialog"]');
-    await TestLinkUi.pAssertContentPresence(editor, presence);
+    await TestLinkUi.pAssertContentPresence(editor, { [`a[href="${url}"]:contains("Something")`]: 1 });
   };
 
   it('TBA: Test regex for non relative ftp link', async () => {
@@ -70,8 +63,8 @@ describe('browser.tinymce.plugins.link.UrlProtocolTest', () => {
 
   it('TBA: Test regex for non relative link with no protocol', async () => {
     const editor = hook.editor();
-    await pTestProtocolConfirm(editor, 'www.http.com', 'http://');
-    await pTestProtocolConfirm(editor, 'www3.http.com', 'http://');
+    await pTestProtocolConfirm(editor, 'www.http.com', 'https://');
+    await pTestProtocolConfirm(editor, 'www3.http.com', 'https://');
   });
 
   it('TBA: Test regex for relative link', async () => {

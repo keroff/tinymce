@@ -1,4 +1,4 @@
-import { assert, UnitTest } from '@ephox/bedrock-client';
+import { Assert, UnitTest } from '@ephox/bedrock-client';
 import { Arr } from '@ephox/katamari';
 import { SugarElement, TextContent } from '@ephox/sugar';
 
@@ -24,7 +24,7 @@ UnitTest.test('RecalculationsTest', () => {
     }>;
   }
 
-  const expectedParts = (columns: {element: string; width: number}[], widths: {element: string; width: number}[], heights: {element: string; height: number}[]): Parts => ({
+  const expectedParts = (columns: Array<{ element: string; width: number }>, widths: Array<{ element: string; width: number }>, heights: Array<{ element: string; height: number }>): Parts => ({
     columns,
     widths,
     heights
@@ -37,31 +37,32 @@ UnitTest.test('RecalculationsTest', () => {
     const actualCellHeight = Recalculations.recalculateHeightForCells(warehouse, sizes.height);
 
     Arr.each(expected, (expt) => {
-      assert.eq(expt.columns, Arr.map(actualColumnWidth, (cell) => ({
+      Assert.eq('', expt.columns, Arr.map(actualColumnWidth, (cell) => ({
         element: TextContent.get(cell.element),
         width: cell.width
       })));
 
-      assert.eq(expt.widths, Arr.map(actualCellWidth, (cell) => ({
+      Assert.eq('', expt.widths, Arr.map(actualCellWidth, (cell) => ({
         element: TextContent.get(cell.element),
         width: cell.width
       })));
 
-      assert.eq(expt.heights, Arr.map(actualCellHeight, (cell) => ({
+      Assert.eq('', expt.heights, Arr.map(actualCellHeight, (cell) => ({
         element: TextContent.get(cell.element),
         height: cell.height
       })));
     });
   };
 
-  const createCell = (text: string): SugarElement<HTMLTableCellElement> => {
-    const elem = SugarElement.fromTag('td');
+  const createCell = <K extends 'col' | 'td' | 'th'>(text: string, tag: K): SugarElement<HTMLElementTagNameMap[K]> => {
+    const elem = SugarElement.fromTag(tag);
     TextContent.set(elem, text);
     return elem;
   };
-  const makeDetail = (elemText: string, rowspan: number, colspan: number) => Structs.detail(createCell(elemText), rowspan, colspan);
-  const makeRow = (cells: Structs.Detail[]) => Structs.rowdetail(SugarElement.fromTag('tr'), cells, 'tbody');
-  const makeColumnGroup = (cols: Structs.Detail[]) => Structs.rowdetail(SugarElement.fromTag('col'), cols, 'colgroup');
+  const makeCellDetail = (elemText: string, rowspan: number, colspan: number) => Structs.detail(createCell(elemText, 'td'), rowspan, colspan);
+  const makeColDetail = (elemText: string, rowspan: number, colspan: number) => Structs.detail(createCell(elemText, 'col'), rowspan, colspan);
+  const makeRow = (cells: Structs.Detail<HTMLTableCellElement>[]) => Structs.rowdetail(SugarElement.fromTag('tr'), cells, 'tbody');
+  const makeColumnGroup = (cols: Structs.Detail<HTMLTableColElement>[]) => Structs.rowdetail(SugarElement.fromTag('col'), cols, 'colgroup');
 
   check(
     [
@@ -77,7 +78,7 @@ UnitTest.test('RecalculationsTest', () => {
     ],
     [
       makeRow([
-        makeDetail('a', 1, 1)
+        makeCellDetail('a', 1, 1)
       ])
     ],
     dimensions([ 10 ], [ 10 ])
@@ -99,10 +100,10 @@ UnitTest.test('RecalculationsTest', () => {
     ],
     [
       makeColumnGroup([
-        makeDetail('c', 1, 1)
+        makeColDetail('c', 1, 1)
       ]),
       makeRow([
-        makeDetail('a', 1, 1)
+        makeCellDetail('a', 1, 1)
       ])
     ],
     dimensions([ 10 ], [ 10 ])
@@ -118,8 +119,8 @@ UnitTest.test('RecalculationsTest', () => {
       )
     ],
     [
-      makeRow([ makeDetail('a00', 1, 1), makeDetail('a01', 1, 1) ]),
-      makeRow([ makeDetail('a10', 1, 1), makeDetail('a11', 1, 1) ])
+      makeRow([ makeCellDetail('a00', 1, 1), makeCellDetail('a01', 1, 1) ]),
+      makeRow([ makeCellDetail('a10', 1, 1), makeCellDetail('a11', 1, 1) ])
     ],
     dimensions([ 20, 20 ], [ 15, 9 ])
   );
@@ -134,9 +135,9 @@ UnitTest.test('RecalculationsTest', () => {
       )
     ],
     [
-      makeColumnGroup([ makeDetail('c00', 1, 1), makeDetail('c01', 1, 1) ]),
-      makeRow([ makeDetail('a00', 1, 1), makeDetail('a01', 1, 1) ]),
-      makeRow([ makeDetail('a10', 1, 1), makeDetail('a11', 1, 1) ])
+      makeColumnGroup([ makeColDetail('c00', 1, 1), makeColDetail('c01', 1, 1) ]),
+      makeRow([ makeCellDetail('a00', 1, 1), makeCellDetail('a01', 1, 1) ]),
+      makeRow([ makeCellDetail('a10', 1, 1), makeCellDetail('a11', 1, 1) ])
     ],
     dimensions([ 20, 20 ], [ 15, 9 ])
   );
@@ -151,7 +152,7 @@ UnitTest.test('RecalculationsTest', () => {
       )
     ],
     [
-      makeRow([ makeDetail('a', 2, 2) ]),
+      makeRow([ makeCellDetail('a', 2, 2) ]),
       makeRow([]) // optional
     ],
     dimensions([ 20, 20, 99999 ], [ 30, 30, 999999 ])
@@ -167,8 +168,8 @@ UnitTest.test('RecalculationsTest', () => {
       )
     ],
     [
-      makeRow([ makeDetail('a', 2, 2), makeDetail('b', 1, 1) ]),
-      makeRow([ makeDetail('c', 1, 1) ])
+      makeRow([ makeCellDetail('a', 2, 2), makeCellDetail('b', 1, 1) ]),
+      makeRow([ makeCellDetail('c', 1, 1) ])
     ],
     dimensions([ 20, 20, 15, 99999 ], [ 30, 30, 999999 ])
   );
@@ -182,8 +183,8 @@ UnitTest.test('RecalculationsTest', () => {
       )
     ],
     [
-      makeRow([ makeDetail('a', 2, 2), makeDetail('b', 1, 1) ]),
-      makeRow([ makeDetail('c', 1, 1) ])
+      makeRow([ makeCellDetail('a', 2, 2), makeCellDetail('b', 1, 1) ]),
+      makeRow([ makeCellDetail('c', 1, 1) ])
     ],
     dimensions([ 20, 10, 11 ], [ 15, 13 ]));
 
@@ -205,9 +206,9 @@ UnitTest.test('RecalculationsTest', () => {
       )
     ],
     [
-      makeRow([ makeDetail('g', 1, 1), makeDetail('h', 1, 1), makeDetail('i', 1, 1), makeDetail('j', 1, 1), makeDetail('k', 1, 3) ]),
-      makeRow([ makeDetail('l', 1, 1), makeDetail('m', 3, 2), makeDetail('n', 1, 1), makeDetail('o', 1, 1), makeDetail('p', 1, 1), makeDetail('q', 1, 1) ]),
-      makeRow([ makeDetail('r', 2, 1), makeDetail('s', 1, 1), makeDetail('t', 2, 1), makeDetail('u', 1, 1), makeDetail('v', 1, 1) ])
+      makeRow([ makeCellDetail('g', 1, 1), makeCellDetail('h', 1, 1), makeCellDetail('i', 1, 1), makeCellDetail('j', 1, 1), makeCellDetail('k', 1, 3) ]),
+      makeRow([ makeCellDetail('l', 1, 1), makeCellDetail('m', 3, 2), makeCellDetail('n', 1, 1), makeCellDetail('o', 1, 1), makeCellDetail('p', 1, 1), makeCellDetail('q', 1, 1) ]),
+      makeRow([ makeCellDetail('r', 2, 1), makeCellDetail('s', 1, 1), makeCellDetail('t', 2, 1), makeCellDetail('u', 1, 1), makeCellDetail('v', 1, 1) ])
     ],
     dimensions([ 10, 10, 10, 10, 10, 10, 10 ], [ 20, 15, 10 ])
   );

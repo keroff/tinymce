@@ -5,7 +5,6 @@ import { TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import { Dialog } from 'tinymce/core/api/ui/Ui';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.themes.silver.skin.OxideBlockedDialogTest', () => {
   let testDialogApi: Dialog.DialogInstanceApi<{}>;
@@ -29,7 +28,14 @@ describe('browser.tinymce.themes.silver.skin.OxideBlockedDialogTest', () => {
                 }
               ]
             },
-            buttons: [ ],
+            // TINY-9996: buttons must be non-empty array for footer to be rendered
+            buttons: [
+              {
+                type: 'cancel',
+                name: 'cancel',
+                text: 'Cancel'
+              }
+            ],
             onAction: (dialogApi, actionData) => {
               if (actionData.name === 'busy-button') {
                 dialogApi.block('Dialog is blocked.');
@@ -39,7 +45,7 @@ describe('browser.tinymce.themes.silver.skin.OxideBlockedDialogTest', () => {
         }
       });
     }
-  }, [ Theme ]);
+  }, []);
 
   it('Check structure of font format', async () => {
     const editor = hook.editor();

@@ -4,8 +4,6 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import * as Levels from 'tinymce/core/undo/Levels';
-import { UndoLevelType } from 'tinymce/core/undo/UndoManagerTypes';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.undo.ForcedRootBlockTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
@@ -14,7 +12,7 @@ describe('browser.tinymce.core.undo.ForcedRootBlockTest', () => {
     entities: 'raw',
     indent: false,
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ], true);
+  }, [], true);
 
   it('createFromEditor', () => {
     const editor = hook.editor();
@@ -25,7 +23,7 @@ describe('browser.tinymce.core.undo.ForcedRootBlockTest', () => {
       bookmark: null,
       content: '<strong>a</strong> <span>b</span>',
       fragments: null,
-      type: UndoLevelType.Complete
+      type: 'complete'
     });
   });
 
@@ -44,7 +42,7 @@ describe('browser.tinymce.core.undo.ForcedRootBlockTest', () => {
         ' ',
         '<span>b</span>'
       ],
-      type: UndoLevelType.Fragmented
+      type: 'fragmented'
     });
   });
 });

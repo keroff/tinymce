@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Optional } from '@ephox/katamari';
 import { PlatformDetection } from '@ephox/sand';
 import { Css, SugarElement, SugarNode, Traverse } from '@ephox/sugar';
@@ -35,7 +28,7 @@ const getTableCaptionDeltaY = (elm: SugarElement<Node>) => {
 
 const hasChild = (elm: Element, child: Node) => elm.children && Arr.contains(elm.children, child);
 
-const getPos = (body: HTMLElement, elm: HTMLElement | null, rootElm?: Node): { x: number; y: number } => {
+const getPos = (body: HTMLElement, elm: Element | null, rootElm?: Node): { x: number; y: number } => {
   let x = 0, y = 0;
   const doc = body.ownerDocument;
 
@@ -55,7 +48,7 @@ const getPos = (body: HTMLElement, elm: HTMLElement | null, rootElm?: Node): { x
       return { x, y };
     }
 
-    let offsetParent: Element = elm;
+    let offsetParent: Element | null = elm;
     while (offsetParent && offsetParent !== rootElm && offsetParent.nodeType && !hasChild(offsetParent, rootElm)) {
       const castOffsetParent = offsetParent as HTMLElement;
       x += castOffsetParent.offsetLeft || 0;

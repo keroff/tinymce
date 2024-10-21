@@ -3,7 +3,8 @@ import { TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
+import { WindowEvent } from 'tinymce/core/api/EventTypes';
+import { EditorEvent } from 'tinymce/core/api/util/EventDispatcher';
 
 describe('browser.tinymce.core.WindowManagerTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
@@ -12,11 +13,12 @@ describe('browser.tinymce.core.WindowManagerTest', () => {
     indent: false,
     entities: 'raw',
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme ]);
+  }, []);
 
   it('OpenWindow/CloseWindow events', () => {
     const editor = hook.editor();
-    let openWindowArgs, closeWindowArgs;
+    let openWindowArgs: EditorEvent<WindowEvent<any>> | undefined;
+    let closeWindowArgs: EditorEvent<WindowEvent<any>> | undefined;
 
     editor.on('CloseWindow', (e) => {
       closeWindowArgs = e;
@@ -36,8 +38,8 @@ describe('browser.tinymce.core.WindowManagerTest', () => {
       buttons: []
     });
 
-    assert.equal(openWindowArgs.type, 'openwindow');
-    assert.equal(closeWindowArgs.type, 'closewindow');
+    assert.equal(openWindowArgs?.type, 'openwindow');
+    assert.equal(closeWindowArgs?.type, 'closewindow');
 
     editor.off('CloseWindow OpenWindow');
   });

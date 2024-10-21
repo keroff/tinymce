@@ -1,11 +1,4 @@
 /**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-/**
  * Holds the current status of a blob uri, if it's pending or uploaded and what the result urls was.
  *
  * @private
@@ -23,11 +16,16 @@ export interface UploadStatus {
   readonly destroy: () => void;
 }
 
+interface BlobStatus {
+  readonly status: number;
+  readonly resultUri: string | null;
+}
+
 export const UploadStatus = (): UploadStatus => {
   const PENDING = 1, UPLOADED = 2;
-  let blobUriStatuses = {};
+  let blobUriStatuses: Record<string, BlobStatus> = {};
 
-  const createStatus = (status: number, resultUri: string) => {
+  const createStatus = (status: number, resultUri: string | null): BlobStatus => {
     return {
       status,
       resultUri

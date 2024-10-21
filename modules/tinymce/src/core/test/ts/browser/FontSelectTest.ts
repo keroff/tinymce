@@ -1,24 +1,23 @@
 import { UiFinder } from '@ephox/agar';
 import { describe, it } from '@ephox/bedrock-client';
-import { Arr, Fun, Strings } from '@ephox/katamari';
+import { Arr, Strings } from '@ephox/katamari';
 import { SugarBody, TextContent } from '@ephox/sugar';
 import { TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.FontSelectTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce',
-    toolbar: 'fontsizeselect fontselect',
+    toolbar: 'fontsize fontfamily',
     content_style: [
       '.mce-content-body { font-family: Helvetica; font-size: 42px; }',
       '.mce-content-body p { font-family: Arial; font-size: 12px; }',
       '.mce-content-body h1 { font-family: Arial; font-size: 32px; }'
     ].join(''),
-    fontsize_formats: '8pt=1 12pt 12.75pt 13pt 24pt 32pt'
-  }, [ Theme ]);
+    font_size_formats: '8pt=1 12pt 12.75pt 13pt 24pt 32pt'
+  }, []);
 
   const systemFontStackVariants = [
     `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;`, // Oxide
@@ -26,9 +25,9 @@ describe('browser.tinymce.core.FontSelectTest', () => {
     '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;' // Wordpress
   ];
 
-  const assertSelectBoxDisplayValue = (editor: Editor, title, expectedValue) => {
+  const assertSelectBoxDisplayValue = (editor: Editor, title: string, expectedValue: string) => {
     const selectBox = UiFinder.findIn(SugarBody.body(), '*[title="' + title + '"]').getOrDie();
-    const value = Fun.compose(Strings.trim, TextContent.get)(selectBox);
+    const value = Strings.trim(TextContent.get(selectBox) ?? '');
     assert.equal(value, expectedValue, 'Should be the expected display value');
   };
 

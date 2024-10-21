@@ -1,28 +1,22 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { AlloyComponent, Attachment, Boxes, Disabling } from '@ephox/alloy';
-import { Cell, Singleton } from '@ephox/katamari';
-import { DomEvent, SugarElement } from '@ephox/sugar';
+import { AlloyComponent, Attachment, Boxes, Disabling, Docking } from '@ephox/alloy';
+import { Cell, Singleton, Throttler } from '@ephox/katamari';
+import { DomEvent, Scroll, SugarElement } from '@ephox/sugar';
 
 import Editor from 'tinymce/core/api/Editor';
+import { NodeChangeEvent } from 'tinymce/core/api/EventTypes';
 import { EditorUiApi } from 'tinymce/core/api/ui/Ui';
-import Delay from 'tinymce/core/api/util/Delay';
 
 import * as Events from '../api/Events';
-import { getUiContainer, isToolbarPersist } from '../api/Settings';
+import * as Options from '../api/Options';
 import { UiFactoryBackstage } from '../backstage/Backstage';
 import * as ReadOnly from '../ReadOnly';
-import { ModeRenderInfo, RenderArgs, RenderUiComponents, RenderUiConfig } from '../Render';
+import { ModeRenderInfo, RenderArgs, RenderUiConfig } from '../Render';
 import OuterContainer from '../ui/general/OuterContainer';
 import { InlineHeader } from '../ui/header/InlineHeader';
 import { identifyMenus } from '../ui/menus/menubar/Integration';
 import { inline as loadInlineSkin } from '../ui/skin/Loader';
 import { setToolbar } from './Toolbars';
+import { ReadyUiReferences } from './UiReferences';
 
 const getTargetPosAndBounds = (targetElm: SugarElement, isToolbarTop: boolean) => {
   const bounds = Boxes.box(targetElm);
@@ -35,7 +29,7 @@ const getTargetPosAndBounds = (targetElm: SugarElement, isToolbarTop: boolean) =
 const setupEvents = (editor: Editor, targetElm: SugarElement, ui: InlineHeader, toolbarPersist: boolean) => {
   const prevPosAndBounds = Cell(getTargetPosAndBounds(targetElm, ui.isPositionedAtTop()));
 
-  const resizeContent = (e) => {
+  const resizeContent = (e: NodeChangeEvent | KeyboardEvent | Event) => {
     const { pos, bounds } = getTargetPosAndBounds(targetElm, ui.isPositionedAtTop());
     const { pos: prevPos, bounds: prevBounds } = prevPosAndBounds.get();
 
@@ -48,9 +42,21 @@ const setupEvents = (editor: Editor, targetElm: SugarElement, ui: InlineHeader, 
 
     if (ui.isVisible()) {
       if (prevPos !== pos) {
-        ui.update(true);
+        // The proposed toolbar location has moved, so we need to reposition the Ui. This might
+        // include things like refreshing any Docking / stickiness for the toolbars
+        ui.update(Docking.reset);
       } else if (hasResized) {
+        // The proposed toolbar location hasn't moved, but the dimensions of the editor have changed.
+        // We use "updateMode" here instead of "update". The primary reason is that "updateMode"
+        // only repositions the Ui if it has detected that the docking mode needs to change, which
+        // will only happen with `toolbar_location` is set to `auto`.
         ui.updateMode();
+
+        // NOTE: This repositionPopups call is going to be a duplicate if "updateMode" identifies
+        // that the mode has changed. We probably need to make it a bit more granular .. so
+        // that we can just query if the mode has changed. Otherwise, we're going to end up with
+        // situations like this where we are doing a potentially expensive operation
+        // (repositionPopups) more than once.
         ui.repositionPopups();
       }
     }
@@ -61,48 +67,100 @@ const setupEvents = (editor: Editor, targetElm: SugarElement, ui: InlineHeader, 
     editor.on('deactivate', ui.hide);
   }
 
-  editor.on('SkinLoaded ResizeWindow', () => ui.update(true));
+  // For both the initial load (SkinLoaded) and any resizes (ResizeWindow), we want to
+  // update the positions of the Ui elements (and reset Docking / stickiness)
+  editor.on('SkinLoaded ResizeWindow', () => ui.update(Docking.reset));
 
   editor.on('NodeChange keydown', (e) => {
-    Delay.requestAnimationFrame(() => resizeContent(e));
+    requestAnimationFrame(() => resizeContent(e));
   });
 
-  editor.on('ScrollWindow', () => ui.updateMode());
+  // When the page has been scrolled, we need to update any docking positions. We also
+  // want to reposition all the Ui elements if required.
+  let lastScrollX = 0;
+  const updateUi = Throttler.last(() => ui.update(Docking.refresh), 33);
+  editor.on('ScrollWindow', () => {
+    const newScrollX = Scroll.get().left;
+    if (newScrollX !== lastScrollX) {
+      lastScrollX = newScrollX;
+      updateUi.throttle();
+    }
+
+    ui.updateMode();
+  });
+
+  if (Options.isSplitUiMode(editor)) {
+    editor.on('ElementScroll', (_args) => {
+      // When the scroller containing the editor scrolls, update the Ui positions
+      ui.update(Docking.refresh);
+    });
+  }
 
   // Bind to async load events and trigger a content resize event if the size has changed
+  // This is handling resizing based on anything loading inside the content (e.g. img tags)
   const elementLoad = Singleton.unbindable();
-  elementLoad.set(DomEvent.capture(SugarElement.fromDom(editor.getBody()), 'load', resizeContent));
+  elementLoad.set(DomEvent.capture(SugarElement.fromDom(editor.getBody()), 'load', (e) => resizeContent(e.raw)));
 
   editor.on('remove', () => {
     elementLoad.clear();
   });
 };
+const render = (editor: Editor, uiRefs: ReadyUiReferences, rawUiConfig: RenderUiConfig, backstage: UiFactoryBackstage, args: RenderArgs): ModeRenderInfo => {
+  const { mainUi } = uiRefs;
 
-const render = (editor: Editor, uiComponents: RenderUiComponents, rawUiConfig: RenderUiConfig, backstage: UiFactoryBackstage, args: RenderArgs): ModeRenderInfo => {
-  const { mothership, uiMothership, outerContainer } = uiComponents;
-  const floatContainer = Cell<AlloyComponent>(null);
+  // This is used to store the reference to the header part of OuterContainer, which is
+  // *not* created by this module. This reference is used to make sure that we only bind
+  // events for an inline container *once* ... because our show function is just the
+  // InlineHeader's show function if this reference is already set. We pass it through to
+  // InlineHeader because InlineHeader will depend on it.
+  const floatContainer = Singleton.value<AlloyComponent>();
   const targetElm = SugarElement.fromDom(args.targetNode);
-  const ui = InlineHeader(editor, targetElm, uiComponents, backstage, floatContainer);
-  const toolbarPersist = isToolbarPersist(editor);
+  const ui = InlineHeader(editor, targetElm, uiRefs, backstage, floatContainer);
+  const toolbarPersist = Options.isToolbarPersist(editor);
 
   loadInlineSkin(editor);
 
   const render = () => {
-    if (floatContainer.get()) {
+    // Because we set the floatContainer immediately afterwards, this is just telling us
+    // if we have already called this code (e.g. show, hide, show) - then don't do anything
+    // more than show. It's a pretty messy way of ensuring that all the code that follows
+    // this `if` block is only executed once (setting up events etc.). So the first call
+    // to `render` will execute it, but the second call won't. This `render` function is
+    // used for most of the "show" handlers here, so the function can be invoked either
+    // for the first time, or or just because something is being show again, after being
+    // toggled to hidden earlier.
+    if (floatContainer.isSet()) {
       ui.show();
       return;
     }
 
-    floatContainer.set(OuterContainer.getHeader(outerContainer).getOrDie());
+    // Set up the header part of OuterContainer. Once configured, the `InlineHeader` code
+    // will use it when setting up and updating the Ui. This module uses it mainly just to
+    // allow us to call `render` multiple times, but only have it execute the setup code once.
+    floatContainer.set(OuterContainer.getHeader(mainUi.outerContainer).getOrDie());
 
-    const uiContainer = getUiContainer(editor);
-    Attachment.attachSystem(uiContainer, mothership);
-    Attachment.attachSystem(uiContainer, uiMothership);
+    // `uiContainer` handles *where* the motherhips get added by default. Currently, uiContainer
+    // will mostly be the <body> of the document (unless it's a ShadowRoot). When using ui_mode: split,
+    // the main mothership (which includes the toolbar) and popup sinks will be added as siblings of
+    // the target element, so that they have the same scrolling context / environment
+    const uiContainer = Options.getUiContainer(editor);
+    // Position the motherships based on the editor Ui options.
+    if (Options.isSplitUiMode(editor)) {
+      Attachment.attachSystemAfter(targetElm, mainUi.mothership);
+      // Only in ui_mode: split, do we have a separate popup sink
+      Attachment.attachSystemAfter(targetElm, uiRefs.popupUi.mothership);
+    } else {
+      Attachment.attachSystem(uiContainer, mainUi.mothership);
+    }
+    // NOTE: In UiRefs, dialogUi and popupUi refer to the same thing if ui_mode: combined
+    Attachment.attachSystem(uiContainer, uiRefs.dialogUi.mothership);
 
-    setToolbar(editor, uiComponents, rawUiConfig, backstage);
+    // Unlike menubar below which uses OuterContainer directly, this level of abstraction is
+    // required because of the different types of toolbars available (e.g. multiple vs single)
+    setToolbar(editor, uiRefs, rawUiConfig, backstage);
 
     OuterContainer.setMenubar(
-      outerContainer,
+      mainUi.outerContainer,
       identifyMenus(editor, rawUiConfig)
     );
 
@@ -128,26 +186,19 @@ const render = (editor: Editor, uiComponents: RenderUiComponents, rawUiConfig: R
     }
   });
 
-  ReadOnly.setupReadonlyModeSwitch(editor, uiComponents);
+  ReadOnly.setupReadonlyModeSwitch(editor, uiRefs);
 
   const api: Partial<EditorUiApi> = {
-    show: () => {
-      ui.show();
+    show: render,
+    hide: ui.hide,
+    setEnabled: (state) => {
+      ReadOnly.broadcastReadonly(uiRefs, !state);
     },
-    hide: () => {
-      ui.hide();
-    },
-    enable: () => {
-      ReadOnly.broadcastReadonly(uiComponents, false);
-    },
-    disable: () => {
-      ReadOnly.broadcastReadonly(uiComponents, true);
-    },
-    isDisabled: () => Disabling.isDisabled(outerContainer)
+    isEnabled: () => !Disabling.isDisabled(mainUi.outerContainer)
   };
 
   return {
-    editorContainer: outerContainer.element.dom,
+    editorContainer: mainUi.outerContainer.element.dom,
     api
   };
 };

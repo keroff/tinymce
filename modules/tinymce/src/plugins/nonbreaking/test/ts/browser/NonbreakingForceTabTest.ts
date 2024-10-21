@@ -6,7 +6,6 @@ import { assert } from 'chai';
 import Editor from 'tinymce/core/api/Editor';
 import VK from 'tinymce/core/api/util/VK';
 import Plugin from 'tinymce/plugins/nonbreaking/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.plugins.nonbreaking.NonbreakingForceTabTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
@@ -15,7 +14,7 @@ describe('browser.tinymce.plugins.nonbreaking.NonbreakingForceTabTest', () => {
     nonbreaking_force_tab: 5,
     theme: 'silver',
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Theme, Plugin ], true);
+  }, [ Plugin ], true);
 
   it('TBA: Undo level on insert tab', () => {
     const editor = hook.editor();
@@ -27,7 +26,7 @@ describe('browser.tinymce.plugins.nonbreaking.NonbreakingForceTabTest', () => {
 
   it('TBA: Prevent default and other handlers on insert tab', () => {
     const editor = hook.editor();
-    const args = editor.fire('keydown', { keyCode: VK.TAB } as KeyboardEvent);
+    const args = editor.dispatch('keydown', { keyCode: VK.TAB } as KeyboardEvent);
     assert.isTrue(args.isDefaultPrevented());
     assert.isTrue(args.isImmediatePropagationStopped());
   });

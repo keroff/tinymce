@@ -2,16 +2,16 @@
 import { ApproxStructure, Assertions, Keys, UiFinder } from '@ephox/agar';
 import { describe, it } from '@ephox/bedrock-client';
 import { Cell, Fun } from '@ephox/katamari';
+import { PlatformDetection } from '@ephox/sand';
 import { SugarBody } from '@ephox/sugar';
 import { TinyDom, TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import Env from 'tinymce/core/api/Env';
-import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.themes.silver.editor.SilverEditorTest', () => {
-  const store = Cell([ ]);
+  const os = PlatformDetection.detect().os;
+  const store = Cell<string[]>([ ]);
   const hook = TinyHooks.bddSetup<Editor>({
     toolbar: 'custom1 customtoggle1 dropdown1-with-text dropdown1-with-icon splitbutton1-with-text splitbutton2-with-icon',
     menubar: 'menutest',
@@ -129,7 +129,7 @@ describe('browser.tinymce.themes.silver.editor.SilverEditorTest', () => {
         }
       });
     }
-  }, [ Theme ]);
+  }, []);
 
   it('Check basic structure and actions', () => {
     const editor = hook.editor();
@@ -311,11 +311,17 @@ describe('browser.tinymce.themes.silver.editor.SilverEditorTest', () => {
                     classes: [ arr.has('tox-sidebar') ]
                   })
                 ]
+              }),
+              s.element('div', {
+                classes: [ arr.has('tox-bottom-anchorbar') ]
+              }),
+              s.element('div', {
+                classes: [ arr.has('tox-statusbar') ]
               })
             ]
           }),
           s.element('div', {
-            classes: [ arr.has('tox-statusbar') ]
+            classes: [ arr.has('tox-view-wrap') ]
           }),
           s.element('div', {
             classes: [ arr.has('tox-throbber') ]
@@ -351,13 +357,13 @@ describe('browser.tinymce.themes.silver.editor.SilverEditorTest', () => {
           }),
           s.element('div', {
             classes: [ arr.has('tox-collection__item-accessory') ],
-            html: str.is(Env.mac ? '\u2318' + 'M' : 'Ctrl' + '+M')
+            html: str.is(os.isMacOS() || os.isiOS() ? '\u2318' + 'M' : 'Ctrl' + '+M')
           })
         ]
       })),
       activeItem
     );
-    TinyUiActions.keydown(editor, Keys.escape());
+    TinyUiActions.keyup(editor, Keys.escape());
     UiFinder.notExists(SugarBody.body(), '[role="menu"]');
   });
 
@@ -377,7 +383,7 @@ describe('browser.tinymce.themes.silver.editor.SilverEditorTest', () => {
 
   it('TBA: Using the api should toggle a toggle button', () => {
     const editor = hook.editor();
-    editor.fire('customtoggle1-toggle');
+    editor.dispatch('customtoggle1-toggle');
     const button = UiFinder.findIn(TinyDom.container(editor), '.tox-tbtn:contains("ToggleMe")').getOrDie();
     Assertions.assertStructure('ToggleMe button should be pressed',
       ApproxStructure.build((s, str, arr) => s.element('button', {
@@ -404,7 +410,7 @@ describe('browser.tinymce.themes.silver.editor.SilverEditorTest', () => {
 
   it('TBA: Using the api should toggle a split button', () => {
     const editor = hook.editor();
-    editor.fire('splitbutton1-toggle');
+    editor.dispatch('splitbutton1-toggle');
     const button = UiFinder.findIn(TinyDom.container(editor), '.tox-split-button > .tox-tbtn:contains("Delta")').getOrDie();
     Assertions.assertStructure('Delta button should be pressed',
       ApproxStructure.build((s, str, arr) => s.element('span', {

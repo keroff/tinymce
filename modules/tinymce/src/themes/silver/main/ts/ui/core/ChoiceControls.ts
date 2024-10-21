@@ -1,18 +1,12 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Arr, Fun, Optional, Optionals, Singleton, Type } from '@ephox/katamari';
 import { Attribute, Dimension, SugarElement, SugarNode, TransformFind } from '@ephox/sugar';
 
 import Editor from 'tinymce/core/api/Editor';
-import { ContentLanguage } from 'tinymce/core/api/SettingsTypes';
+import { ContentLanguage } from 'tinymce/core/api/OptionTypes';
 import { Menu, Toolbar } from 'tinymce/core/api/ui/Ui';
 
-import * as Settings from '../../api/Settings';
+import * as Options from '../../api/Options';
+import { composeUnbinders, onSetupEditableToggle } from './ControlUtils';
 
 interface ControlSpec<T> {
   readonly name: string;
@@ -77,23 +71,25 @@ const registerController = <T>(editor: Editor, spec: ControlSpec<T>) => {
   });
 };
 
-const lineHeightSpec: ControlSpec<string> = {
+const lineHeightSpec = (editor: Editor): ControlSpec<string> => ({
   name: 'lineheight',
   text: 'Line height',
   icon: 'line-height',
 
-  getOptions: Settings.getLineHeightFormats,
+  getOptions: Options.getLineHeightFormats,
   hash: (input) => Dimension.normalise(input, [ 'fixed', 'relative', 'empty' ]).getOr(input),
   display: Fun.identity,
 
   watcher: (editor, value, callback) =>
     editor.formatter.formatChanged('lineheight', callback, false, { value }).unbind,
   getCurrent: (editor) => Optional.from(editor.queryCommandValue('LineHeight')),
-  setCurrent: (editor, value) => editor.execCommand('LineHeight', false, value)
-};
+  setCurrent: (editor, value) => editor.execCommand('LineHeight', false, value),
+  onToolbarSetup: onSetupEditableToggle(editor),
+  onMenuSetup: onSetupEditableToggle(editor)
+});
 
 const languageSpec = (editor: Editor): Optional<ControlSpec<ContentLanguage>> => {
-  const settingsOpt = Optional.from(Settings.getContentLanguages(editor));
+  const settingsOpt = Optional.from(Options.getContentLanguages(editor));
   return settingsOpt.map((settings) => ({
     name: 'language',
     text: 'Language',
@@ -104,7 +100,7 @@ const languageSpec = (editor: Editor): Optional<ControlSpec<ContentLanguage>> =>
     display: (input) => input.title,
 
     watcher: (editor, value, callback) =>
-      editor.formatter.formatChanged('lang', callback, false, { value: value.code, customValue: value.customCode }).unbind,
+      editor.formatter.formatChanged('lang', callback, false, { value: value.code, customValue: value.customCode ?? null }).unbind,
     getCurrent: (editor) => {
       const node = SugarElement.fromDom(editor.selection.getNode());
       return TransformFind.closest(node, (n) =>
@@ -125,13 +121,14 @@ const languageSpec = (editor: Editor): Optional<ControlSpec<ContentLanguage>> =>
       const unbinder = Singleton.unbindable();
       api.setActive(editor.formatter.match('lang', {}, undefined, true));
       unbinder.set(editor.formatter.formatChanged('lang', api.setActive, true));
-      return unbinder.clear;
-    }
+      return composeUnbinders(unbinder.clear, onSetupEditableToggle(editor)(api));
+    },
+    onMenuSetup: onSetupEditableToggle(editor)
   }));
 };
 
-const register = (editor: Editor) => {
-  registerController(editor, lineHeightSpec);
+const register = (editor: Editor): void => {
+  registerController(editor, lineHeightSpec(editor));
   languageSpec(editor).each((spec) => registerController(editor, spec));
 };
 

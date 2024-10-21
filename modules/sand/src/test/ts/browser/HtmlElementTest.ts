@@ -28,23 +28,33 @@ describe('HtmlElementTest', () => {
 
     it('same window elements should be true', () => {
       const div = document.createElement('div');
+      const a = document.createElement('a');
       assert.isTrue(SandHTMLElement.isPrototypeOf(div));
+      assert.isTrue(SandHTMLElement.isPrototypeOf(a));
     });
 
     it('TINY-7374: different window elements should be true', () => {
       const span = document.createElement('span');      // HTMLSpanElement
+      const a = document.createElement('a');            // HTMLAnchorElement
       const strong = document.createElement('strong');  // HTMLElement
       const iframe = document.createElement('iframe');
       document.body.appendChild(iframe);
 
       const iframeDoc = iframe.contentDocument;
+      if (iframeDoc === null) {
+        assert.fail('Iframe document is not available');
+        return;
+      }
+
       iframeDoc.open();
       iframeDoc.write('<html><body></body></html>');
       iframeDoc.close();
 
       iframeDoc.body.appendChild(span);
+      iframeDoc.body.appendChild(a);
       iframeDoc.body.appendChild(strong);
       assert.isTrue(SandHTMLElement.isPrototypeOf(span));
+      assert.isTrue(SandHTMLElement.isPrototypeOf(a));
       assert.isTrue(SandHTMLElement.isPrototypeOf(strong));
 
       document.body.removeChild(iframe);

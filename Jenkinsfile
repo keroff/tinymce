@@ -126,18 +126,7 @@ timestamps {
 
     processes["headless-and-archive"] = {
       stage("headless tests") {
-        node('headless-macos') {
-          // Prepare the branch on the node
-          lock('headless tests') {
-            checkout(scm)
-            gitMerge(primaryBranch)
-            cleanAndInstall()
-            exec("yarn ci -s tinymce-rollup")
-
-            echo "Platform: chrome-headless tests on node: $NODE_NAME"
-            runHeadlessTests(runAllTests)
-          }
-        }
+        runHeadlessTests(runAllTests)
       }
 
       if (env.BRANCH_NAME != primaryBranch) {
@@ -153,7 +142,9 @@ timestamps {
     }
 
     stage("Type check") {
-      exec("yarn ci-all")
+      withEnv(["NODE_OPTIONS=--max-old-space-size=1936"]) {
+        exec("yarn ci-all-seq")
+      }
     }
 
     stage("Moxiedoc check") {

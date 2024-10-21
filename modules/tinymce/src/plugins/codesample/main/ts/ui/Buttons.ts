@@ -1,11 +1,23 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
+import { Fun } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
+import { Menu, Toolbar } from 'tinymce/core/api/ui/Ui';
+
+type ControlApi = Toolbar.ToolbarButtonInstanceApi | Menu.MenuItemInstanceApi;
+
+const onSetupEditable = <T extends ControlApi>(editor: Editor, onChanged: (api: T) => void = Fun.noop) => (api: T): VoidFunction => {
+  const nodeChanged = () => {
+    api.setEnabled(editor.selection.isEditable());
+    onChanged(api);
+  };
+
+  editor.on('NodeChange', nodeChanged);
+  nodeChanged();
+
+  return () => {
+    editor.off('NodeChange', nodeChanged);
+  };
+};
 
 const isCodeSampleSelection = (editor: Editor): boolean => {
   const node = editor.selection.getStart();
@@ -20,19 +32,16 @@ const register = (editor: Editor): void => {
     icon: 'code-sample',
     tooltip: 'Insert/edit code sample',
     onAction,
-    onSetup: (api) => {
-      const nodeChangeHandler = () => {
-        api.setActive(isCodeSampleSelection(editor));
-      };
-      editor.on('NodeChange', nodeChangeHandler);
-      return () => editor.off('NodeChange', nodeChangeHandler);
-    }
+    onSetup: onSetupEditable(editor, (api) => {
+      api.setActive(isCodeSampleSelection(editor));
+    })
   });
 
   editor.ui.registry.addMenuItem('codesample', {
     text: 'Code sample...',
     icon: 'code-sample',
-    onAction
+    onAction,
+    onSetup: onSetupEditable(editor)
   });
 };
 

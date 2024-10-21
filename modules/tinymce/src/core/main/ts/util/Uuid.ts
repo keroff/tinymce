@@ -1,11 +1,4 @@
 /**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-/**
  * Generates unique ids.
  *
  * @class tinymce.util.Uuid
@@ -14,7 +7,7 @@
 
 let count = 0;
 
-const seed = () => {
+const seed = (): string => {
   const rnd = () => {
     return Math.round(Math.random() * 0xFFFFFFFF).toString(36);
   };
@@ -23,7 +16,7 @@ const seed = () => {
   return 's' + now.toString(36) + rnd() + rnd() + rnd();
 };
 
-const uuid = (prefix) => {
+const uuid = (prefix: string): string => {
   return prefix + (count++) + seed();
 };
 

@@ -1,10 +1,12 @@
 import { Assertions } from '@ephox/agar';
 import { context, describe, it } from '@ephox/bedrock-client';
+import { Fun } from '@ephox/katamari';
 import { Hierarchy, SugarElement, SugarNode } from '@ephox/sugar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
-import { RawEditorSettings } from 'tinymce/core/api/SettingsTypes';
+import Schema from 'tinymce/core/api/html/Schema';
+import { RawEditorOptions } from 'tinymce/core/api/OptionTypes';
 import CaretPosition from 'tinymce/core/caret/CaretPosition';
 import * as InlineUtils from 'tinymce/core/keyboard/InlineUtils';
 import { ZWSP } from 'tinymce/core/text/Zwsp';
@@ -35,25 +37,30 @@ describe('browser.tinymce.core.keyboard.InlineUtilsTest', () => {
     textNode.dom.splitText(offset);
   };
 
-  const createFakeEditor = (settings: RawEditorSettings): Editor => {
+  const createFakeEditor = (options: RawEditorOptions): Editor => {
     return {
-      settings,
-      getParam: (name: string, defaultVal?: any, _type?: string) => settings[name] || defaultVal
+      options: {
+        get: (name: string) => options[name] ?? 'a[href],code,.mce-annotation'
+      },
+      dom: {
+        isEditable: Fun.always
+      },
+      schema: Schema()
     } as any;
   };
 
   it('isInlineTarget with various editor settings', () => {
-    assert.isTrue(InlineUtils.isInlineTarget(createFakeEditor({ }), SugarElement.fromHtml('<a href="a">').dom), 'Links should be inline target');
-    assert.isTrue(InlineUtils.isInlineTarget(createFakeEditor({ }), SugarElement.fromHtml('<code>').dom), 'Code should be inline target');
-    assert.isTrue(InlineUtils.isInlineTarget(createFakeEditor({ }), SugarElement.fromHtml('<span class="mce-annotation"></span>').dom), 'Annotations should be inline target');
-    assert.isFalse(InlineUtils.isInlineTarget(createFakeEditor({ }), SugarElement.fromHtml('<a>').dom), 'None link anchor should not be inline target');
-    assert.isFalse(InlineUtils.isInlineTarget(createFakeEditor({ }), SugarElement.fromHtml('<b>').dom), 'Bold should not be inline target');
+    assert.isTrue(InlineUtils.isInlineTarget(createFakeEditor({ }), SugarElement.fromHtml<HTMLAnchorElement>('<a href="a">').dom), 'Links should be inline target');
+    assert.isTrue(InlineUtils.isInlineTarget(createFakeEditor({ }), SugarElement.fromTag('code').dom), 'Code should be inline target');
+    assert.isTrue(InlineUtils.isInlineTarget(createFakeEditor({ }), SugarElement.fromHtml<HTMLSpanElement>('<span class="mce-annotation"></span>').dom), 'Annotations should be inline target');
+    assert.isFalse(InlineUtils.isInlineTarget(createFakeEditor({ }), SugarElement.fromTag('a').dom), 'None link anchor should not be inline target');
+    assert.isFalse(InlineUtils.isInlineTarget(createFakeEditor({ }), SugarElement.fromTag('b').dom), 'Bold should not be inline target');
     assert.isTrue(InlineUtils.isInlineTarget(createFakeEditor({
       inline_boundaries_selector: 'b'
-    }), SugarElement.fromHtml('<b>').dom), 'Bold should be inline target if configured');
+    }), SugarElement.fromTag('b').dom), 'Bold should be inline target if configured');
     assert.isTrue(InlineUtils.isInlineTarget(createFakeEditor({
       inline_boundaries_selector: 'b,i'
-    }), SugarElement.fromHtml('<i>').dom), 'Italic should be inline target if configured');
+    }), SugarElement.fromTag('i').dom), 'Italic should be inline target if configured');
   });
 
   context('normalizePosition on text forwards', () => {

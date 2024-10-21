@@ -1,7 +1,9 @@
 import * as Boxes from '../alien/Boxes';
 import * as EventRoot from '../alien/EventRoot';
+import * as OffsetOrigin from '../alien/OffsetOrigin';
 import * as AriaVoice from '../aria/AriaVoice';
 import { BehaviourState } from '../behaviour/common/BehaviourState';
+import * as DockingTypes from '../behaviour/docking/DockingTypes';
 import * as Fields from '../data/Fields';
 import * as Debugging from '../debugging/Debugging';
 import * as FunctionAnnotator from '../debugging/FunctionAnnotator';
@@ -25,6 +27,7 @@ import {
 } from '../positioning/mode/Anchoring';
 import * as VerticalDir from '../positioning/mode/VerticalDir';
 import * as FormTypes from '../ui/types/FormTypes';
+import * as InlineViewTypes from '../ui/types/InlineViewTypes';
 import * as ItemTypes from '../ui/types/ItemTypes'; // not sure if this is the right thing to expose, but we use it a lot?
 import * as MenuTypes from '../ui/types/MenuTypes';
 import * as SliderTypes from '../ui/types/SliderTypes';
@@ -223,6 +226,7 @@ export {
   PartType,
   Bounds,
   Boxes,
+  OffsetOrigin,
   EventRoot,
   TapEvent,
   AlloyLogger,
@@ -257,6 +261,7 @@ export {
   // types
   TieredMenuTypes,
   MenuTypes,
+  InlineViewTypes,
   SlotContainerTypes,
   SliderTypes,
   FormTypes,
@@ -268,6 +273,7 @@ export {
   HotspotAnchorSpec,
   SubmenuAnchorSpec,
   DraggingTypes,
+  DockingTypes,
   Layouts,
 
   FocusInsideModes,

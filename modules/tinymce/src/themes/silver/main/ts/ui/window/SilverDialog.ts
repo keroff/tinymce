@@ -1,20 +1,19 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { AlloyComponent, Composing, ModalDialog } from '@ephox/alloy';
 import { Dialog, DialogManager } from '@ephox/bridge';
-import { Fun, Optional } from '@ephox/katamari';
+import { Fun, Id, Optionals } from '@ephox/katamari';
+import { Class, Classes, SugarElement } from '@ephox/sugar';
 
 import { UiFactoryBackstage } from '../../backstage/Backstage';
 import { renderModalBody } from './SilverDialogBody';
 import * as SilverDialogCommon from './SilverDialogCommon';
-import { SilverDialogEvents } from './SilverDialogEvents';
+import * as SilverDialogEvents from './SilverDialogEvents';
 import { renderModalFooter } from './SilverDialogFooter';
-import { getDialogApi } from './SilverDialogInstanceApi';
+import { DialogAccess, getDialogApi } from './SilverDialogInstanceApi';
+
+interface RenderedDialog<T extends Dialog.DialogData> {
+  readonly dialog: AlloyComponent;
+  readonly instanceApi: Dialog.DialogInstanceApi<T>;
+}
 
 const getDialogSizeClasses = (size: Dialog.DialogSize): string[] => {
   switch (size) {
@@ -27,51 +26,71 @@ const getDialogSizeClasses = (size: Dialog.DialogSize): string[] => {
   }
 };
 
-const renderDialog = <T>(dialogInit: DialogManager.DialogInit<T>, extra: SilverDialogCommon.WindowExtra, backstage: UiFactoryBackstage) => {
-  const header = SilverDialogCommon.getHeader(dialogInit.internalDialog.title, backstage);
+const renderDialog = <T extends Dialog.DialogData>(dialogInit: DialogManager.DialogInit<T>, extra: SilverDialogCommon.WindowExtra<T>, backstage: UiFactoryBackstage): RenderedDialog<T> => {
+  const dialogId = Id.generate('dialog');
+  const internalDialog = dialogInit.internalDialog;
+  const header = SilverDialogCommon.getHeader(internalDialog.title, dialogId, backstage);
 
   const body = renderModalBody({
-    body: dialogInit.internalDialog.body
-  }, backstage);
+    body: internalDialog.body,
+    initialData: internalDialog.initialData
+  }, dialogId, backstage);
 
-  const storagedMenuButtons = SilverDialogCommon.mapMenuButtons(dialogInit.internalDialog.buttons);
+  const storedMenuButtons = SilverDialogCommon.mapMenuButtons(internalDialog.buttons);
 
-  const objOfCells = SilverDialogCommon.extractCellsToObject(storagedMenuButtons);
+  const objOfCells = SilverDialogCommon.extractCellsToObject(storedMenuButtons);
 
-  const footer = renderModalFooter({
-    buttons: storagedMenuButtons
-  }, backstage);
+  const footer = Optionals.someIf(
+    storedMenuButtons.length !== 0,
+    renderModalFooter({ buttons: storedMenuButtons }, dialogId, backstage)
+  );
 
-  const dialogEvents = SilverDialogEvents.initDialog(
+  const dialogEvents = SilverDialogEvents.initDialog<T>(
     () => instanceApi,
     SilverDialogCommon.getEventExtras(() => dialog, backstage.shared.providers, extra),
     backstage.shared.getSink
   );
 
-  const dialogSize = getDialogSizeClasses(dialogInit.internalDialog.size);
+  const dialogSize = getDialogSizeClasses(internalDialog.size);
 
   const spec = {
+    id: dialogId,
     header,
     body,
-    footer: Optional.some(footer),
+    footer,
     extraClasses: dialogSize,
     extraBehaviours: [],
     extraStyles: {}
   };
 
-  const dialog = SilverDialogCommon.renderModalDialog(spec, dialogInit, dialogEvents, backstage);
+  const dialog: AlloyComponent = SilverDialogCommon.renderModalDialog(spec, dialogInit, dialogEvents, backstage);
 
-  const modalAccess = (() => {
+  const modalAccess = ((): DialogAccess => {
     const getForm = (): AlloyComponent => {
       const outerForm = ModalDialog.getBody(dialog);
       return Composing.getCurrent(outerForm).getOr(outerForm);
     };
 
+    const toggleFullscreen = (): void => {
+      const fullscreenClass = 'tox-dialog--fullscreen';
+      const sugarBody = SugarElement.fromDom(dialog.element.dom);
+
+      if (!Class.has(sugarBody, fullscreenClass)) {
+        Classes.remove(sugarBody, dialogSize);
+        Class.add(sugarBody, fullscreenClass);
+      } else {
+        Class.remove(sugarBody, fullscreenClass);
+        Classes.add(sugarBody, dialogSize);
+      }
+    };
+
     return {
+      getId: Fun.constant(dialogId),
       getRoot: Fun.constant(dialog),
       getBody: () => ModalDialog.getBody(dialog),
       getFooter: () => ModalDialog.getFooter(dialog),
-      getFormWrapper: getForm
+      getFormWrapper: getForm,
+      toggleFullscreen
     };
   })();
 

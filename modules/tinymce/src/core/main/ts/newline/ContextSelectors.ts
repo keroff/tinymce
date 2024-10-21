@@ -1,14 +1,7 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Selectors, SugarElement } from '@ephox/sugar';
 
 import Editor from '../api/Editor';
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 import * as NewLineUtils from './NewLineUtils';
 
 const matchesSelector = (editor: Editor, selector: string) => {
@@ -17,12 +10,12 @@ const matchesSelector = (editor: Editor, selector: string) => {
   }).isSome();
 };
 
-const shouldInsertBr = (editor: Editor) => {
-  return matchesSelector(editor, Settings.getBrNewLineSelector(editor));
+const shouldInsertBr = (editor: Editor): boolean => {
+  return matchesSelector(editor, Options.getBrNewLineSelector(editor));
 };
 
-const shouldBlockNewLine = (editor: Editor) => {
-  return matchesSelector(editor, Settings.getNoNewLineSelector(editor));
+const shouldBlockNewLine = (editor: Editor): boolean => {
+  return matchesSelector(editor, Options.getNoNewLineSelector(editor));
 };
 
 export {

@@ -3,7 +3,6 @@ import { TinyAssertions, TinyDom, TinyHooks } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/codesample/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import * as TestUtils from '../module/CodeSampleTestUtils';
 
@@ -12,7 +11,7 @@ describe('browser.tinymce.plugins.codesample.CodeSampleSanityTest', () => {
     plugins: 'codesample',
     toolbar: 'codesample',
     base_url: '/project/tinymce/js/tinymce'
-  }, [ Plugin, Theme ]);
+  }, [ Plugin ], true);
 
   const markupContent = '<p>hello world</p>';
   const newContent = 'editor content should not change to this';
@@ -41,5 +40,13 @@ describe('browser.tinymce.plugins.codesample.CodeSampleSanityTest', () => {
     TestUtils.setTextareaContent(newContent);
     await TestUtils.pCancelDialog(editor);
     TinyAssertions.assertContent(editor, '');
+  });
+
+  it('TINY-8861: set content places the cursor in a valid position', () => {
+    const editor = hook.editor();
+
+    editor.setContent('<pre class="language-markup"><code>test content</code></pre>');
+    TinyAssertions.assertCursor(editor, [ 0 ], 0);
+    TinyAssertions.assertContent(editor, '<pre class="language-markup"><code>test content</code></pre>');
   });
 });

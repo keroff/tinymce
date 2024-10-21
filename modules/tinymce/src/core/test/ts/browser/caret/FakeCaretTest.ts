@@ -1,9 +1,9 @@
 import { after, before, describe, it } from '@ephox/bedrock-client';
 import { Fun } from '@ephox/katamari';
-import { SugarElement } from '@ephox/sugar';
+import { Attribute, ContentEditable, Html, Insert, SelectorFilter, SelectorFind, SugarElement, SugarNode, Traverse } from '@ephox/sugar';
 import { assert } from 'chai';
 
-import $ from 'tinymce/core/api/dom/DomQuery';
+import DOMUtils from 'tinymce/core/api/dom/DOMUtils';
 import { FakeCaret, isFakeCaretTarget } from 'tinymce/core/caret/FakeCaret';
 import { isFakeCaretTableBrowser } from 'tinymce/core/keyboard/TableNavigation';
 import * as Zwsp from 'tinymce/core/text/Zwsp';
@@ -15,13 +15,17 @@ describe('browser.tinymce.core.caret.FakeCaretTest', () => {
   const viewBlock = ViewBlock.bddSetup();
   let fakeCaret: FakeCaret;
 
-  const getRoot = viewBlock.get;
+  const getRoot = () => SugarElement.fromDom(viewBlock.get());
 
   before(() => {
     const mockEditor: any = {
-      getParam: Fun.constant('p')
+      options: {
+        get: Fun.constant('p')
+      },
+      dom: DOMUtils(document)
     };
-    fakeCaret = FakeCaret(mockEditor, getRoot(), isBlock, Fun.always);
+    fakeCaret = FakeCaret(mockEditor, getRoot().dom, isBlock, Fun.always);
+    viewBlock.get().contentEditable = 'true';
   });
 
   after(() => {
@@ -33,59 +37,59 @@ describe('browser.tinymce.core.caret.FakeCaretTest', () => {
   };
 
   it('show/hide (before, block)', () => {
-    $(getRoot()).html('<div>a</div>');
+    Html.set(getRoot(), '<div>a</div>');
 
-    const rng = fakeCaret.show(true, $<HTMLDivElement>('div', getRoot())[0]);
-    const $fakeCaretElm = $(getRoot()).children();
+    const rng = fakeCaret.show(true, SelectorFind.descendant(getRoot(), 'div').getOrDie().dom) as Range;
+    const fakeCaretElm = Traverse.children(getRoot())[0] as SugarElement<HTMLElement>;
 
-    assert.equal($fakeCaretElm[0].nodeName, 'P');
-    assert.equal($fakeCaretElm.attr('data-mce-caret'), 'before');
-    CaretAsserts.assertRange(rng, CaretAsserts.createRange($fakeCaretElm[0], 0, $fakeCaretElm[0], 0));
+    assert.equal(SugarNode.name(fakeCaretElm), 'p');
+    assert.equal(Attribute.get(fakeCaretElm, 'data-mce-caret'), 'before');
+    CaretAsserts.assertRange(rng, CaretAsserts.createRange(fakeCaretElm.dom, 0, fakeCaretElm.dom, 0));
 
     fakeCaret.hide();
-    assert.lengthOf($('*[data-mce-caret]', getRoot()), 0);
+    assert.lengthOf(SelectorFilter.descendants(getRoot(), '*[data-mce-caret]'), 0);
   });
 
   it('show/hide (after, block)', () => {
-    $(getRoot()).html('<div>a</div>');
+    Html.set(getRoot(), '<div>a</div>');
 
-    const rng = fakeCaret.show(false, $<HTMLDivElement>('div', getRoot())[0]);
-    const $fakeCaretElm = $(getRoot()).children();
+    const rng = fakeCaret.show(false, SelectorFind.descendant(getRoot(), 'div').getOrDie().dom) as Range;
+    const fakeCaretElm = Traverse.children(getRoot())[1] as SugarElement<HTMLElement>;
 
-    assert.equal($fakeCaretElm[1].nodeName, 'P');
-    assert.equal($fakeCaretElm.eq(1).attr('data-mce-caret'), 'after');
-    CaretAsserts.assertRange(rng, CaretAsserts.createRange($fakeCaretElm[1], 0, $fakeCaretElm[1], 0));
+    assert.equal(SugarNode.name(fakeCaretElm), 'p');
+    assert.equal(Attribute.get(fakeCaretElm, 'data-mce-caret'), 'after');
+    CaretAsserts.assertRange(rng, CaretAsserts.createRange(fakeCaretElm.dom, 0, fakeCaretElm.dom, 0));
 
     fakeCaret.hide();
-    assert.lengthOf($('*[data-mce-caret]', getRoot()), 0);
+    assert.lengthOf(SelectorFilter.descendants(getRoot(), '*[data-mce-caret]'), 0);
   });
 
   it('show/hide (before, inline)', () => {
-    $(getRoot()).html('<span>a</span>');
+    Html.set(getRoot(), '<span>a</span>');
 
-    const rng = fakeCaret.show(true, $<HTMLSpanElement>('span', getRoot())[0]);
-    const $fakeCaretText = $(getRoot()).contents();
+    const rng = fakeCaret.show(true, SelectorFind.descendant(getRoot(), 'span').getOrDie().dom) as Range;
+    const fakeCaretText = Traverse.children(getRoot());
 
-    assert.equal($fakeCaretText[0].nodeName, '#text');
-    assert.equal(($fakeCaretText[0] as Text).data, Zwsp.ZWSP);
-    CaretAsserts.assertRange(rng, CaretAsserts.createRange($fakeCaretText[0], 1));
+    assert.equal(SugarNode.name(fakeCaretText[0]), '#text');
+    assert.equal((fakeCaretText[0].dom as Text).data, Zwsp.ZWSP);
+    CaretAsserts.assertRange(rng, CaretAsserts.createRange(fakeCaretText[0].dom, 1));
 
     fakeCaret.hide();
-    assert.equal($(getRoot()).contents()[0].nodeName, 'SPAN');
+    assert.equal(Traverse.children(getRoot())[0].dom.nodeName, 'SPAN');
   });
 
   it('show/hide (after, inline)', () => {
-    $(getRoot()).html('<span>a</span>');
+    Html.set(getRoot(), '<span>a</span>');
 
-    const rng = fakeCaret.show(false, $<HTMLSpanElement>('span', getRoot())[0]);
-    const $fakeCaretText = $(getRoot()).contents();
+    const rng = fakeCaret.show(false, SelectorFind.descendant(getRoot(), 'span').getOrDie().dom) as Range;
+    const fakeCaretText = Traverse.children(getRoot());
 
-    assert.equal($fakeCaretText[1].nodeName, '#text');
-    assert.equal(($fakeCaretText[1] as Text).data, Zwsp.ZWSP);
-    CaretAsserts.assertRange(rng, CaretAsserts.createRange($fakeCaretText[1], 1));
+    assert.equal(SugarNode.name(fakeCaretText[1]), '#text');
+    assert.equal((fakeCaretText[1].dom as Text).data, Zwsp.ZWSP);
+    CaretAsserts.assertRange(rng, CaretAsserts.createRange(fakeCaretText[1].dom, 1));
 
     fakeCaret.hide();
-    assert.equal($(getRoot()).contents()[0].nodeName, 'SPAN');
+    assert.equal(Traverse.children(getRoot())[0].dom.nodeName, 'SPAN');
   });
 
   it('getCss', () => {
@@ -93,20 +97,29 @@ describe('browser.tinymce.core.caret.FakeCaretTest', () => {
   });
 
   it('show before TD', () => {
-    getRoot().innerHTML = '<table><tr><td contenteditable="false">x</td></tr></table>';
-    const rng = fakeCaret.show(false, $<HTMLTableCellElement>('td', getRoot())[0]);
+    getRoot().dom.innerHTML = '<table><tr><td contenteditable="false">x</td></tr></table>';
+    const rng = fakeCaret.show(false, SelectorFind.descendant(getRoot(), 'td').getOrDie().dom);
     assert.isNull(rng, 'Should be null since TD is not a valid caret target');
   });
 
   it('show before TH', () => {
-    getRoot().innerHTML = '<table><tr><th contenteditable="false">x</th></tr></table>';
-    const rng = fakeCaret.show(false, $<HTMLTableCellElement>('th', getRoot())[0]);
+    getRoot().dom.innerHTML = '<table><tr><th contenteditable="false">x</th></tr></table>';
+    const rng = fakeCaret.show(false, SelectorFind.descendant(getRoot(), 'th').getOrDie().dom);
     assert.isNull(rng, 'Should be null since TH is not a valid caret target');
   });
 
   it('isFakeCaretTarget', () => {
-    assert.isFalse(isFakeCaretTarget(SugarElement.fromHtml('<p></p>').dom), 'Should not need a fake caret');
-    assert.isTrue(isFakeCaretTarget(SugarElement.fromHtml('<p contenteditable="false"></p>').dom), 'Should always need a fake caret');
-    assert.equal(isFakeCaretTarget(SugarElement.fromHtml('<table></table>').dom), isFakeCaretTableBrowser(), 'Should on some browsers need a fake caret');
+    const createElement = (html: string, contentEditable: boolean = true) => {
+      const parent = SugarElement.fromTag('div');
+      const inner = SugarElement.fromHtml(html);
+      Insert.append(parent, inner);
+      ContentEditable.set(parent, contentEditable);
+      return inner;
+    };
+
+    assert.isFalse(isFakeCaretTarget(createElement('<p></p>').dom), 'Should not need a fake caret');
+    assert.isTrue(isFakeCaretTarget(createElement('<p contenteditable="false"></p>').dom), 'Should always need a fake caret');
+    assert.isFalse(isFakeCaretTarget(createElement('<p contenteditable="false"></p>', false).dom), 'Should not have fake caret since context is noneditable');
+    assert.equal(isFakeCaretTarget(createElement('<table></table>').dom), isFakeCaretTableBrowser(), 'Should on some browsers need a fake caret');
   });
 });

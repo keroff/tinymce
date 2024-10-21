@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import {
   AddEventsBehaviour, AlloyComponent, AlloyEvents, Behaviour, Dropdown, Focusing, Keying, NativeEvents, RawDomSchema, Replacing, Sketcher,
   SystemEvents, Tabstopping, UiSketcher
@@ -38,7 +31,7 @@ export interface SilverMenubarDetail extends Sketcher.SingleSketchDetail {
 
 export interface SilverMenubarApis {
   focus: (comp: AlloyComponent) => void;
-  setMenus: (comp: AlloyComponent, groups) => void;
+  setMenus: (comp: AlloyComponent, groups: MenubarItemSpec[]) => void;
 }
 
 export interface SilverMenubarSketch extends Sketcher.SingleSketch<SilverMenubarSpec>, SilverMenubarApis { }

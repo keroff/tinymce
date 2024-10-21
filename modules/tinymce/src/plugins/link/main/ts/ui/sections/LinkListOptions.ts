@@ -1,17 +1,8 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Optional, Type } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
-import Promise from 'tinymce/core/api/util/Promise';
-import XHR from 'tinymce/core/api/util/XHR';
 
-import * as Settings from '../../api/Settings';
+import * as Options from '../../api/Options';
 import { ListOptions } from '../../core/ListOptions';
 import { ListItem, UserListItem } from '../DialogTypes';
 
@@ -25,21 +16,19 @@ const parseJson = (text: string): Optional<ListItem[]> => {
 };
 
 const getLinks = (editor: Editor): Promise<Optional<ListItem[]>> => {
-  const extractor = (item: UserListItem) => editor.convertURL(item.value || item.url, 'href');
+  const extractor = (item: UserListItem) => editor.convertURL(item.value || item.url || '', 'href');
 
-  const linkList = Settings.getLinkList(editor);
-  return new Promise<Optional<UserListItem[]>>((callback) => {
+  const linkList = Options.getLinkList(editor);
+  return new Promise<Optional<UserListItem[]>>((resolve) => {
     // TODO - better handling of failure
     if (Type.isString(linkList)) {
-      XHR.send({
-        url: linkList,
-        success: (text) => callback(parseJson(text)),
-        error: (_) => callback(Optional.none())
-      });
+      fetch(linkList)
+        .then((res) => res.ok ? res.text().then(parseJson) : Promise.reject())
+        .then(resolve, () => resolve(Optional.none()));
     } else if (Type.isFunction(linkList)) {
-      linkList((output) => callback(Optional.some(output)));
+      linkList((output) => resolve(Optional.some(output)));
     } else {
-      callback(Optional.from(linkList));
+      resolve(Optional.from(linkList));
     }
   }).then((optItems) => optItems.bind(ListOptions.sanitizeWith(extractor)).map((items) => {
     if (items.length > 0) {

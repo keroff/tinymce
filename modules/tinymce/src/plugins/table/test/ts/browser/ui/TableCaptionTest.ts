@@ -1,12 +1,11 @@
 import { afterEach, context, describe, it } from '@ephox/bedrock-client';
-import { TinyAssertions, TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
+import { TinyAssertions, TinyHooks, TinySelections, TinyState } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
+import { TableModifiedEvent } from 'tinymce/core/api/EventTypes';
 import { EditorEvent } from 'tinymce/core/api/util/EventDispatcher';
-import { TableModifiedEvent } from 'tinymce/plugins/table/api/Events';
 import Plugin from 'tinymce/plugins/table/Plugin';
-import Theme from 'tinymce/themes/silver/Theme';
 
 import { assertStructureIsRestoredToDefault, clickOnButton, pClickOnMenuItem, setEditorContentTableAndSelection } from '../../module/test/TableModifiersTestUtils';
 
@@ -17,13 +16,13 @@ describe('browser.tinymce.plugins.table.ui.TableCaptionTest', () => {
     toolbar: 'tablecaption',
     base_url: '/project/tinymce/js/tinymce',
     setup: (editor: Editor) => {
-      editor.on('tablemodified', logEvent);
+      editor.on('TableModified', logEvent);
     },
     menu: {
       table: { title: 'Table', items: 'tablecaption' },
     },
     menubar: 'table',
-  }, [ Plugin, Theme ], true);
+  }, [ Plugin ], true);
 
   let events: Array<EditorEvent<TableModifiedEvent>> = [];
   const logEvent = (event: EditorEvent<TableModifiedEvent>) => {
@@ -97,7 +96,7 @@ describe('browser.tinymce.plugins.table.ui.TableCaptionTest', () => {
   const setTableCaptionStructureAndSelection = (editor: Editor, structure: string, indexOftbody: number) => {
     editor.setContent(structure);
 
-    TinySelections.setSelection(editor, [ 0, indexOftbody, 0, 0 ], 0, [ 0, indexOftbody, 0, 0 ], 1);
+    TinySelections.setSelection(editor, [ 0, indexOftbody, 0 ], 0, [ 0, indexOftbody, 0 ], 1);
   };
 
   const pAssertTableCaption = async (toolbar: boolean, addCaption: boolean) => {
@@ -174,6 +173,27 @@ describe('browser.tinymce.plugins.table.ui.TableCaptionTest', () => {
 
       toggleCaption(editor);
       assertTableStructureIsCorrect(editor, nestedTableCaptionStructure);
+    });
+  });
+
+  context('noneditable', () => {
+    it('TINY-9459: Should not apply mceToggleCaption command on table inside a noneditable div', () => {
+      const editor = hook.editor();
+      const initalContent = '<div contenteditable="false"><table><tbody><tr><td>cell</td></tr></tbody></table></div>';
+      editor.setContent(initalContent);
+      TinySelections.setCursor(editor, [ 1, 0, 0, 0, 0, 0 ], 0); // Index off by one due to cef fake caret
+      editor.execCommand('mceTableToggleCaption');
+      TinyAssertions.assertContent(editor, initalContent);
+    });
+
+    it('TINY-9459: Should not apply mceToggleCaption command on table inside a noneditable root', () => {
+      TinyState.withNoneditableRootEditor(hook.editor(), (editor) => {
+        const initalContent = '<table><tbody><tr><td>cell</td></tr></tbody></table>';
+        editor.setContent(initalContent);
+        TinySelections.setCursor(editor, [ 0, 0, 0, 0, 0 ], 0);
+        editor.execCommand('mceTableToggleCaption');
+        TinyAssertions.assertContent(editor, initalContent);
+      });
     });
   });
 });

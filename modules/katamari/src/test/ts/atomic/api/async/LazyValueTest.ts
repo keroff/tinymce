@@ -1,5 +1,4 @@
 import { describe, it } from '@ephox/bedrock-client';
-import Promise from '@ephox/wrap-promise-polyfill';
 import fc from 'fast-check';
 
 import * as Arr from 'ephox/katamari/api/Arr';
@@ -32,9 +31,9 @@ describe('atomic.katamari.api.async.LazyValueTest', () => {
   }));
 
   it('map', () => new Promise<void>((resolve, reject) => {
-    const f = (x) => x + 'hello';
+    const f = (x: string) => x + 'hello';
 
-    const lazy = LazyValue.nu((callback) => {
+    const lazy = LazyValue.nu<string>((callback) => {
       setTimeout(() => {
         callback('extra');
       }, 10);

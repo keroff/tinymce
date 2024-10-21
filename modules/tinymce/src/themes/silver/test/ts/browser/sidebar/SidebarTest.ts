@@ -1,5 +1,4 @@
-import { ApproxStructure, Assertions, UiFinder, Waiter } from '@ephox/agar';
-import { TestHelpers } from '@ephox/alloy';
+import { ApproxStructure, Assertions, TestStore, UiFinder, Waiter } from '@ephox/agar';
 import { describe, it } from '@ephox/bedrock-client';
 import { Fun } from '@ephox/katamari';
 import { SugarBody, SugarElement, Traverse } from '@ephox/sugar';
@@ -7,7 +6,6 @@ import { TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import { Sidebar } from 'tinymce/core/api/ui/Ui';
-import Theme from 'tinymce/themes/silver/Theme';
 
 interface EventLog {
   readonly name: string;
@@ -15,11 +13,11 @@ interface EventLog {
 }
 
 describe('browser.tinymce.themes.silver.sidebar.SidebarTest', () => {
-  const store = TestHelpers.TestStore();
+  const store = TestStore<EventLog>();
   const hook = TinyHooks.bddSetupLight<Editor>({
     base_url: '/project/tinymce/js/tinymce',
     toolbar: 'mysidebar1 mysidebar2 mysidebar3',
-    setup: (editor) => {
+    setup: (editor: Editor) => {
       const logEvent = (name: string) => (api: Sidebar.SidebarInstanceApi) => {
         const index = Traverse.findIndex(SugarElement.fromDom(api.element())).getOr(-1);
         const entry: EventLog = { name, index };
@@ -54,7 +52,7 @@ describe('browser.tinymce.themes.silver.sidebar.SidebarTest', () => {
         onHide: logEvent('mysidebar3:hide')
       });
     }
-  }, [ Theme ]);
+  }, []);
 
   const pClickAndAssertEvents = async (editor: Editor, tooltip: string, expected: EventLog[]) => {
     store.clear();

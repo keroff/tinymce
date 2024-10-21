@@ -1,18 +1,11 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
-import { Menu as AlloyMenu, TieredMenuTypes } from '@ephox/alloy';
+import { Menu as AlloyMenu, RawDomSchema, TieredMenuTypes } from '@ephox/alloy';
 import { Toolbar } from '@ephox/bridge';
 import { Arr } from '@ephox/katamari';
 
 import { classForPreset } from '../item/ItemClasses';
 import { classes as getMenuClasses } from './MenuClasses';
 
-const markers = (presets: Toolbar.PresetTypes) => {
+const markers = (presets: Toolbar.PresetTypes): TieredMenuTypes.TieredMenuSpec['markers'] => {
   const menuClasses = getMenuClasses(presets);
 
   return {
@@ -24,7 +17,7 @@ const markers = (presets: Toolbar.PresetTypes) => {
   };
 };
 
-const dom = (hasIcons: boolean, columns: Toolbar.ColumnTypes, presets: Toolbar.PresetTypes) => {
+const dom = (hasIcons: boolean, columns: Toolbar.ColumnTypes, presets: Toolbar.PresetTypes): RawDomSchema => {
   const menuClasses = getMenuClasses(presets);
   return {
     tag: 'div',

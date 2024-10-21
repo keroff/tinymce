@@ -1,10 +1,3 @@
-/**
- * Copyright (c) Tiny Technologies, Inc. All rights reserved.
- * Licensed under the LGPL or a commercial license.
- * For LGPL see License.txt in the project root for license information.
- * For commercial licenses see https://www.tiny.cloud/
- */
-
 import { Type } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -13,7 +6,7 @@ import LocalStorage from 'tinymce/core/api/util/LocalStorage';
 import Tools from 'tinymce/core/api/util/Tools';
 
 import * as Events from '../api/Events';
-import * as Settings from '../api/Settings';
+import * as Options from '../api/Options';
 
 const isEmpty = (editor: Editor, html?: string): boolean => {
   if (Type.isUndefined(html)) {
@@ -31,9 +24,9 @@ const isEmpty = (editor: Editor, html?: string): boolean => {
 };
 
 const hasDraft = (editor: Editor): boolean => {
-  const time = parseInt(LocalStorage.getItem(Settings.getAutoSavePrefix(editor) + 'time'), 10) || 0;
+  const time = parseInt(LocalStorage.getItem(Options.getAutoSavePrefix(editor) + 'time') ?? '0', 10) || 0;
 
-  if (new Date().getTime() - time > Settings.getAutoSaveRetention(editor)) {
+  if (new Date().getTime() - time > Options.getAutoSaveRetention(editor)) {
     removeDraft(editor, false);
     return false;
   }
@@ -42,7 +35,7 @@ const hasDraft = (editor: Editor): boolean => {
 };
 
 const removeDraft = (editor: Editor, fire?: boolean): void => {
-  const prefix = Settings.getAutoSavePrefix(editor);
+  const prefix = Options.getAutoSavePrefix(editor);
 
   LocalStorage.removeItem(prefix + 'draft');
   LocalStorage.removeItem(prefix + 'time');
@@ -53,7 +46,7 @@ const removeDraft = (editor: Editor, fire?: boolean): void => {
 };
 
 const storeDraft = (editor: Editor): void => {
-  const prefix = Settings.getAutoSavePrefix(editor);
+  const prefix = Options.getAutoSavePrefix(editor);
 
   if (!isEmpty(editor) && editor.isDirty()) {
     LocalStorage.setItem(prefix + 'draft', editor.getContent({ format: 'raw', no_events: true }));
@@ -63,16 +56,16 @@ const storeDraft = (editor: Editor): void => {
 };
 
 const restoreDraft = (editor: Editor): void => {
-  const prefix = Settings.getAutoSavePrefix(editor);
+  const prefix = Options.getAutoSavePrefix(editor);
 
   if (hasDraft(editor)) {
-    editor.setContent(LocalStorage.getItem(prefix + 'draft'), { format: 'raw' });
+    editor.setContent(LocalStorage.getItem(prefix + 'draft') ?? '', { format: 'raw' });
     Events.fireRestoreDraft(editor);
   }
 };
 
 const startStoreDraft = (editor: Editor): void => {
-  const interval = Settings.getAutoSaveInterval(editor);
+  const interval = Options.getAutoSaveInterval(editor);
   Delay.setEditorInterval(editor, () => {
     storeDraft(editor);
   }, interval);
