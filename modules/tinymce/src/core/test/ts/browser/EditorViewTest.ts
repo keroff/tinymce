@@ -1,8 +1,7 @@
-import { PhantomSkipper } from '@ephox/agar';
 import { before, context, describe, it } from '@ephox/bedrock-client';
 import { Arr } from '@ephox/katamari';
-import { TinyDom, TinyHooks } from '@ephox/mcagar';
 import { Css, Scroll, SelectorFind } from '@ephox/sugar';
+import { TinyDom, TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -10,8 +9,6 @@ import * as EditorView from 'tinymce/core/EditorView';
 import Theme from 'tinymce/themes/silver/Theme';
 
 describe('browser.tinymce.core.EditorViewTest', () => {
-  PhantomSkipper.bddSetup();
-
   const getEditorRect = (editor: Editor) => {
     if (editor.inline) {
       return editor.getBody().getBoundingClientRect();

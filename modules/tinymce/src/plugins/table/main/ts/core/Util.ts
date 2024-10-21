@@ -11,27 +11,35 @@ import { Attribute, Compare, SugarElement } from '@ephox/sugar';
 
 import Editor from 'tinymce/core/api/Editor';
 
-const getNodeName = (elm: Node) => elm.nodeName.toLowerCase();
+const getNodeName = (elm: Node): string =>
+  elm.nodeName.toLowerCase();
 
-const getBody = (editor: Editor) => SugarElement.fromDom(editor.getBody());
+const getBody = (editor: Editor): SugarElement<HTMLElement> =>
+  SugarElement.fromDom(editor.getBody());
 
-const getPixelWidth = (elm: HTMLElement) => elm.getBoundingClientRect().width;
+const getPixelWidth = (elm: HTMLElement): number =>
+  elm.getBoundingClientRect().width;
 
-const getPixelHeight = (elm: HTMLElement) => elm.getBoundingClientRect().height;
+const getPixelHeight = (elm: HTMLElement): number =>
+  elm.getBoundingClientRect().height;
 
-const getIsRoot = (editor: Editor) => (element: SugarElement) => Compare.eq(element, getBody(editor));
+const getIsRoot = (editor: Editor) => (element: SugarElement<Node>): boolean =>
+  Compare.eq(element, getBody(editor));
 
-const removePxSuffix = (size: string) => size ? size.replace(/px$/, '') : '';
+const removePxSuffix = (size: string): string =>
+  size ? size.replace(/px$/, '') : '';
 
-const addPxSuffix = (size: string): string => /^\d+(\.\d+)?$/.test(size) ? size + 'px' : size;
+const addPxSuffix = (size: string): string =>
+  /^\d+(\.\d+)?$/.test(size) ? size + 'px' : size;
 
-const removeDataStyle = (table: SugarElement<HTMLElement>): void => {
+const removeDataStyle = (table: SugarElement<HTMLTableElement>): void => {
   Attribute.remove(table, 'data-mce-style');
 
   const removeStyleAttribute = (element: SugarElement<HTMLElement>) => Attribute.remove(element, 'data-mce-style');
 
   Arr.each(TableLookup.cells(table), removeStyleAttribute);
   Arr.each(TableLookup.columns(table), removeStyleAttribute);
+  Arr.each(TableLookup.rows(table), removeStyleAttribute);
 };
 
 const getRawWidth = (editor: Editor, elm: HTMLElement): Optional<string> => {
@@ -42,9 +50,14 @@ const getRawWidth = (editor: Editor, elm: HTMLElement): Optional<string> => {
 const isPercentage = (value: string): boolean => /^(\d+(\.\d+)?)%$/.test(value);
 const isPixel = (value: string): boolean => /^(\d+(\.\d+)?)px$/.test(value);
 
-const getSelectionStart = (editor: Editor) => SugarElement.fromDom(editor.selection.getStart());
+const getSelectionStart = (editor: Editor): SugarElement<Element> =>
+  SugarElement.fromDom(editor.selection.getStart());
 
-const getThunkedSelectionStart = (editor: Editor) => () => SugarElement.fromDom(editor.selection.getStart());
+const getSelectionEnd = (editor: Editor): SugarElement<Element> =>
+  SugarElement.fromDom(editor.selection.getEnd());
+
+const getThunkedSelectionStart = (editor: Editor) => (): SugarElement<Element> =>
+  getSelectionStart(editor);
 
 export {
   getNodeName,
@@ -59,5 +72,6 @@ export {
   isPercentage,
   isPixel,
   getSelectionStart,
+  getSelectionEnd,
   getThunkedSelectionStart
 };

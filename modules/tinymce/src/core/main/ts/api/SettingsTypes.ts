@@ -73,6 +73,7 @@ interface BaseEditorSettings {
   content_css_cors?: boolean;
   content_security_policy?: string;
   content_style?: string;
+  deprecation_warnings?: boolean;
   font_css?: string | string[];
   content_langs?: ContentLanguage[];
   contextmenu?: string | false;
@@ -109,6 +110,7 @@ interface BaseEditorSettings {
   forced_root_block?: boolean | string;
   forced_root_block_attrs?: Record<string, string>;
   formats?: Formats;
+  format_empty_lines?: boolean;
   gecko_spellcheck?: boolean;
   height?: number | string;
   hidden_input?: boolean;
@@ -150,6 +152,7 @@ interface BaseEditorSettings {
   no_newline_selector?: string;
   nowrap?: boolean;
   object_resizing?: boolean | string;
+  padd_empty_with_br?: boolean;
   placeholder?: string;
   preserve_cdata?: boolean;
   preview_styles?: boolean | string;
@@ -196,6 +199,7 @@ interface BaseEditorSettings {
   valid_classes?: string | Record<string, string>;
   valid_elements?: string;
   valid_styles?: string | Record<string, string>;
+  verify_html?: boolean;
   visual?: boolean;
   visual_anchor_class?: string;
   visual_table_class?: string;
@@ -220,6 +224,7 @@ interface BaseEditorSettings {
   text_block_elements?: string;
   text_inline_elements?: string;
   whitespace_elements?: string;
+  special?: string;
 
   // Internal settings (used by cloud or tests)
   disable_nodechange?: boolean;

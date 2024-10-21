@@ -5,10 +5,11 @@
  * For commercial licenses see https://www.tiny.cloud/
  */
 
-import { Arr, Fun, Obj, Strings, Type } from '@ephox/katamari';
+import { Fun, Obj, Strings, Thunk, Type } from '@ephox/katamari';
 
 import { Base64Extract, extractBase64DataUris, restoreDataUris } from '../../html/Base64Uris';
 import Tools from '../util/Tools';
+import URI from '../util/URI';
 import Entities from './Entities';
 import Schema from './Schema';
 
@@ -65,6 +66,7 @@ export interface SaxParserSettings {
   remove_internals?: boolean;
   self_closing_elements?: Record<string, {}>;
   validate?: boolean;
+  document?: Document;
 
   cdata?: (text: string) => void;
   comment?: (text: string) => void;
@@ -98,25 +100,14 @@ const enum MatchType {
   Attribute = 9
 }
 
-const safeSvgDataUrlElements = [ 'img', 'video' ];
+// A list of form control or other elements whereby a name/id would override a form or document property
+// https://developer.mozilla.org/en-US/docs/Web/API/HTMLFormElement/elements#value
+// https://portswigger.net/research/dom-clobbering-strikes-back
+const filteredClobberElements = Tools.makeMap('button,fieldset,form,iframe,img,image,input,object,output,select,textarea');
 
 const isValidPrefixAttrName = (name: string): boolean => name.indexOf('data-') === 0 || name.indexOf('aria-') === 0;
 
-const blockSvgDataUris = (allowSvgDataUrls: boolean | undefined, tagName: string) => {
-  // Only allow SVGs by default on images/videos since the browser won't execute scripts on those elements
-  const allowed = Type.isNullable(allowSvgDataUrls) ? Arr.contains(safeSvgDataUrlElements, tagName) : allowSvgDataUrls;
-  return !allowed;
-};
-
-const isInvalidUri = (settings: SaxParserSettings, uri: string, tagName: string) => {
-  if (settings.allow_html_data_urls) {
-    return false;
-  } else if (/^data:image\//i.test(uri)) {
-    return blockSvgDataUris(settings.allow_svg_data_urls, tagName) && /^data:image\/svg\+xml/i.test(uri);
-  } else {
-    return /^data:/i.test(uri);
-  }
-};
+const lazyTempDocument = Thunk.cached(() => document.implementation.createHTMLDocument('parser'));
 
 /**
  * Returns the index of the matching end tag for a specific start tag. This can
@@ -222,6 +213,8 @@ const checkBogusAttribute = (regExp: RegExp, attrString: string): string | null 
  */
 const SaxParser = (settings?: SaxParserSettings, schema = Schema()): SaxParser => {
   settings = settings || {};
+  const doc = lazyTempDocument();
+  const form = doc.createElement('form');
 
   if (settings.fix_self_closing !== false) {
     settings.fix_self_closing = true;
@@ -246,7 +239,6 @@ const SaxParser = (settings?: SaxParserSettings, schema = Schema()): SaxParser =
     let anyAttributesRequired, attrValue, idCount = 0;
     const decode = Entities.decode;
     const filteredUrlAttrs = Tools.makeMap('src,href,data,background,action,formaction,poster,xlink:href');
-    const scriptUriRegExp = /((java|vb)script|mhtml):/i;
     const parsingMode = format === 'html' ? ParsingMode.Html : ParsingMode.Xml;
 
     const processEndTag = (name: { name: string; valid: boolean }) => {
@@ -312,19 +304,16 @@ const SaxParser = (settings?: SaxParserSettings, schema = Schema()): SaxParser =
     };
 
     const parseAttribute = (tagName: string, name: string, value?: string, val2?: string, val3?: string) => {
-      let attrRule, i;
-      const trimRegExp = /[\s\u0000-\u001F]+/g;
-
       name = name.toLowerCase();
       value = processAttr(name in fillAttrsMap ? name : decode(value || val2 || val3 || '')); // Handle boolean attribute than value attribute
 
       // Validate name and value pass through all data- attributes
       if (validate && !isInternalElement && isValidPrefixAttrName(name) === false) {
-        attrRule = validAttributesMap[name];
+        let attrRule = validAttributesMap[name];
 
         // Find rule by pattern matching
         if (!attrRule && validAttributePatterns) {
-          i = validAttributePatterns.length;
+          let i = validAttributePatterns.length;
           while (i--) {
             attrRule = validAttributePatterns[i];
             if (attrRule.pattern.test(name)) {
@@ -349,25 +338,16 @@ const SaxParser = (settings?: SaxParserSettings, schema = Schema()): SaxParser =
         }
       }
 
+      // Attempt to block any dom clobbering on document or forms
+      // See https://www.slideshare.net/x00mario/in-the-dom-no-one-will-hear-you-scream
+      const isNameOrId = name === 'name' || name === 'id';
+      if (isNameOrId && tagName in filteredClobberElements && (value in doc || value in form)) {
+        return;
+      }
+
       // Block any javascript: urls or non image data uris
-      if (filteredUrlAttrs[name] && !settings.allow_script_urls) {
-        let uri = value.replace(trimRegExp, '');
-
-        try {
-          // Might throw malformed URI sequence
-          uri = decodeURIComponent(uri);
-        } catch (ex) {
-          // Fallback to non UTF-8 decoder
-          uri = unescape(uri);
-        }
-
-        if (scriptUriRegExp.test(uri)) {
-          return;
-        }
-
-        if (isInvalidUri(settings, uri, tagName)) {
-          return;
-        }
+      if (filteredUrlAttrs[name] && !URI.isDomSafe(value, tagName, settings)) {
+        return;
       }
 
       // Block data or event attributes on elements marked as internal

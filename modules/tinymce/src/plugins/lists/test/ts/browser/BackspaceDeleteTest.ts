@@ -1,5 +1,5 @@
 import { describe, it } from '@ephox/bedrock-client';
-import { LegacyUnit, TinyAssertions, TinyHooks } from '@ephox/mcagar';
+import { LegacyUnit, TinyAssertions, TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -21,7 +21,6 @@ describe('browser.tinymce.plugins.lists.BackspaceDeleteTest', () => {
         'font-style,text-decoration,float,margin,margin-top,margin-right,' +
         'margin-bottom,margin-left,display,position,top,left,list-style-type'
     },
-    content_style: '.mce-content-body { line-height: normal; }', // Breaks tests in phantomjs unless we have this
     base_url: '/project/tinymce/js/tinymce'
   }, [ Plugin, Theme ]);
 

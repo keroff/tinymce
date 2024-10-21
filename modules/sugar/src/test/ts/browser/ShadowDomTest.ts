@@ -99,18 +99,12 @@ UnitTest.test('isDocument in iframe', () => {
   });
 });
 
-// TODO: this should be somewhere else (maybe Agar?)
-const isPhantomJs = (): boolean =>
-  navigator.userAgent.indexOf('PhantomJS') > -1;
-
 UnitTest.test('isSupported platform test', () => {
   const browser = PlatformDetection.detect().browser;
   if (browser.isIE()) {
     Assert.eq('IE does not support root node', false, SugarShadowDom.isSupported());
   } else if (browser.isEdge()) {
     // could be yes or no
-  } else if (isPhantomJs()) {
-    Assert.eq('PhantomJS does not support root node', false, SugarShadowDom.isSupported());
   } else {
     Assert.eq('This browser should support root node', true, SugarShadowDom.isSupported());
   }
@@ -176,7 +170,7 @@ const checkOriginalEventTarget = (mode: 'open' | 'closed', success: UnitTest.Suc
       Remove.remove(i1);
       Remove.remove(shadowHost);
       success();
-    } catch (e) {
+    } catch (e: any) {
       failure(e);
     }
   });

@@ -1,7 +1,7 @@
 import { Keys } from '@ephox/agar';
 import { beforeEach, context, describe, it } from '@ephox/bedrock-client';
-import { Fun } from '@ephox/katamari';
-import { LegacyUnit, TinyAssertions, TinyContentActions, TinyHooks, TinySelections } from '@ephox/mcagar';
+import { Arr, Fun, Type } from '@ephox/katamari';
+import { LegacyUnit, TinyAssertions, TinyContentActions, TinyHooks, TinySelections, TinyApis } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -13,7 +13,7 @@ import Theme from 'tinymce/themes/silver/Theme';
 import * as HtmlUtils from '../module/test/HtmlUtils';
 import * as KeyUtils from '../module/test/KeyUtils';
 
-describe('browser.tinymce.core.UndoManager', () => {
+describe('browser.tinymce.core.UndoManagerTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     add_unload_trigger: false,
     disable_nodechange: true,
@@ -307,61 +307,6 @@ describe('browser.tinymce.core.UndoManager', () => {
     assert.deepEqual(data[1].beforeBookmark, data[2].bookmark);
   });
 
-  it('Exclude internal elements', () => {
-    const editor = hook.editor();
-    let count = 0, lastLevel: UndoLevel;
-
-    editor.undoManager.clear();
-    assert.equal(count, 0);
-
-    editor.on('AddUndo', () => {
-      count++;
-    });
-
-    editor.on('BeforeAddUndo', (e) => {
-      lastLevel = e.level;
-    });
-
-    editor.getBody().innerHTML = (
-      'test' +
-      '<img src="about:blank" data-mce-selected="1" />' +
-      '<table data-mce-selected="1"><tr><td>x</td></tr></table>'
-    );
-
-    editor.undoManager.add();
-    assert.equal(count, 1);
-    assert.equal(HtmlUtils.cleanHtml(lastLevel.content),
-      'test' +
-      '<img src="about:blank">' +
-      '<table><tbody><tr><td>x</td></tr></tbody></table>'
-    );
-
-    editor.getBody().innerHTML = (
-      '<span data-mce-bogus="1">x</span>' +
-      '<span data-mce-bogus="1">\uFEFF</span>' +
-      '<div data-mce-bogus="all"></div>' +
-      '<div data-mce-bogus="all"><div><b>x</b></div></div>' +
-      '<img src="about:blank" data-mce-bogus="all">' +
-      '<br data-mce-bogus="1">' +
-      'test' +
-      '\u200B' +
-      '<img src="about:blank" />' +
-      '<table><tr><td>x</td></tr></table>'
-    );
-
-    editor.undoManager.add();
-    assert.equal(count, 2);
-    assert.equal(HtmlUtils.cleanHtml(lastLevel.content),
-      '<span data-mce-bogus="1">x</span>' +
-      '<span data-mce-bogus="1"></span>' +
-      '<br data-mce-bogus="1">' +
-      'test' +
-      '\u200B' +
-      '<img src="about:blank">' +
-      '<table><tbody><tr><td>x</td></tr></tbody></table>'
-    );
-  });
-
   it('Undo added when typing and losing focus', () => {
     const editor = hook.editor();
     let lastLevel: UndoLevel;
@@ -569,8 +514,8 @@ describe('browser.tinymce.core.UndoManager', () => {
   context('Undo when first element is contenteditable="false"', () => {
     beforeEach(() => {
       const editor = hook.editor();
-      editor.resetContent('<div contenteditable="false"><p>CEF</p></div><p>something</p><p>something else</p>');
       editor.focus();
+      editor.resetContent('<div contenteditable="false"><p>CEF</p></div><p>something</p><p>something else</p>');
     });
 
     it('TINY-7663: No fake caret - should restore correct cursor location', () => {
@@ -598,6 +543,116 @@ describe('browser.tinymce.core.UndoManager', () => {
       editor.undoManager.undo();
       TinyAssertions.assertContent(editor, '<div contenteditable="false"><p>CEF</p></div><p>something</p><p>something else</p>');
       TinyAssertions.assertCursor(editor, [ 0 ], 0);
+    });
+  });
+
+  context('Excluded content', () => {
+    const testContentExclusions = (exclusions: { content: string; expected: string }[]) => () => {
+      const editor = hook.editor();
+      const apis = TinyApis(editor);
+      let count = 0;
+      let lastLevelContent: string;
+
+      editor.undoManager.clear();
+      assert.equal(count, 0);
+
+      editor.on('AddUndo', () => count++);
+
+      editor.on('BeforeAddUndo', (e) => {
+        if (e.level.content === '' && !Type.isNull(e.level.fragments) && e.level.fragments.length > 0) {
+          lastLevelContent = e.level.fragments.join('');
+        } else {
+          lastLevelContent = e.level.content;
+        }
+      });
+
+      Arr.each(exclusions, (exclusion, i) => {
+        apis.setRawContent(exclusion.content);
+        editor.undoManager.add();
+        assert.equal(count, i + 1);
+        assert.equal(HtmlUtils.cleanHtml(lastLevelContent), exclusion.expected);
+      });
+    };
+
+    it('Exclude internal elements', testContentExclusions([{
+      content: 'test' +
+        '<img src="about:blank" data-mce-selected="1" />' +
+        '<table data-mce-selected="1"><tr><td>x</td></tr></table>',
+      expected: 'test' +
+      '<img src="about:blank">' +
+      '<table><tbody><tr><td>x</td></tr></tbody></table>'
+    }, {
+      content: '<span data-mce-bogus="1">x</span>' +
+        '<span data-mce-bogus="1">\uFEFF</span>' +
+        '<div data-mce-bogus="all"></div>' +
+        '<div data-mce-bogus="all"><div><b>x</b></div></div>' +
+        '<img src="about:blank" data-mce-bogus="all">' +
+        '<br data-mce-bogus="1">' +
+        'test' +
+        '\u200B' +
+        '<img src="about:blank" />' +
+        '<table><tr><td>x</td></tr></table>',
+      expected: '<span data-mce-bogus="1">x</span>' +
+        '<span data-mce-bogus="1"></span>' +
+        '<br data-mce-bogus="1">' +
+        'test' +
+        '\u200B' +
+        '<img src="about:blank">' +
+        '<table><tbody><tr><td>x</td></tr></tbody></table>'
+    }]));
+
+    it('TINY-10180: Comment nodes containing ZWNBSP are emptied', testContentExclusions([{
+      content: '<p>test0</p><!-- te\uFEFFst1 --><!-- test2 --><!-- te\uFEFFst3 -->',
+      expected: '<p>test0</p><!----><!-- test2 --><!---->'
+    }]));
+
+    Arr.each([ 'noscript', 'style', 'script', 'xmp', 'iframe', 'noembed', 'noframes' ], (parent) => {
+      it(`TINY-10337: Unescaped text nodes containing ZWNBSP within ${parent} are emptied`, testContentExclusions([{
+        content: `<p>test0</p><${parent}>te\uFEFFst1</${parent}><${parent}>test2</${parent}><${parent}>te\uFEFFst3</${parent}>`,
+        expected: `<p>test0</p><${parent}></${parent}><${parent}>test2</${parent}><${parent}></${parent}>`
+      }]));
+    });
+
+    it('TINY-10337: Unescaped text nodes containing ZWNBSP within plaintext are emptied', testContentExclusions([{
+      content: '<p>test0</p><plaintext>te\uFEFFst1 test2<p>te\uFEFFst3</p>',
+      expected: '<p>test0</p><plaintext></plaintext>'
+    }]));
+  });
+
+  context('Content XSS', () => {
+    const xssFnName = 'xssfn';
+
+    const addAndRestoreLevel = (editor: Editor, apis: TinyApis, levelContent: string) => {
+      editor.undoManager.clear();
+      apis.setRawContent(levelContent);
+      editor.undoManager.add();
+      apis.setRawContent('<p>another level</p>');
+      editor.undoManager.add();
+      editor.undoManager.undo();
+    };
+
+    const testContentMxssOnRestore = (content: string) => () => {
+      const editor = hook.editor();
+      const apis = TinyApis(editor);
+      let hasXssOccurred = false;
+      (editor.getWin() as any)[xssFnName] = () => hasXssOccurred = true;
+      addAndRestoreLevel(editor, apis, content);
+      assert.isFalse(hasXssOccurred, 'XSS should not have occurred');
+      (editor.getWin() as any)[xssFnName] = null;
+    };
+
+    it('TINY-10180: Excluding data-mce-bogus="all" elements does not cause mXSS',
+      testContentMxssOnRestore(`<!--<br data-mce-bogus="all">><iframe onload="window.${xssFnName}();">->`));
+
+    it('TINY-10180: Excluding temporary attributes does not cause mXSS',
+      testContentMxssOnRestore(`<!--data-mce-selected="x"><iframe onload="window.${xssFnName}();">->`));
+
+    it('TINY-10180: Excluding ZWNBSP in comments does not cause mXSS',
+      testContentMxssOnRestore(`<!--\uFEFF><iframe onload="window.${xssFnName}();">->`));
+
+    Arr.each([ 'noscript', 'style', 'script', 'xmp', 'iframe', 'noembed', 'noframes' ], (parent) => {
+      it(`TINY-10337: Excluding ZWNBSP in ${parent} does not cause mXSS`,
+        testContentMxssOnRestore(`<${parent}><\uFEFF/${parent}><\uFEFFiframe onload="window.${xssFnName}();"></${parent}>`));
     });
   });
 });

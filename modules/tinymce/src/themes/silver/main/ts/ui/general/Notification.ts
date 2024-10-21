@@ -6,7 +6,7 @@
  */
 
 import {
-  AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloySpec, Behaviour, Button, Focusing, GuiFactory, Memento, NativeEvents, Replacing, Sketcher,
+  AddEventsBehaviour, AlloyComponent, AlloyEvents, AlloySpec, Behaviour, Button, DomFactory, Focusing, GuiFactory, Memento, NativeEvents, Replacing, Sketcher,
   UiSketcher
 } from '@ephox/alloy';
 import { FieldSchema } from '@ephox/boulder';
@@ -14,6 +14,7 @@ import { Arr, Optional } from '@ephox/katamari';
 
 import { TranslatedString, Untranslated } from 'tinymce/core/api/util/I18n';
 
+import * as HtmlSanitizer from '../core/HtmlSanitizer';
 import * as Icons from '../icons/Icons';
 
 export interface NotificationSketchApis {
@@ -61,10 +62,7 @@ const notificationIconMap = {
 const factory: UiSketcher.SingleSketchFactory<NotificationSketchDetail, NotificationSketchSpec> = (detail) => {
   // For using the alert banner as a standalone banner
   const memBannerText = Memento.record({
-    dom: {
-      tag: 'p',
-      innerHtml: detail.translationProvider(detail.text)
-    },
+    dom: DomFactory.fromHtml(`<p>${HtmlSanitizer.sanitizeHtmlString(detail.translationProvider(detail.text))}</p>`),
     behaviours: Behaviour.derive([
       Replacing.config({ })
     ])
@@ -154,25 +152,21 @@ const factory: UiSketcher.SingleSketchFactory<NotificationSketchDetail, Notifica
       tag: 'button',
       classes: [ 'tox-notification__dismiss', 'tox-button', 'tox-button--naked', 'tox-button--icon' ]
     },
-    components: [{
-      dom: {
+    components: [
+      Icons.render('close', {
         tag: 'div',
         classes: [ 'tox-icon' ],
-        innerHtml: Icons.get('close', detail.iconProvider),
         attributes: {
           'aria-label': detail.translationProvider('Close')
         }
-      },
-      behaviours: Behaviour.derive([
-        Icons.addFocusableBehaviour()
-      ])
-    }],
+      }, detail.iconProvider)
+    ],
     action: (comp) => {
       detail.onAction(comp);
     }
   }));
 
-  const notificationIconSpec = Icons.render('div', Icons.getFirst(iconChoices, detail.iconProvider), [ 'tox-notification__icon' ]);
+  const notificationIconSpec = Icons.renderFirst(iconChoices, { tag: 'div', classes: [ 'tox-notification__icon' ] }, detail.iconProvider);
   const notificationBodySpec = {
     dom: {
       tag: 'div',

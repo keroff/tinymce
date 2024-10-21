@@ -83,7 +83,7 @@ UnitTest.asynctest('LocationTest', (success, failure) => {
         checks(doc);
         Remove.remove(iframe);
         next();
-      } catch (e) {
+      } catch (e: any) {
         // Remove.remove(iframe);
         failure(e);
       }
@@ -136,7 +136,11 @@ UnitTest.asynctest('LocationTest', (success, failure) => {
     pos = SugarLocation.viewport(body);
     assert.eq(0, pos.top);
     assert.eq(0, pos.left);
-    assert.eq(true, scrollBarWidth > 5 && scrollBarWidth < 50 || (platform.os.isOSX() && scrollBarWidth === 0), 'scroll bar width, got=' + scrollBarWidth);
+
+    // TINY-9203: due to Win11 FF adopting native hidden scrollbar behavior and current inability to distinguish between Win10 and Win11
+    // (both os.version.major === 10), allow scrollbar to be either hidden or visible when on Win10/11 FF
+    const noVisibleScrollbarBrowser = platform.os.isOSX() || (platform.browser.isFirefox() && platform.os.isLinux()) || (platform.browser.isFirefox() && platform.os.isWindows() && platform.os.version.major >= 10);
+    assert.eq(true, scrollBarWidth > 5 && scrollBarWidth < 50 || (noVisibleScrollbarBrowser && scrollBarWidth === 0), 'scroll bar width, got=' + scrollBarWidth);
   };
 
   const disconnectedChecks = () => {

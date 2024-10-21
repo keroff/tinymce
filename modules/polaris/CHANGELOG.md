@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## Unreleased
 
+## 5.0.3 - 2022-09-14
+
+### Fixed
+- Fixed incorrect `Regexes.link` URL detection for path segments that contain valid characters such as `!` and `:` #TINY-5074
+
+## 5.0.2 - 2021-10-11
+
+### Fixed
+- `Pattern.chars` and `Pattern.wordbreak` now treat soft hyphen characters (`&shy;` entities) as part of a word #TINY-7908
+
+## 5.0.0 - 2021-08-26
+
 ### Changed
 - Upgraded to Katamari 8.0, which includes breaking changes to the `Optional` API used in this module.
 

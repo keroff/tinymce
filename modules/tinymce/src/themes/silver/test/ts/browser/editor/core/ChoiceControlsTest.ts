@@ -1,8 +1,9 @@
 import { UiFinder, Waiter } from '@ephox/agar';
 import { before, beforeEach, context, describe, it } from '@ephox/bedrock-client';
 import { Arr, Optional } from '@ephox/katamari';
-import { McEditor, TinyAssertions, TinyHooks, TinySelections, TinyUiActions } from '@ephox/mcagar';
+import { PlatformDetection } from '@ephox/sand';
 import { Attribute } from '@ephox/sugar';
+import { McEditor, TinyAssertions, TinyHooks, TinySelections, TinyUiActions } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -16,6 +17,7 @@ interface ToolbarOrMenuSpec {
 }
 
 describe('browser.tinymce.themes.silver.editor.core.ChoiceControlsTest', () => {
+  const platform = PlatformDetection.detect();
 
   const toolbarSpec: ToolbarOrMenuSpec = {
     name: 'Toolbar',
@@ -108,6 +110,40 @@ describe('browser.tinymce.themes.silver.editor.core.ChoiceControlsTest', () => {
           await pAssertOptions(editor, spec.menuSelector, [ '1', '1.1', '1.2', '1.3', '1.4', '1.5', '2' ], Optional.some('1.1'));
           spec.close(editor, 'Line height');
         });
+
+        it(`TINY-7713: ${spec.name} updates if computed line height changes`, async function () {
+          // TODO: TINY-7895
+          if (platform.browser.isSafari()) {
+            this.skip();
+          }
+          const editor = hook.editor();
+          editor.setContent('');
+          TinySelections.setCursor(editor, [ 0 ], 0);
+          await spec.pOpen(editor, 'Line height');
+          // Our content-css will apply a default line-height of 1.4
+          await pAssertOptions(editor, spec.menuSelector, [ '1', '1.1', '1.2', '1.3', '1.4', '1.5', '2' ], Optional.some('1.4'));
+          editor.execCommand('LineHeight', false, '1.1');
+          await pAssertOptions(editor, spec.menuSelector, [ '1', '1.1', '1.2', '1.3', '1.4', '1.5', '2' ], Optional.some('1.1'));
+          spec.close(editor, 'Line height');
+        });
+      });
+
+      it('TINY-7707: The nested menu should be resilient to opening multiple times', async () => {
+        const editor = hook.editor();
+        editor.setContent('<p style="line-height: 1.4;">Hello world</p>');
+        TinySelections.setCursor(editor, [ 0 ], 0);
+
+        TinyUiActions.clickOnMenu(editor, 'button:contains("Format")');
+        await TinyUiActions.pWaitForUi(editor, '[role="menu"]');
+        // Open line height
+        TinyUiActions.clickOnUi(editor, `[role="menu"] [title="Line height"]`);
+        // Close line height
+        TinyUiActions.clickOnUi(editor, `[role="menu"] [title="Align"]`);
+        // Open line height a second time, to make sure the state has been reset properly
+        TinyUiActions.clickOnUi(editor, `[role="menu"] [title="Line height"]`);
+
+        await pAssertOptions(editor, menuSpec.menuSelector, [ '1', '1.1', '1.2', '1.3', '1.4', '1.5', '2' ], Optional.some('1.4'));
+        menuSpec.close(editor, 'Line height');
       });
     });
 
@@ -236,6 +272,20 @@ describe('browser.tinymce.themes.silver.editor.core.ChoiceControlsTest', () => {
 
           await Waiter.pTryUntil('Language has changed back', () => TinyAssertions.assertContent(editor, '<p>Some content</p>'));
         });
+      });
+
+      it('TINY-7707: The toolbar button should be active when the selection is within lang span', async () => {
+        const editor = hook.editor();
+        editor.setContent('<p><span lang="de">Some German content</span></p><p>Some content</p>');
+
+        TinySelections.setCursor(editor, [ 0, 0, 0 ], 4);
+        await TinyUiActions.pWaitForUi(editor, '.tox-tbtn.tox-tbtn--enabled');
+
+        TinySelections.setCursor(editor, [ 1, 0 ], 4);
+        await TinyUiActions.pWaitForUi(editor, '.tox-tbtn:not(.tox-tbtn--enabled)');
+
+        editor.formatter.apply('lang', { value: 'zh' });
+        await TinyUiActions.pWaitForUi(editor, '.tox-tbtn.tox-tbtn--enabled');
       });
     });
 

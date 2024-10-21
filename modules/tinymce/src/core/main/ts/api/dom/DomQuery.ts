@@ -28,7 +28,9 @@ import Sizzle from './Sizzle';
  * var $ = tinymce.dom.DomQuery;
  * $('p').attr('attr', 'value').addClass('class');
  *
+ * @deprecated
  * @class tinymce.dom.DomQuery
+ * @summary DomQuery has been deprecated in TinyMCE 5.10 and has been marked for removal in TinyMCE 6.0.
  */
 
 type DomQuerySelector<T extends Node> = string | T | T[] | DomQuery<T>;
@@ -77,7 +79,7 @@ export interface DomQueryConstructor {
   grep <T>(array: T[], callback: (item, i: number) => boolean): T[];
   unique <T>(results: T[]): T[];
   text (elem: Node): string;
-  contains (context, elem: Node): number;
+  contains (context, elem: Node): boolean;
   filter (expr: string, elems: Node[], not?: boolean);
 }
 

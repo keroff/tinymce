@@ -87,6 +87,83 @@ describe('atomic.tinymce.core.html.Base64UrisTest', () => {
         }
       }
     );
+
+    testExtract(
+      'Should extract base64 encoded thing with spaces, tabs and line breaks in data',
+      '<img src="data:some/thing;base64,SGVsbG8sI\r\n  Hdv		cmxkIQ==">',
+      {
+        html: '<img src="$prefix_0">',
+        uris: {
+          $prefix_0: 'data:some/thing;base64,SGVsbG8sI\r\n  Hdv		cmxkIQ=='
+        }
+      }
+    );
+
+    testExtract(
+      'TINY-8646: Should extract base64 encoded image following `data:` text on the same paragaph',
+      '<p>my data:<img src="data:image/gif;base64,R0/yw=="/></p>',
+      {
+        html: '<p>my data:<img src="$prefix_0"/></p>',
+        uris: {
+          $prefix_0: 'data:image/gif;base64,R0/yw=='
+        }
+      }
+    );
+
+    testExtract(
+      'TINY-8646: Should extract base64 encoded image in the next paragraph following `data:` text',
+      '<p>my data:</p><p><img src="data:image/gif;base64,R0/yw=="/></p>',
+      {
+        html: '<p>my data:</p><p><img src="$prefix_0"/></p>',
+        uris: {
+          $prefix_0: 'data:image/gif;base64,R0/yw=='
+        }
+      }
+    );
+
+    testExtract(
+      'TINY-8646: Should extract based64 encoded image following an attribute with `data:` text as a value',
+      '<img name="data:" src="data:image/gif;base64,R0/yw=="/>',
+      {
+        html: '<img name="data:" src="$prefix_0"/>',
+        uris: {
+          $prefix_0: 'data:image/gif;base64,R0/yw=='
+        }
+      }
+    );
+
+    testExtract(
+      'TINY-8646: Should extract based64 encoded image when there is no space between attributes',
+      '<img name="data:"src="data:image/gif;base64,R0/yw=="/>',
+      {
+        html: '<img name="data:"src="$prefix_0"/>',
+        uris: {
+          $prefix_0: 'data:image/gif;base64,R0/yw=='
+        }
+      }
+    );
+
+    testExtract(
+      'TINY-8646: Should extract based64 encoded image when single quotes are used',
+      `<img name='data:'src='data:image/gif;base64,R0/yw=='/>`,
+      {
+        html: `<img name='data:'src='$prefix_0'/>`,
+        uris: {
+          $prefix_0: 'data:image/gif;base64,R0/yw=='
+        }
+      }
+    );
+
+    testExtract(
+      'TINY-8646: Should extract based64 encoded image when whitespaces are used (eg newline, tabs)',
+      '<img name="data:"\n' + 'src="data:image/gif;base64,R0/yw=="/>',
+      {
+        html: '<img name="data:"\n' + 'src="$prefix_0"/>',
+        uris: {
+          $prefix_0: 'data:image/gif;base64,R0/yw=='
+        }
+      }
+    );
   });
 
   const testRestoreDataUris = (label: string, inputResult: Base64Extract, inputHtml: string, expectedHtml: string) => {
@@ -121,5 +198,6 @@ describe('atomic.tinymce.core.html.Base64UrisTest', () => {
     KAssert.eqOptional('Mime with plus', Optional.some({ type: 'image/svg+xml', data: 'R2/yw==' }), parseDataUri('data:image/svg+xml;base64,R2/yw=='));
     KAssert.eqOptional('Data uri without mime', Optional.none(), parseDataUri('data:base64,R3/yw=='));
     KAssert.eqOptional('Data uri without base64', Optional.none(), parseDataUri('data:image/svg+xml,R4/yw=='));
+    KAssert.eqOptional('Data with spaces, tabs and line breaks', Optional.some({ type: 'image/png', data: 'SGVsbG8sI\r\n  Hdv		cmxkIQ==' }), parseDataUri('data:image/png;base64,SGVsbG8sI\r\n  Hdv		cmxkIQ=='));
   });
 });

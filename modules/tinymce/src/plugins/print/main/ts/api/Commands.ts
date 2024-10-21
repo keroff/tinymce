@@ -53,7 +53,7 @@ const printIframeMode = (editor: Editor) => {
   }
 };
 
-const register = (editor: Editor) => {
+const register = (editor: Editor): void => {
   editor.addCommand('mcePrint', () => {
     if (editor.inline) {
       printFragment(editor.getBody().innerHTML);

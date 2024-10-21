@@ -1,8 +1,8 @@
-import { Assertions, Cursors, PhantomSkipper, Waiter } from '@ephox/agar';
+import { Assertions, Cursors, Waiter } from '@ephox/agar';
 import { beforeEach, context, describe, it } from '@ephox/bedrock-client';
 import { Cell } from '@ephox/katamari';
-import { TinyDom, TinyHooks } from '@ephox/mcagar';
 import { SugarElement } from '@ephox/sugar';
+import { TinyDom, TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -22,8 +22,6 @@ interface StateAndHandler {
 }
 
 describe('browser.tinymce.core.dom.ScrollIntoViewTest', () => {
-  // Only run scrolling tests on real browsers doesn't seem to work on phantomjs for some reason
-  PhantomSkipper.bddSetup();
   const hook = TinyHooks.bddSetup<Editor>({
     add_unload_trigger: false,
     height: 500,
@@ -133,6 +131,14 @@ describe('browser.tinymce.core.dom.ScrollIntoViewTest', () => {
       await pSetContent(editor, '<div style="height: 1000px">a</div><div style="height: 50px">b</div><div style="height: 600px">a</div>');
       scrollIntoView(editor, 'div:nth-child(3)');
       assertScrollPosition(editor, 0, 1050);
+    });
+
+    it('TINY-7291: Scroll current selection into view', async () => {
+      const editor = hook.editor();
+      await pSetContent(editor, '<div style="height: 1000px">a</div><div style="height: 50px">b</div><div style="height: 600px">a</div>');
+      TinySelections.setCursor(editor, [ 2, 0 ], 0);
+      editor.selection.scrollIntoView();
+      assertScrollPosition(editor, 0, 670);
     });
   });
 

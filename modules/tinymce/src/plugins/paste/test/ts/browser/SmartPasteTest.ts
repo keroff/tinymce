@@ -1,6 +1,6 @@
 import { before, beforeEach, context, describe, it } from '@ephox/bedrock-client';
 import { Arr } from '@ephox/katamari';
-import { LegacyUnit, TinyAssertions, TinyHooks } from '@ephox/mcagar';
+import { LegacyUnit, TinyAssertions, TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -39,6 +39,9 @@ describe('browser.tinymce.plugins.paste.SmartPasteTest', () => {
     assert.isTrue(SmartPaste.isAbsoluteUrl('https://www.site.com/dir-name/file.gif?query=%42'));
     assert.isTrue(SmartPaste.isAbsoluteUrl('https://www.site.com/dir-name/file.gif?query=%42#a'));
     assert.isTrue(SmartPaste.isAbsoluteUrl('https://www.site.com/~abc'));
+    assert.isTrue(SmartPaste.isAbsoluteUrl('https://www.site.com/refId,56511/refDownload.pml'));
+    assert.isTrue(SmartPaste.isAbsoluteUrl('https://www.site.com/:w:/s/b026324c6904b2a9cb4b88d6d61c81d1?q=abc123'));
+    assert.isTrue(SmartPaste.isAbsoluteUrl('https://site.com/test/!test'));
     assert.isFalse(SmartPaste.isAbsoluteUrl('file.gif'));
     assert.isFalse(SmartPaste.isAbsoluteUrl(''));
   });

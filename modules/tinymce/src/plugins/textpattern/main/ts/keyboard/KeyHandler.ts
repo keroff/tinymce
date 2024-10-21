@@ -13,8 +13,8 @@ import VK from 'tinymce/core/api/util/VK';
 import * as BlockPattern from '../core/BlockPattern';
 import * as InlinePattern from '../core/InlinePattern';
 import { PatternSet } from '../core/PatternTypes';
-import { textBefore } from '../text/TextSearch';
-import { cleanEmptyNodes } from '../utils/Utils';
+import * as TextSearch from '../text/TextSearch';
+import * as Utils from '../utils/Utils';
 
 const handleEnter = (editor: Editor, patternSet: PatternSet): boolean => {
   // Skip checking when the selection isn't collapsed
@@ -33,19 +33,19 @@ const handleEnter = (editor: Editor, patternSet: PatternSet): boolean => {
       },
       () => {
         // create a cursor position that we can move to avoid the inline formats
-        editor.insertContent(Unicode.zeroWidth);
+        editor.insertContent(Unicode.zeroWidth, { preserve_zwsp: true });
         InlinePattern.applyMatches(editor, inlineMatches);
         BlockPattern.applyMatches(editor, blockMatches);
         // find the spot before the cursor position
         const range = editor.selection.getRng();
-        const spot = textBefore(range.startContainer, range.startOffset, editor.dom.getRoot());
+        const spot = TextSearch.textBefore(range.startContainer, range.startOffset, editor.dom.getRoot());
         editor.execCommand('mceInsertNewLine');
         // clean up the cursor position we used to preserve the format
         spot.each((s) => {
           const node = s.container;
           if (node.data.charAt(s.offset - 1) === Unicode.zeroWidth) {
             node.deleteData(s.offset - 1, 1);
-            cleanEmptyNodes(editor.dom, node.parentNode, (e: Node) => e === editor.dom.getRoot());
+            Utils.cleanEmptyNodes(editor.dom, node.parentNode, (e: Node) => e === editor.dom.getRoot());
           }
         });
       }
@@ -64,21 +64,24 @@ const handleInlineKey = (editor: Editor, patternSet: PatternSet): void => {
   }
 };
 
-const checkKeyEvent = (codes, event, predicate) => {
+const checkKeyEvent = <T>(codes: T[], event: KeyboardEvent, predicate: (code: T, event: KeyboardEvent) => boolean): boolean => {
   for (let i = 0; i < codes.length; i++) {
     if (predicate(codes[i], event)) {
       return true;
     }
   }
+  return false;
 };
 
-const checkKeyCode = (codes, event) => checkKeyEvent(codes, event, (code, event) => {
-  return code === event.keyCode && VK.modifierPressed(event) === false;
-});
+const checkKeyCode = (codes: number[], event: KeyboardEvent): boolean =>
+  checkKeyEvent(codes, event, (code, event) => {
+    return code === event.keyCode && VK.modifierPressed(event) === false;
+  });
 
-const checkCharCode = (chars, event) => checkKeyEvent(chars, event, (chr, event) => {
-  return chr.charCodeAt(0) === event.charCode;
-});
+const checkCharCode = (chars: string[], event: KeyboardEvent): boolean =>
+  checkKeyEvent(chars, event, (chr, event) => {
+    return chr.charCodeAt(0) === event.charCode;
+  });
 
 export {
   handleEnter,

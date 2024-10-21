@@ -1,7 +1,8 @@
 import { ApproxStructure, Assertions, Cursors, Mouse, StructAssert, UiFinder, Waiter } from '@ephox/agar';
 import { Arr, Obj } from '@ephox/katamari';
-import { TinyAssertions, TinyContentActions, TinyDom, TinySelections, TinyUiActions } from '@ephox/mcagar';
+import { PlatformDetection } from '@ephox/sand';
 import { Attribute, Checked, Class, Html, SelectorFilter, SelectorFind, SugarBody, SugarElement, Value } from '@ephox/sugar';
+import { TinyAssertions, TinyContentActions, TinyDom, TinySelections, TinyUiActions } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -52,7 +53,10 @@ const assertWidth = (editor: Editor, elm: HTMLElement, expectedWidth: number | n
   if (expectedWidth === null) {
     assert.isNull(widthData.raw, `${nodeName} width should not be set`);
   } else {
-    assert.approximately(widthData.raw, expectedWidth, 2, `${nodeName} width is ${expectedWidth} ~= ${widthData.raw}`);
+    const platform = PlatformDetection.detect();
+    // This does a approximately check with a delta of 4 to compensate for Firefox sometimes being off by 4 pixels depending on version and platform see TINY-9200 for details
+    const delta = platform.browser.isFirefox() ? 4 : 3;
+    assert.approximately(widthData.raw ?? -1, expectedWidth, delta, `${nodeName} width is ${expectedWidth} ~= ${widthData.raw}`);
   }
   assert.equal(widthData.unit, expectedUnit, `${nodeName} unit is ${expectedUnit}`);
 };
@@ -193,8 +197,7 @@ const selectWithMouse = (start: SugarElement<Element>, end: SugarElement<Element
 const selectWithKeyboard = (editor: Editor, cursorRange: Cursors.CursorPath, keyDirection: number): void => {
   const { startPath, soffset, finishPath, foffset } = cursorRange;
   TinySelections.setSelection(editor, startPath, soffset, finishPath, foffset);
-  TinyContentActions.keydown(editor, keyDirection, { shiftKey: true });
-  TinyContentActions.keyup(editor, keyDirection, { shiftKey: true });
+  TinyContentActions.keystroke(editor, keyDirection, { shiftKey: true });
 };
 
 const getSelectedCells = (editor: Editor): SugarElement<HTMLTableCellElement>[] =>

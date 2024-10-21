@@ -21,10 +21,12 @@ import Tools from '../api/util/Tools';
 import CaretPosition from '../caret/CaretPosition';
 import { CaretWalker } from '../caret/CaretWalker';
 import * as TableDelete from '../delete/TableDelete';
+import * as CefUtils from '../dom/CefUtils';
 import * as NodeType from '../dom/NodeType';
 import * as PaddingBr from '../dom/PaddingBr';
 import * as RangeNormalizer from '../selection/RangeNormalizer';
 import * as SelectionUtils from '../selection/SelectionUtils';
+import * as Zwsp from '../text/Zwsp';
 import { InsertContentDetails } from './ContentTypes';
 import * as InsertList from './InsertList';
 import { trimOrPadLeftRight } from './NbspTrim';
@@ -120,18 +122,6 @@ const moveSelectionToMarker = (editor: Editor, marker: HTMLElement | null): void
   const dom = editor.dom;
   const selection = editor.selection;
 
-  const getContentEditableFalseParent = (node: Node): Node | null => {
-    const root = editor.getBody();
-
-    for (; node && node !== root; node = node.parentNode) {
-      if (dom.getContentEditable(node) === 'false') {
-        return node;
-      }
-    }
-
-    return null;
-  };
-
   if (!marker) {
     return;
   }
@@ -139,10 +129,10 @@ const moveSelectionToMarker = (editor: Editor, marker: HTMLElement | null): void
   selection.scrollIntoView(marker);
 
   // If marker is in cE=false then move selection to that element instead
-  const parentEditableFalseElm = getContentEditableFalseParent(marker);
-  if (parentEditableFalseElm) {
+  const parentEditableElm = CefUtils.getContentEditableRoot(editor.getBody(), marker);
+  if (dom.getContentEditable(parentEditableElm) === 'false') {
     dom.remove(marker);
-    selection.select(parentEditableFalseElm);
+    selection.select(parentEditableElm);
     return;
   }
 
@@ -243,6 +233,11 @@ export const insertHtmlAtCaret = (editor: Editor, value: string, details: Insert
   }
 
   value = args.content;
+
+  // TINY-10337: Remove all user-input zwsp to avoid impacting caret removal from content.
+  if (!details.preserve_zwsp) {
+    value = Zwsp.trim(value);
+  }
 
   // Add caret at end of contents if it's missing
   if (value.indexOf('{$caret}') === -1) {

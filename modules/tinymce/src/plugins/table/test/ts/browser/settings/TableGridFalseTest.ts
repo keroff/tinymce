@@ -1,6 +1,6 @@
-import { Assertions, Waiter } from '@ephox/agar';
+import { Assertions, UiFinder, Waiter } from '@ephox/agar';
 import { describe, it } from '@ephox/bedrock-client';
-import { TinyHooks, TinyUiActions } from '@ephox/mcagar';
+import { TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import Plugin from 'tinymce/plugins/table/Plugin';
@@ -19,7 +19,8 @@ describe('browser.tinymce.plugins.table.TableGridFalse', () => {
     await Waiter.pTryUntil('click table menu', () =>
       TinyUiActions.clickOnUi(editor, 'div.tox-menu div.tox-collection__item .tox-collection__item-label:contains("Table")')
     );
-    const dialog = await TinyUiActions.pWaitForDialog(editor, 'div.tox-dialog:has(div.tox-dialog__title:contains("Table Properties"))');
+    const dialog = await TinyUiActions.pWaitForDialog(editor);
+    UiFinder.exists(dialog, 'div.tox-dialog__title:contains("Table Properties")');
     Assertions.assertPresence(
       'assert presence of col and row input',
       {

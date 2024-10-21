@@ -16,7 +16,7 @@ import * as Formats from './core/Formats';
  * @private
  */
 
-export default () => {
+export default (): void => {
   PluginManager.add('legacyoutput', (editor) => {
     Formats.setup(editor);
   });

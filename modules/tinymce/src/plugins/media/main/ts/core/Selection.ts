@@ -12,7 +12,10 @@ import * as UpdateHtml from './UpdateHtml';
 declare let escape: any;
 declare let unescape: any;
 
-const setup = (editor: Editor) => {
+const isMediaElement = (element: Element): boolean =>
+  element.hasAttribute('data-mce-object') || element.hasAttribute('data-ephox-embed-iri');
+
+const setup = (editor: Editor): void => {
   editor.on('click keyup touchend', () => {
     const selectedNode = editor.selection.getNode();
 
@@ -33,10 +36,9 @@ const setup = (editor: Editor) => {
 
   editor.on('ObjectResized', (e) => {
     const target = e.target;
-    let html;
 
     if (target.getAttribute('data-mce-object')) {
-      html = target.getAttribute('data-mce-html');
+      let html = target.getAttribute('data-mce-html');
       if (html) {
         html = unescape(html);
         target.setAttribute('data-mce-html', escape(
@@ -51,5 +53,6 @@ const setup = (editor: Editor) => {
 };
 
 export {
-  setup
+  setup,
+  isMediaElement
 };

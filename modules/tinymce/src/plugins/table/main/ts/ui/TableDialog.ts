@@ -20,11 +20,12 @@ import * as Util from '../core/Util';
 import { getAdvancedTab } from './DialogAdvancedTab';
 import * as Helpers from './Helpers';
 import * as TableDialogGeneralTab from './TableDialogGeneralTab';
+import * as UiUtils from './UiUtils';
 
 type TableData = Helpers.TableData;
 
 // Explore the layers of the table till we find the first layer of tds or ths
-const styleTDTH = (dom: DOMUtils, elm: Element, name: string | StyleMap, value?: string | number) => {
+const styleTDTH = (dom: DOMUtils, elm: Element, name: string | StyleMap, value?: string | number): void => {
   if (elm.tagName === 'TD' || elm.tagName === 'TH') {
     if (Type.isString(name)) {
       dom.setStyle(elm, name, value);
@@ -40,7 +41,7 @@ const styleTDTH = (dom: DOMUtils, elm: Element, name: string | StyleMap, value?:
   }
 };
 
-const applyDataToElement = (editor: Editor, tableElm, data: TableData) => {
+const applyDataToElement = (editor: Editor, tableElm: HTMLTableElement, data: TableData): void => {
   const dom = editor.dom;
   const attrs: any = {};
   const styles: any = {};
@@ -91,9 +92,8 @@ const applyDataToElement = (editor: Editor, tableElm, data: TableData) => {
 
 };
 
-const onSubmitTableForm = (editor: Editor, tableElm: HTMLTableElement, oldData: TableData, api: Dialog.DialogInstanceApi<TableData>) => {
+const onSubmitTableForm = (editor: Editor, tableElm: HTMLTableElement | undefined, oldData: TableData, api: Dialog.DialogInstanceApi<TableData>): void => {
   const dom = editor.dom;
-  let captionElm;
   const data = api.getData();
   const modifiedData = Obj.filter(data, (value, key) => oldData[key] !== value);
 
@@ -115,7 +115,7 @@ const onSubmitTableForm = (editor: Editor, tableElm: HTMLTableElement, oldData: 
       applyDataToElement(editor, tableElm, data);
 
       // Toggle caption on/off
-      captionElm = dom.select('caption', tableElm)[0];
+      const captionElm = dom.select('caption', tableElm)[0];
 
       if (captionElm && !data.caption || !captionElm && data.caption) {
         editor.execCommand('mceTableToggleCaption');
@@ -141,7 +141,7 @@ const onSubmitTableForm = (editor: Editor, tableElm: HTMLTableElement, oldData: 
   });
 };
 
-const open = (editor: Editor, insertNewTable: boolean) => {
+const open = (editor: Editor, insertNewTable: boolean): void => {
   const dom = editor.dom;
   let tableElm: Element;
   let data = Helpers.extractDataFromSettings(editor, hasAdvancedTableTab(editor));
@@ -176,7 +176,7 @@ const open = (editor: Editor, insertNewTable: boolean) => {
     }
   }
 
-  const classes = Helpers.buildListItems(getTableClassList(editor));
+  const classes = UiUtils.buildListItems(getTableClassList(editor));
 
   if (classes.length > 0) {
     if (data.class) {

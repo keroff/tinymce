@@ -5,19 +5,20 @@
  * For commercial licenses see https://www.tiny.cloud/
  */
 
+import { Selections } from '@ephox/darwin';
 import { Fun } from '@ephox/katamari';
 import { SugarNode } from '@ephox/sugar';
 
 import Editor from 'tinymce/core/api/Editor';
 import { Menu } from 'tinymce/core/api/ui/Ui';
 
-import { getCellClassList, getTableBorderStyles, getTableBorderWidths, getTableCellBackgroundColors, getTableCellBorderColors, getTableClassList, hasTableGrid } from '../api/Settings';
+import { getCellClassList, getTableBorderStyles, getTableBorderWidths, getTableBackgroundColorMap, getTableBorderColorMap, getTableClassList, hasTableGrid } from '../api/Settings';
 import { Clipboard } from '../core/Clipboard';
 import { SelectionTargets, LockedDisable } from '../selection/SelectionTargets';
 import { verticalAlignValues } from './CellAlignValues';
-import { applyTableCellStyle, changeColumnHeader, changeRowHeader, filterNoneItem, generateColorSelector, generateItems } from './UiUtils';
+import { applyTableCellStyle, changeColumnHeader, changeRowHeader, filterNoneItem, buildColorMenu, buildMenuItems } from './UiUtils';
 
-const addMenuItems = (editor: Editor, selectionTargets: SelectionTargets, clipboard: Clipboard) => {
+const addMenuItems = (editor: Editor, selections: Selections, selectionTargets: SelectionTargets, clipboard: Clipboard): void => {
   const cmd = (command: string) => () => editor.execCommand(command);
 
   const insertTableAction = (data: { numRows: number; numColumns: number }) => {
@@ -221,12 +222,12 @@ const addMenuItems = (editor: Editor, selectionTargets: SelectionTargets, clipbo
     editor.ui.registry.addNestedMenuItem('tableclass', {
       icon: 'table-classes',
       text: 'Table styles',
-      getSubmenuItems: () => generateItems(
+      getSubmenuItems: () => buildMenuItems(
         editor,
+        selections,
         tableClassList,
         'tableclass',
-        (item) => item.title,
-        (item) => editor.execCommand('mceTableToggleClass', false, item.value)
+        (value) => editor.execCommand('mceTableToggleClass', false, value)
       ),
       onSetup: selectionTargets.onSetupTable
     });
@@ -234,15 +235,15 @@ const addMenuItems = (editor: Editor, selectionTargets: SelectionTargets, clipbo
 
   const tableCellClassList = filterNoneItem(getCellClassList(editor));
   if (tableCellClassList.length !== 0) {
-    editor.ui.registry.addNestedMenuItem('tablecellclasss', {
+    editor.ui.registry.addNestedMenuItem('tablecellclass', {
       icon: 'table-cell-classes',
       text: 'Cell styles',
-      getSubmenuItems: () => generateItems(
+      getSubmenuItems: () => buildMenuItems(
         editor,
+        selections,
         tableCellClassList,
         'tablecellclass',
-        (item) => item.title,
-        (item) => editor.execCommand('mceTableCellToggleClass', false, item.value)
+        (value) => editor.execCommand('mceTableCellToggleClass', false, value)
       ),
       onSetup: selectionTargets.onSetupCellOrRow
     });
@@ -251,39 +252,37 @@ const addMenuItems = (editor: Editor, selectionTargets: SelectionTargets, clipbo
   editor.ui.registry.addNestedMenuItem('tablecellvalign', {
     icon: 'vertical-align',
     text: 'Vertical align',
-    getSubmenuItems: () => generateItems(
+    getSubmenuItems: () => buildMenuItems(
       editor,
+      selections,
       verticalAlignValues,
       'tablecellverticalalign',
-      (item) => item.text,
       applyTableCellStyle(editor, 'vertical-align')
     ),
     onSetup: selectionTargets.onSetupCellOrRow
   });
 
-  const tableCellBorderWidthsList = getTableBorderWidths(editor);
   editor.ui.registry.addNestedMenuItem('tablecellborderwidth', {
     icon: 'border-width',
     text: 'Border width',
-    getSubmenuItems: () => generateItems(
+    getSubmenuItems: () => buildMenuItems(
       editor,
-      tableCellBorderWidthsList,
+      selections,
+      getTableBorderWidths(editor),
       'tablecellborderwidth',
-      (item) => item.title,
       applyTableCellStyle(editor, 'border-width')
     ),
     onSetup: selectionTargets.onSetupCellOrRow
   });
 
-  const tableCellBorderStylesList = getTableBorderStyles(editor);
   editor.ui.registry.addNestedMenuItem('tablecellborderstyle', {
     icon: 'border-style',
     text: 'Border style',
-    getSubmenuItems: () => generateItems(
+    getSubmenuItems: () => buildMenuItems(
       editor,
-      tableCellBorderStylesList,
+      selections,
+      getTableBorderStyles(editor),
       'tablecellborderstyle',
-      (item) => item.text,
       applyTableCellStyle(editor, 'border-style')
     ),
     onSetup: selectionTargets.onSetupCellOrRow
@@ -296,19 +295,17 @@ const addMenuItems = (editor: Editor, selectionTargets: SelectionTargets, clipbo
     onSetup: selectionTargets.onSetupTableWithCaption
   });
 
-  const tableCellBackgroundColors = getTableCellBackgroundColors(editor);
   editor.ui.registry.addNestedMenuItem('tablecellbackgroundcolor', {
     icon: 'cell-background-color',
     text: 'Background color',
-    getSubmenuItems: () => generateColorSelector(editor, tableCellBackgroundColors, 'background-color'),
+    getSubmenuItems: () => buildColorMenu(editor, getTableBackgroundColorMap(editor), 'background-color'),
     onSetup: selectionTargets.onSetupCellOrRow
   });
 
-  const tableCellBorderColors = getTableCellBorderColors(editor);
   editor.ui.registry.addNestedMenuItem('tablecellbordercolor', {
     icon: 'cell-border-color',
     text: 'Border color',
-    getSubmenuItems: () => generateColorSelector(editor, tableCellBorderColors, 'border-color'),
+    getSubmenuItems: () => buildColorMenu(editor, getTableBorderColorMap(editor), 'border-color'),
     onSetup: selectionTargets.onSetupCellOrRow
   });
 

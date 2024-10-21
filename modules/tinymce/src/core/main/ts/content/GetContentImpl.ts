@@ -13,7 +13,7 @@ import AstNode from '../api/html/Node';
 import * as Settings from '../api/Settings';
 import Tools from '../api/util/Tools';
 import { isWsPreserveElement } from '../dom/ElementType';
-import * as TrimHtml from '../dom/TrimHtml';
+import * as TrimBody from '../dom/TrimBody';
 import * as Zwsp from '../text/Zwsp';
 import { Content, ContentFormat, GetContentArgs } from './ContentTypes';
 
@@ -23,17 +23,20 @@ const trimEmptyContents = (editor: Editor, html: string): string => {
   return html.replace(emptyRegExp, '');
 };
 
+const setupArgs = (args: Partial<GetContentArgs>, format: ContentFormat): GetContentArgs => ({
+  ...args,
+  format,
+  get: true,
+  getInner: true
+});
+
 const getContentFromBody = (editor: Editor, args: GetContentArgs, format: ContentFormat, body: HTMLElement): Content => {
-  const updatedArgs = args.no_events ? args : editor.fire('BeforeGetContent', {
-    ...args,
-    format,
-    get: true,
-    getInner: true
-  });
+  const defaultedArgs = setupArgs(args, format);
+  const updatedArgs = args.no_events ? defaultedArgs : editor.fire('BeforeGetContent', defaultedArgs);
 
   let content: string;
   if (updatedArgs.format === 'raw') {
-    content = Tools.trim(TrimHtml.trimExternal(editor.serializer, body.innerHTML));
+    content = Tools.trim(Zwsp.trim(TrimBody.trim(body, editor.serializer.getTempAttrs()).innerHTML));
   } else if (updatedArgs.format === 'text') {
     // return empty string for text format when editor is empty to avoid bogus elements being returned in content
     content = editor.dom.isEmpty(body) ? '' : Zwsp.trim(body.innerText || body.textContent);

@@ -1,6 +1,6 @@
 import { Waiter } from '@ephox/agar';
 import { before, describe, it } from '@ephox/bedrock-client';
-import { McEditor } from '@ephox/mcagar';
+import { McEditor } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
@@ -87,5 +87,19 @@ describe('browser.tinymce.core.EditorRemoveTest', () => {
   it('init editor with display: block', async () => {
     const editor = await McEditor.pFromHtml<Editor>('<textarea id="tinymce" style="display: block;"></textarea>', settings);
     testRemoveStyles(editor, 'block');
+  });
+
+  it('TINY-7730: remove editor that unbinds mousedown in the remove handler', async () => {
+    const editor = await McEditor.pFromSettings({
+      ...settings,
+      setup: (editor: Editor) => {
+        editor.on('remove', () => {
+          // the native events have all been unbound
+          // so unbinding 'mousedown' now must do nothing or it will throw an exception
+          editor.off('mousedown');
+        });
+      }
+    });
+    editor.remove();
   });
 });
