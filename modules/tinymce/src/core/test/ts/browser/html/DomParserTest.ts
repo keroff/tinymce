@@ -1,6 +1,5 @@
 import { context, describe, it } from '@ephox/bedrock-client';
 import { Arr, Fun, Obj } from '@ephox/katamari';
-import { PlatformDetection } from '@ephox/sand';
 import { assert } from 'chai';
 
 import Env from 'tinymce/core/api/Env';
@@ -17,7 +16,6 @@ interface ParseTestResult {
 }
 
 describe('browser.tinymce.core.html.DomParserTest', () => {
-  const browser = PlatformDetection.detect().browser;
   const schema = Schema({ valid_elements: '*[class|title]' });
   const serializer = HtmlSerializer({}, schema);
 
@@ -822,14 +820,14 @@ describe('browser.tinymce.core.html.DomParserTest', () => {
         );
       });
 
-      // TODO: TINY-9624 - the iframe innerHTML on safari is `&lt;textarea&gt;` whereas on other browsers
-      //       is `<textarea>`. This causes the mXSS cleaner in DOMPurify to run and causes the different assertions below
+      // TINY-9624: Safari encodes the iframe innerHTML is `&lt;textarea&gt;`. On Chrome and Firefox, the innerHTML is `<textarea>`, causing
+      // the mXSS cleaner in DOMPurify to run and remove the iframe.
       it('parse iframe XSS', () => {
         const serializer = HtmlSerializer();
 
         assert.equal(
           serializer.serialize(DomParser(scenario.settings).parse('<iframe><textarea></iframe><img src="a" onerror="alert(document.domain)" />')),
-          browser.isSafari() || !scenario.isSanitizeEnabled ? '<iframe><textarea></iframe><img src="a">' : '<img src="a">'
+          scenario.isSanitizeEnabled ? '<img src="a">' : '<iframe><textarea></iframe><img src="a">'
         );
       });
 
@@ -1531,6 +1529,105 @@ describe('browser.tinymce.core.html.DomParserTest', () => {
           }));
         });
       });
+
+      context('Sandboxing iframes', () => {
+        const serializeIframeHtml = (sandbox: boolean): string => {
+          const parser = DomParser({ ...scenario.settings, sandbox_iframes: sandbox });
+          return serializer.serialize(parser.parse('<iframe src="about:blank"></iframe>'));
+        };
+
+        it('TINY-10348: iframes should be sandboxed when sandbox_iframes: false', () =>
+          assert.equal(serializeIframeHtml(false), '<iframe src="about:blank"></iframe>'));
+
+        it('TINY-10348: iframes should be sandboxed when sandbox_iframes: true', () =>
+          assert.equal(serializeIframeHtml(true), '<iframe src="about:blank" sandbox=""></iframe>'));
+      });
+
+      context('Convert unsafe embeds', () => {
+        const serializeEmbedHtml = (embedHtml: string, convert: boolean): string => {
+          const parser = DomParser({ ...scenario.settings, convert_unsafe_embeds: convert });
+          return serializer.serialize(parser.parse(embedHtml));
+        };
+
+        const testConversion = (embedHtml: string, expectedHtml: string) => () => {
+          const serializedHtml = serializeEmbedHtml(embedHtml, true);
+          assert.equal(serializedHtml, expectedHtml);
+        };
+
+        context('convert_unsafe_embeds: false', () => {
+          const testNoConversion = (embedHtml: string) => () => {
+            const serializedHtml = serializeEmbedHtml(embedHtml, false);
+            assert.equal(serializedHtml, embedHtml);
+          };
+
+          it('TINY-10349: Object elements should not be converted', testNoConversion('<object data="about:blank"></object>'));
+          it('TINY-10349: Object elements with a mime type should not be converted', testNoConversion('<object data="about:blank" type="image/png"></object>'));
+          it('TINY-10349: Embed elements should notr be converted', testNoConversion('<embed src="about:blank">'));
+          it('TINY-10349: Embed elements with a mime type should not be converted', testNoConversion('<embed src="about:blank" type="image/png">'));
+        });
+
+        context('convert_unsafe_embeds: true', () => {
+          it('TINY-10349: Object elements without a mime type should be converted to iframe',
+            testConversion('<object data="about:blank"></object>', '<iframe src="about:blank"></iframe>'));
+          it('TINY-10349: Object elements with an image mime type should be converted to img',
+            testConversion('<object data="about:blank" type="image/png"></object>', '<img src="about:blank">'));
+          it('TINY-10349: Object elements with a video mime type should be converted to video',
+            testConversion('<object data="about:blank" type="video/mp4"></object>', '<video src="about:blank" controls=""></video>'));
+          it('TINY-10349: Object elements with an audio mime type should be converted to audio',
+            testConversion('<object data="about:blank" type="audio/mpeg"></object>', '<audio src="about:blank" controls=""></audio>'));
+          it('TINY-10349: Object elements with other mime type should be converted to iframe',
+            testConversion('<object data="about:blank" type="application/pdf"></object>', '<iframe src="about:blank"></iframe>'));
+
+          it('TINY-10349: Embed elements without a mime type should be converted to iframe',
+            testConversion('<embed src="about:blank">', '<iframe src="about:blank"></iframe>'));
+          it('TINY-10349: Embed elements with an image mime type should be converted to img',
+            testConversion('<embed src="about:blank" type="image/png">', '<img src="about:blank">'));
+          it('TINY-10349: Embed elements with a video mime type should be converted to video',
+            testConversion('<embed src="about:blank" type="video/mp4">', '<video src="about:blank" controls=""></video>'));
+          it('TINY-10349: Embed elements with an audio mime type should be converted to audio',
+            testConversion('<embed src="about:blank" type="audio/mpeg">', '<audio src="about:blank" controls=""></audio>'));
+          it('TINY-10349: Embed elements with other mime type should be converted to iframe',
+            testConversion('<embed src="about:blank" type="application/pdf">', '<iframe src="about:blank"></iframe>'));
+        });
+
+        context('convert_unsafe_embeds: true, sandbox_iframes: true', () => {
+          const testSandboxedConversion = (embedHtml: string, expectedHtml: string) => () => {
+            const parser = DomParser({ ...scenario.settings, convert_unsafe_embeds: true, sandbox_iframes: true });
+            const serializedHtml = serializer.serialize(parser.parse(embedHtml));
+            assert.equal(serializedHtml, expectedHtml);
+          };
+
+          it('TINY-10349: Object elements without a mime type should be converted to sandboxed iframe',
+            testSandboxedConversion('<object data="about:blank"></object>', '<iframe src="about:blank" sandbox=""></iframe>'));
+
+          it('TINY-10349: Embed elements without a mime type should be converted to sandboxed iframe',
+            testSandboxedConversion('<embed src="about:blank">', '<iframe src="about:blank" sandbox=""></iframe>'));
+        });
+
+        context('convert_unsafe_embeds: true, attribute preservation', () => {
+          it('TINY-10349: Object elements should perserve width and height attributes only',
+            testConversion('<object data="about:blank" width="100" height="100" style="color: red;"></object>', '<iframe src="about:blank" width="100" height="100"></iframe>'));
+          it('TINY-10349: Object elements with an image mime type should perserve width and height attributes only',
+            testConversion('<object data="about:blank" type="image/png" width="100" height="100" style="color: red;"></object>', '<img src="about:blank" width="100" height="100">'));
+          it('TINY-10349: Object elements with a video mime type should perserve width and height attributes only',
+            testConversion('<object data="about:blank" type="video/mp4" width="100" height="100" style="color: red;"></object>', '<video src="about:blank" width="100" height="100" controls=""></video>'));
+          it('TINY-10349: Object elements with an audio mime type should not perserve other attributes only',
+            testConversion('<object data="about:blank" type="audio/mpeg" width="100" height="100" style="color: red;"></object>', '<audio src="about:blank" controls=""></audio>'));
+          it('TINY-10349: Object elements with other mime type should perserve width and height attributes only',
+            testConversion('<object data="about:blank" type="application/pdf" width="100" height="100" style="color: red;"></object>', '<iframe src="about:blank" width="100" height="100"></iframe>'));
+
+          it('TINY-10349: Embed elements should preserve width and heigth attributes only',
+            testConversion('<embed src="about:blank" width="100" height="100" style="color: red;">', '<iframe src="about:blank" width="100" height="100"></iframe>'));
+          it('TINY-10349: Embed elements with an image mime type should preserve width and height attributes only',
+            testConversion('<embed src="about:blank" type="image/png" width="100" height="100" style="color: red;">', '<img src="about:blank" width="100" height="100">'));
+          it('TINY-10349: Embed elements with a video mime type should preserve width and height attributes only',
+            testConversion('<embed src="about:blank" type="video/mp4" width="100" height="100" style="color: red;">', '<video src="about:blank" width="100" height="100" controls=""></video>'));
+          it('TINY-10349: Embed elements with an audio mime type should not preserve other attributes',
+            testConversion('<embed src="about:blank" type="audio/mpeg" width="100" height="100" style="color: red;">', '<audio src="about:blank" controls=""></audio>'));
+          it('TINY-10349: Embed elements with other mime type should preserve width and height attributes only',
+            testConversion('<embed src="about:blank" type="application/pdf" width="100" height="100" style="color: red;">', '<iframe src="about:blank" width="100" height="100"></iframe>'));
+        });
+      });
     });
   });
 
@@ -1589,173 +1686,98 @@ describe('browser.tinymce.core.html.DomParserTest', () => {
     });
   });
 
-  it('TINY-8639: handling empty text inline elements when root block is empty', () => {
-    const html = '<p><strong></strong></p>' +
-    '<p><s></s></p>' +
-    '<p><span class="test"></span></p>' +
-    '<p><span style="color: red;"></span></p>' +
-    '<p><span></span></p>';
+  context('SVG elements', () => {
+    it('TINY-10237: Should not wrap SVGs', () => {
+      const schema = Schema();
+      schema.addValidElements('svg[*]');
+      const input = '<svg></svg>foo';
+      const serializedHtml = HtmlSerializer({}, schema).serialize(DomParser({ forced_root_block: 'p' }, schema).parse(input));
+      assert.equal(serializedHtml, '<svg></svg><p>foo</p>');
+    });
 
-    // Assert default behaviour when padd_empty_block_inline_children is not specified (should be equivalent to false)
-    let parser = DomParser({}, Schema({}));
-    let serializedHtml = serializer.serialize(parser.parse(html));
+    it('TINY-10237: Should retain SVG elements as is but filter out scripts and invalid children', () => {
+      const schema = Schema();
+      schema.addValidElements('svg[*]');
+      const input = '<svg><circle><desc><b>foo</b><script>alert(1)</script></desc></circle></svg>foo';
+      const serializedHtml = HtmlSerializer({}, schema).serialize(DomParser({ forced_root_block: 'p' }, schema).parse(input));
+      assert.equal(serializedHtml, '<svg><circle><desc></desc></circle></svg><p>foo</p>');
+    });
 
-    assert.equal(serializedHtml,
-      '<p>\u00a0</p>' +
-      '<p>\u00a0</p>' +
-      '<p>\u00a0</p>' +
-      '<p>\u00a0</p>' +
-      '<p>\u00a0</p>'
-    );
+    it('TINY-11331: Should retain SVG elements and keep HTML elements that are valid inside an SVG', () => {
+      const schema = Schema();
+      schema.addValidElements('svg[*]');
+      const input = '<svg><a href="/docs/Web/SVG/Element/circle"><circle cx="50" cy="40" r="35" /></a><script>alert(1)</script></svg>foo';
+      const serializedHtml = HtmlSerializer({}, schema).serialize(DomParser({ forced_root_block: 'p' }, schema).parse(input));
+      assert.equal(serializedHtml, '<svg><a href="/docs/Web/SVG/Element/circle"><circle cx="50" cy="40" r="35"></circle></a></svg><p>foo</p>');
+    });
 
-    parser = DomParser({}, Schema({ padd_empty_block_inline_children: false }));
-    serializedHtml = serializer.serialize(parser.parse(html));
+    it('TINY-10237: Should retain SVG elements and keep scripts if sanitize is set to false', () => {
+      const schema = Schema();
+      schema.addValidElements('svg[*]');
+      const input = '<svg><circle><desc>foo<script>alert(1)</script></desc></circle></svg>foo';
+      const serializedHtml = HtmlSerializer({}, schema).serialize(DomParser({ forced_root_block: 'p', sanitize: false }, schema).parse(input));
+      assert.equal(serializedHtml, '<svg><circle><desc>foo<script>alert(1)</script></desc></circle></svg><p>foo</p>');
+    });
 
-    assert.equal(serializedHtml,
-      '<p>\u00a0</p>' +
-      '<p>\u00a0</p>' +
-      '<p>\u00a0</p>' +
-      '<p>\u00a0</p>' +
-      '<p>\u00a0</p>'
-    );
+    it('TINY-10273: Trim whitespace before or after but not inside SVG elements at root level', () => {
+      const schema = Schema();
+      schema.addValidElements('svg[*]');
+      const input = '  <svg> <circle> </circle> </svg>  <svg> <circle> </circle> </svg>  ';
+      const serializedHtml = HtmlSerializer({}, schema).serialize(DomParser({ forced_root_block: 'p' }, schema).parse(input));
+      assert.equal(serializedHtml, '<svg> <circle> </circle> </svg><svg> <circle> </circle> </svg>');
+    });
 
-    parser = DomParser({}, Schema({ padd_empty_block_inline_children: true }));
-    serializedHtml = serializer.serialize(parser.parse(html));
-
-    assert.equal(serializedHtml,
-      '<p><strong>\u00a0</strong></p>' +
-      '<p><s>\u00a0</s></p>' +
-      '<p><span class="test">\u00a0</span></p>' +
-      '<p><span style="color: red;">\u00a0</span></p>' +
-      '<p>\u00a0</p>'
-    );
+    it('TINY-10273: Trim whitespace before or after but not between or inside SVG elements when inside a block element', () => {
+      const schema = Schema();
+      schema.addValidElements('svg[*]');
+      const input = '<div>  <svg> <circle> </circle> </svg>  <svg> <circle> </circle> </svg>  </div>';
+      const serializedHtml = HtmlSerializer({}, schema).serialize(DomParser({ forced_root_block: 'p' }, schema).parse(input));
+      assert.equal(serializedHtml, '<div><svg> <circle> </circle> </svg> <svg> <circle> </circle> </svg></div>');
+    });
   });
 
-  it('TINY-8639: handling single space text inline elements when root block is otherwise empty', () => {
-    const html = '<p><strong> </strong></p>' +
-    '<p><s> </s></p>' +
-    '<p><span class="test"> </span></p>' +
-    '<p><span style="color: red;"> </span></p>' +
-    '<p><span> </span></p>';
+  context('Special elements', () => {
+    const schema = Schema({ extended_valid_elements: 'script,noembed,xmp', valid_children: '+body[style]' });
 
-    // Assert default behaviour when padd_empty_block_inline_children is not specified (should be equivalent to false)
-    let parser = DomParser({}, Schema({}));
-    let serializedHtml = serializer.serialize(parser.parse(html));
+    const testSpecialElement = (testCase: { input: string; expected: string }) => {
+      const fragment = DomParser({ forced_root_block: 'p', sanitize: false }, schema).parse(testCase.input);
+      const serializedHtml = HtmlSerializer({}, schema).serialize(fragment);
 
-    assert.equal(serializedHtml,
-      '<p><strong> </strong></p>' +
-      '<p><s> </s></p>' +
-      // isEmpty node logic considers a span with no style attribute and a single space to be empty (Node.ts -> isEmpty -> isEmptyTextNode)
-      '<p>\u00a0</p>' +
-      '<p><span style="color: red;"> </span></p>' +
-      '<p>\u00a0</p>'
-    );
+      assert.equal(serializedHtml, testCase.expected);
+    };
 
-    parser = DomParser({}, Schema({ padd_empty_block_inline_children: false }));
-    serializedHtml = serializer.serialize(parser.parse(html));
+    it('TINY-11019: Should not entity encode text in script elements', () => testSpecialElement({
+      input: '<script>if (a < b) alert(1)</script>',
+      expected: '<script>if (a < b) alert(1)</script>'
+    }));
 
-    assert.equal(serializedHtml,
-      '<p><strong> </strong></p>' +
-      '<p><s> </s></p>' +
-      // isEmpty node logic considers a span with no style attribute and a single space to be empty (Node.ts -> isEmpty -> isEmptyTextNode)
-      '<p>\u00a0</p>' +
-      '<p><span style="color: red;"> </span></p>' +
-      '<p>\u00a0</p>'
-    );
+    it('TINY-11019: Should not entity encode text in style elements', () => testSpecialElement({
+      input: '<style>b > i {}</style>',
+      expected: '<style>b > i {}</style>'
+    }));
 
-    parser = DomParser({}, Schema({ padd_empty_block_inline_children: true }));
-    serializedHtml = serializer.serialize(parser.parse(html));
+    it('TINY-11019: Should not entity decode text inside textarea elements', () => testSpecialElement({
+      input: '<div><textarea>&lt;&gt;&amp;</textarea></div>',
+      expected: '<div><textarea>&lt;&gt;&amp;</textarea></div>'
+    }));
 
-    assert.equal(serializedHtml,
-      '<p><strong> </strong></p>' +
-      '<p><s> </s></p>' +
-      '<p><span class="test">\u00a0</span></p>' +
-      '<p><span style="color: red;"> </span></p>' +
-      '<p>\u00a0</p>'
-    );
-  });
+    it('TINY-11019: Should not entity encode text inside textarea elements', () => testSpecialElement({
+      input: '<div><textarea><b>test</b></textarea></div>',
+      expected: '<div><textarea>&lt;b&gt;test&lt;/b&gt;</textarea></div>'
+    }));
 
-  it('TINY-8639: handling single nbsp text inline elements when root block is otherwise empty', () => {
-    const html = '<p><strong>&nbsp;</strong></p>' +
-    '<p><s>&nbsp;</s></p>' +
-    '<p><span class="test">&nbsp;</span></p>' +
-    '<p><span style="color: red;">&nbsp;</span></p>' +
-    '<p><span>&nbsp;</span></p>';
+    const excluded = [ 'script', 'style', 'title', 'plaintext', 'textarea' ];
+    const specialElements = Arr.filter(Obj.keys(schema.getSpecialElements()), (name) => !Arr.contains(excluded, name));
+    Arr.each(specialElements, (elementName) => {
+      it(`TINY-11019: Should not entity decode text inside ${elementName} elements`, () => testSpecialElement({
+        input: `<div><${elementName}>&lt;&gt;&amp;</${elementName}></div>`,
+        expected: `<div><${elementName}>&lt;&gt;&amp;</${elementName}></div>`
+      }));
 
-    // Assert default behaviour when padd_empty_block_inline_children is not specified (should be equivalent to false)
-    let parser = DomParser({}, Schema({}));
-    let serializedHtml = serializer.serialize(parser.parse(html));
-
-    assert.equal(serializedHtml,
-      '<p><strong>\u00a0</strong></p>' +
-      '<p><s>\u00a0</s></p>' +
-      '<p><span class="test">\u00a0</span></p>' +
-      '<p><span style="color: red;">\u00a0</span></p>' +
-      '<p>\u00a0</p>'
-    );
-
-    parser = DomParser({}, Schema({ padd_empty_block_inline_children: false }));
-    serializedHtml = serializer.serialize(parser.parse(html));
-
-    assert.equal(serializedHtml,
-      '<p><strong>\u00a0</strong></p>' +
-      '<p><s>\u00a0</s></p>' +
-      '<p><span class="test">\u00a0</span></p>' +
-      '<p><span style="color: red;">\u00a0</span></p>' +
-      '<p>\u00a0</p>'
-    );
-
-    parser = DomParser({}, Schema({ padd_empty_block_inline_children: true }));
-    serializedHtml = serializer.serialize(parser.parse(html));
-
-    assert.equal(serializedHtml,
-      '<p><strong>\u00a0</strong></p>' +
-      '<p><s>\u00a0</s></p>' +
-      '<p><span class="test">\u00a0</span></p>' +
-      '<p><span style="color: red;">\u00a0</span></p>' +
-      '<p>\u00a0</p>'
-    );
-  });
-
-  it('TINY-8639: should always remove empty inline element if it is not in an empty block', () => {
-    const html = '<p>ab<strong></strong>cd</p>' +
-    '<p>ab<s></s>cd</p>' +
-    '<p>ab<span class="test"></span>cd</p>' +
-    '<p>ab<span style="color: red;"></span>cd</p>' +
-    '<p>ab<span></span>cd</p>';
-
-    // Assert default behaviour when padd_empty_block_inline_children is not specified (should be equivalent to false)
-    let parser = DomParser({}, Schema({}));
-    let serializedHtml = serializer.serialize(parser.parse(html));
-
-    assert.equal(serializedHtml,
-      '<p>abcd</p>' +
-      '<p>abcd</p>' +
-      '<p>abcd</p>' +
-      '<p>abcd</p>' +
-      '<p>abcd</p>'
-    );
-
-    parser = DomParser({}, Schema({ padd_empty_block_inline_children: false }));
-    serializedHtml = serializer.serialize(parser.parse(html));
-
-    assert.equal(serializedHtml,
-      '<p>abcd</p>' +
-      '<p>abcd</p>' +
-      '<p>abcd</p>' +
-      '<p>abcd</p>' +
-      '<p>abcd</p>'
-    );
-
-    parser = DomParser({}, Schema({ padd_empty_block_inline_children: true }));
-    serializedHtml = serializer.serialize(parser.parse(html));
-
-    assert.equal(serializedHtml,
-      '<p>abcd</p>' +
-      '<p>abcd</p>' +
-      '<p>abcd</p>' +
-      '<p>abcd</p>' +
-      '<p>abcd</p>'
-    );
+      it(`TINY-11019: Should not entity encode elements inside ${elementName} elements`, () => testSpecialElement({
+        input: `<div><${elementName}><em>test</em></${elementName}></div>`,
+        expected: `<div><${elementName}><em>test</em></${elementName}></div>`
+      }));
+    });
   });
 });

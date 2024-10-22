@@ -1,6 +1,6 @@
+import { Waiter } from '@ephox/agar';
 import { beforeEach, context, describe, it } from '@ephox/bedrock-client';
 import { Arr, Type } from '@ephox/katamari';
-import { PlatformDetection } from '@ephox/sand';
 import { TinyApis, TinyAssertions, TinyHooks } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
@@ -18,8 +18,6 @@ const defaultExpectedEvents = [
 ];
 
 describe('browser.tinymce.core.content.EditorContentTest', () => {
-  const isSafari = PlatformDetection.detect().browser.isSafari();
-
   const toHtml = (node: AstNode): string => HtmlSerializer({}).serialize(node);
 
   const assertContentTreeEqualToHtml = (editor: Editor, html: string, msg: string) => {
@@ -287,6 +285,13 @@ describe('browser.tinymce.core.content.EditorContentTest', () => {
           testGetContentTreeWithContentAlteredInGetContent(editor, '<p>replaced</p>', 'Should be replaced html');
         });
 
+        it('TINY-10088: Preserve attributes with self closed HTML tag', () => {
+          const content = '<div data-some-attribute="title=<br/>">abc</div>';
+          const editor = hook.editor();
+          editor.setContent(content);
+          TinyAssertions.assertContent(editor, content, { format: 'raw' });
+        });
+
         const initialContent = '<p>initial</p>';
         const newContent = '<p>new content</p>';
         const manipulatedContent = '<p>manipulated</p>';
@@ -341,6 +346,128 @@ describe('browser.tinymce.core.content.EditorContentTest', () => {
             TinyApis(editor).setRawContent(initial);
             const content = editor.getContent();
             assert.equal(content, final, 'ZWNBSP should be stripped');
+          });
+        });
+
+        context('iframe sandboxing', () => {
+          context('sandbox_iframes default', () => {
+            const hook = TinyHooks.bddSetupLight<Editor>({
+              ...options,
+              base_url: '/project/tinymce/js/tinymce'
+            }, []);
+
+            it('TINY-10348: Iframe should not be sandboxed by default', () => {
+              const editor = hook.editor();
+              editor.setContent('<iframe src="about:blank"></iframe>');
+              TinyAssertions.assertContent(editor, '<p><iframe src="about:blank"></iframe></p>');
+            });
+          });
+
+          context('sandbox_iframes: false', () => {
+            const hook = TinyHooks.bddSetupLight<Editor>({
+              ...options,
+              base_url: '/project/tinymce/js/tinymce',
+              sandbox_iframes: false
+            }, []);
+
+            it('TINY-10348: Iframe should not be sandboxed when sandbox_iframes: false', () => {
+              const editor = hook.editor();
+              editor.setContent('<iframe src="about:blank"></iframe>');
+              TinyAssertions.assertContent(editor, '<p><iframe src="about:blank"></iframe></p>');
+            });
+
+            it('TINY-10348: Iframe with sandbox attribute should not be modified when sandbox_iframes: false', () => {
+              const editor = hook.editor();
+              editor.setContent('<iframe src="about:blank" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>');
+              TinyAssertions.assertContent(editor, '<p><iframe src="about:blank" sandbox="allow-scripts allow-same-origin allow-forms"></iframe></p>');
+            });
+          });
+
+          context('sandbox_iframes: true', () => {
+            const hook = TinyHooks.bddSetupLight<Editor>({
+              ...options,
+              base_url: '/project/tinymce/js/tinymce',
+              sandbox_iframes: true
+            }, []);
+
+            it('TINY-10348: Iframe should be sandboxed when sandbox_iframes: true', () => {
+              const editor = hook.editor();
+              editor.setContent('<iframe src="about:blank"></iframe>');
+              TinyAssertions.assertContent(editor, '<p><iframe src="about:blank" sandbox=""></iframe></p>');
+            });
+
+            it('TINY-10348: Iframe with sandbox attribute should be sandboxed when sandbox_iframes: true', () => {
+              const editor = hook.editor();
+              editor.setContent('<iframe src="about:blank" sandbox="allow-scripts allow-same-origin allow-forms"></iframe>');
+              TinyAssertions.assertContent(editor, '<p><iframe src="about:blank" sandbox=""></iframe></p>');
+            });
+          });
+        });
+
+        context('Convert unsafe embeds', () => {
+          const setAndAssertEmbed = (editor: Editor, embedHtml: string, expectedHtml: string) => {
+            editor.setContent(embedHtml);
+            TinyAssertions.assertContent(editor, `<p>${expectedHtml}</p>`);
+          };
+
+          const testNoConversion = (hook: TinyHooks.Hook<Editor>, embedHtml: string) => () => {
+            const editor = hook.editor();
+            setAndAssertEmbed(editor, embedHtml, embedHtml);
+          };
+
+          const testConversion = (hook: TinyHooks.Hook<Editor>, embedHtml: string, expectedHtml: string) => () => {
+            const editor = hook.editor();
+            setAndAssertEmbed(editor, embedHtml, expectedHtml);
+          };
+
+          context('convert_unsafe_embeds default', () => {
+            const hook = TinyHooks.bddSetupLight<Editor>({
+              ...options,
+              base_url: '/project/tinymce/js/tinymce'
+            }, []);
+
+            it('TINY-10349: Object elements should not be converted', testNoConversion(hook, '<object data="about:blank"></object>'));
+            it('TINY-10349: Embed elements should not be converted', testNoConversion(hook, '<embed src="about:blank">'));
+          });
+
+          context('convert_unsafe_embeds: false', () => {
+            const hook = TinyHooks.bddSetupLight<Editor>({
+              ...options,
+              base_url: '/project/tinymce/js/tinymce',
+              convert_unsafe_embeds: false
+            }, []);
+
+            it('TINY-10349: Object elements should not be converted', testNoConversion(hook, '<object data="about:blank"></object>'));
+            it('TINY-10349: Embed elements should not be converted', testNoConversion(hook, '<embed src="about:blank">'));
+          });
+
+          context('convert_unsafe_embeds: true', () => {
+            const hook = TinyHooks.bddSetupLight<Editor>({
+              ...options,
+              base_url: '/project/tinymce/js/tinymce',
+              convert_unsafe_embeds: true
+            }, []);
+
+            it('TINY-10349: Object elements should be converted to iframe',
+              testConversion(hook, '<object data="about:blank"></object>', '<iframe src="about:blank"></iframe>'));
+
+            it('TINY-10349: Embed elements should be converted to iframe',
+              testConversion(hook, '<embed src="about:blank">', '<iframe src="about:blank"></iframe>'));
+          });
+
+          context('convert_unsafe_embeds: true, sandbox_iframes: true', () => {
+            const hook = TinyHooks.bddSetupLight<Editor>({
+              ...options,
+              base_url: '/project/tinymce/js/tinymce',
+              convert_unsafe_embeds: true,
+              sandbox_iframes: true
+            }, []);
+
+            it('TINY-10349: Object elements should be converted to sandboxed iframe',
+              testConversion(hook, '<object data="about:blank"></object>', '<iframe src="about:blank" sandbox=""></iframe>'));
+
+            it('TINY-10349: Embed elements should be converted to sandboxed iframe',
+              testConversion(hook, '<embed src="about:blank">', '<iframe src="about:blank" sandbox=""></iframe>'));
           });
         });
       });
@@ -425,12 +552,7 @@ describe('browser.tinymce.core.content.EditorContentTest', () => {
           const editor = hook.editor();
           editor.setContent('<p><iframe><p>test</p></iframe></p>');
           const content = editor.getContent();
-          assert.equal(content,
-            // TINY-9624: Investigate Safari-specific HTML output
-            isSafari
-              ? '<p><iframe>&lt;p&gt;test&lt;/p&gt;</iframe></p>'
-              : '<p><iframe><p>test</p></iframe></p>',
-            'getContent should not error when there is iframes with child nodes in content');
+          assert.equal(content, '<p><iframe><p>test</p></iframe></p>', 'getContent should not error when there is iframes with child nodes in content');
         });
 
         it('getContent text with unsanitized content should get text from unsanitized content', () => {
@@ -467,8 +589,7 @@ describe('browser.tinymce.core.content.EditorContentTest', () => {
       it('TINY-10305: setContent html should sanitize content that can cause mXSS via ZWNBSP trimming', () => {
         const editor = hook.editor();
         editor.setContent('<p>test</p><!--\ufeff><iframe onload=alert(document.domain)>-></body>-->');
-        // TINY-10305: Safari escapes text nodes within <iframe>.
-        TinyAssertions.assertRawContent(editor, isSafari ? '<p>test</p><!----><p><iframe>-&gt;&lt;/body&gt;--&gt;&lt;/body&gt;</iframe></p>' : '<p>test</p><!---->');
+        TinyAssertions.assertRawContent(editor, '<p>test</p><!---->');
       });
 
       it('TINY-10305: setContent tree should sanitize content that can cause mXSS via ZWNBSP trimming', () => {
@@ -492,6 +613,90 @@ describe('browser.tinymce.core.content.EditorContentTest', () => {
         editor.setContent(tree);
         TinyAssertions.assertRawContent(editor, '<p>test</p><!---->');
       });
+    });
+  });
+
+  context('SVG elements not enabled by default', () => {
+    const hook = TinyHooks.bddSetupLight<Editor>({
+      base_url: '/project/tinymce/js/tinymce'
+    }, []);
+
+    it('TINY-10237: SVGs is not allowed by default', () => {
+      const editor = hook.editor();
+      editor.setContent('<svg width="100" height="100"><circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red"><script>alert(1)</script></circle></svg>');
+      TinyAssertions.assertContent(editor, '');
+    });
+  });
+
+  context('SVG elements', () => {
+    const hook = TinyHooks.bddSetupLight<Editor>({
+      base_url: '/project/tinymce/js/tinymce',
+      extended_valid_elements: 'svg[width|height]'
+    }, []);
+
+    it('TINY-10237: Retain SVG content if SVGs are allowed but sanitize them', () => {
+      const editor = hook.editor();
+      editor.setContent('<svg width="100" height="100" onload="alert(1)"><circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red"><script>alert(1)</script></circle></svg>');
+      TinyAssertions.assertContent(editor, '<svg width="100" height="100"><circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red"></circle></svg>');
+    });
+
+    it('TINY-10237: Retain SVG content white space', () => {
+      const editor = hook.editor();
+      const svgHtml = `
+        <svg width="100" height="100">
+          <circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red">
+            <desc>foo</desc>
+          </circle>
+        </svg>
+      `.trim();
+      editor.setContent(svgHtml);
+      TinyAssertions.assertContent(editor, svgHtml);
+    });
+  });
+
+  context('SVG elements xss_sanitization: false', () => {
+    const hook = TinyHooks.bddSetupLight<Editor>({
+      base_url: '/project/tinymce/js/tinymce',
+      extended_valid_elements: 'svg[width|height]',
+      xss_sanitization: false
+    }, []);
+
+    it('TINY-10237: Retain SVG content and scripts if sanitization is disabled', () => {
+      const editor = hook.editor();
+      editor.setContent('<svg width="100" height="100"><circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red"><script>alert(1)</script></circle></svg>');
+      TinyAssertions.assertContent(editor, '<svg width="100" height="100"><circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red"><script>alert(1)</script></circle></svg>');
+    });
+  });
+
+  context('Special elements', () => {
+    const hook = TinyHooks.bddSetup<Editor>({
+      base_url: '/project/tinymce/js/tinymce'
+    }, []);
+
+    it('TINY-11019: Should not be possible to run scripts inside noscript elements', async () => {
+      const editor = hook.editor();
+      let state = false;
+      const editorWinGlobal = editor.getWin() as unknown as any;
+
+      editorWinGlobal.xss = () => {
+        state = true;
+      };
+
+      editor.setContent('<noscript>&lt;/noscript&gt;&lt;style onload=xss()&gt;&lt;/style&gt;</noscript>');
+
+      await Waiter.pWait(1);
+
+      delete editorWinGlobal.xss;
+
+      assert.isFalse(state, 'xss function should not have been called');
+      TinyAssertions.assertContent(editor, '<noscript>&lt;/noscript&gt;&lt;style onload=xss()&gt;&lt;/style&gt;</noscript>');
+    });
+
+    it('TINY-11019: Should not double decode noscript contents', () => {
+      const editor = hook.editor();
+
+      editor.setContent('<noscript>&amp;lt;/noscript&amp;&gt;</noscript>');
+      TinyAssertions.assertContent(editor, '<noscript>&amp;lt;/noscript&amp;&gt;</noscript>');
     });
   });
 });

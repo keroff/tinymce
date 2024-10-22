@@ -213,6 +213,8 @@ const insertClipboardContent = (editor: Editor, clipboardContent: ClipboardConte
     // we should convert the HTML to plain text since works better when pasting HTML/Word contents as plain text
     if (hasContentType(clipboardContent, 'text/plain') && isPlainTextHtml) {
       content = clipboardContent['text/plain'];
+      content = PasteUtils.keepStyles(editor, content);
+      content = PasteUtils.parseExcel(editor, content);
     } else {
       content = PasteUtils.innerText(content);
     }

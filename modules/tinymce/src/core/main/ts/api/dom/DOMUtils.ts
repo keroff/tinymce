@@ -11,7 +11,7 @@ import { GeomRect } from '../geom/Rect';
 import Entities from '../html/Entities';
 import Schema from '../html/Schema';
 import Styles, { StyleMap } from '../html/Styles';
-import { URLConverter } from '../OptionTypes';
+import { ForceHexColor, URLConverter } from '../OptionTypes';
 import { MappedEvent } from '../util/EventDispatcher';
 import Tools from '../util/Tools';
 import EventUtils, { EventUtilsCallback } from './EventUtils';
@@ -65,6 +65,7 @@ export interface DOMUtilsSettings {
   onSetAttrib: (event: SetAttribEvent) => void;
   contentCssCors: boolean;
   referrerPolicy: ReferrerPolicy;
+  force_hex_color: ForceHexColor;
 }
 
 export type Target = Node | Window;
@@ -338,7 +339,8 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
   const schema = settings.schema ? settings.schema : Schema({});
   const styles = Styles({
     url_converter: settings.url_converter,
-    url_converter_scope: settings.url_converter_scope
+    url_converter_scope: settings.url_converter_scope,
+    force_hex_color: settings.force_hex_color,
   }, settings.schema);
 
   const events = settings.ownEvents ? new EventUtils() : EventUtils.Event;
@@ -408,7 +410,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
 
         if (originalValue !== val && settings.onSetAttrib) {
           settings.onSetAttrib({
-            attrElm: $elm.dom,
+            attrElm: $elm.dom as HTMLElement, // We lie here to not break backwards compatibility
             attrName: name,
             attrValue: val
           });
@@ -464,7 +466,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
   const getStyle = (elm: string | Element | null, name: string, computed?: boolean): string | undefined => {
     const $elm = get(elm);
 
-    if (Type.isNullable($elm) || !NodeType.isElement($elm)) {
+    if (Type.isNullable($elm) || (!NodeType.isHTMLElement($elm) && !NodeType.isSVGElement($elm))) {
       return undefined;
     }
 
@@ -1023,7 +1025,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
       afterFragment = range.extractContents();
 
       // Insert before chunk
-      parentNode.insertBefore(TrimNode.trimNode(self, beforeFragment), parentElm);
+      parentNode.insertBefore(TrimNode.trimNode(self, beforeFragment, schema), parentElm);
 
       // Insert middle chunk
       if (replacementElm) {
@@ -1034,7 +1036,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
       }
 
       // Insert after chunk
-      parentNode.insertBefore(TrimNode.trimNode(self, afterFragment), parentElm);
+      parentNode.insertBefore(TrimNode.trimNode(self, afterFragment, schema), parentElm);
       remove(parentElm);
 
       return replacementElm || splitElm;
@@ -1094,7 +1096,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
   const fire = (target: Target, name: string, evt?: {}) => events.dispatch(target, name, evt);
 
   const getContentEditable = (node: Node) => {
-    if (node && NodeType.isElement(node)) {
+    if (node && NodeType.isHTMLElement(node)) {
       // Check for fake content editable
       const contentEditable = node.getAttribute('data-mce-contenteditable');
       if (contentEditable && contentEditable !== 'inherit') {
@@ -1126,7 +1128,7 @@ const DOMUtils = (doc: Document, settings: Partial<DOMUtilsSettings> = {}): DOMU
   const isEditable = (node: Node | null | undefined) => {
     if (Type.isNonNullable(node)) {
       const scope = NodeType.isElement(node) ? node : node.parentElement;
-      return Type.isNonNullable(scope) && ContentEditable.isEditable(SugarElement.fromDom(scope));
+      return Type.isNonNullable(scope) && NodeType.isHTMLElement(scope) && ContentEditable.isEditable(SugarElement.fromDom(scope));
     } else {
       return false;
     }

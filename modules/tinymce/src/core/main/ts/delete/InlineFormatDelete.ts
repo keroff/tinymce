@@ -1,13 +1,14 @@
 import { Arr, Fun, Optional, Type } from '@ephox/katamari';
-import { PredicateExists, SugarElement, Traverse } from '@ephox/sugar';
+import { PredicateExists, SugarElement, SugarNode, Traverse } from '@ephox/sugar';
 
 import Editor from '../api/Editor';
+import Schema from '../api/html/Schema';
 import CaretPosition from '../caret/CaretPosition';
-import * as ElementType from '../dom/ElementType';
 import * as NodeType from '../dom/NodeType';
 import * as Parents from '../dom/Parents';
 import * as CaretFormat from '../fmt/CaretFormat';
 import * as FormatContainer from '../fmt/FormatContainer';
+import * as FormatUtils from '../fmt/FormatUtils';
 import * as DeleteElement from './DeleteElement';
 import * as DeleteUtils from './DeleteUtils';
 
@@ -28,10 +29,10 @@ const hasOnlyOneChild = (elm: SugarElement<Node>): boolean =>
   Traverse.childNodesCount(elm) === 1;
 
 const getParentInlinesUntilMultichildInline = (editor: Editor): SugarElement<Node>[] =>
-  getParentsUntil(editor, (elm) => ElementType.isBlock(elm) || hasMultipleChildren(elm));
+  getParentsUntil(editor, (elm) => editor.schema.isBlock(SugarNode.name(elm)) || hasMultipleChildren(elm));
 
 const getParentInlines = (editor: Editor): SugarElement<Node>[] =>
-  getParentsUntil(editor, ElementType.isBlock);
+  getParentsUntil(editor, (el) => editor.schema.isBlock(SugarNode.name(el)));
 
 const getFormatNodes = (editor: Editor, parentInlines: SugarElement<Node>[]): Node[] => {
   const isFormatElement = Fun.curry(CaretFormat.isFormatElement, editor);
@@ -58,7 +59,7 @@ const deleteCaret = (editor: Editor, forward: boolean): Optional<() => void> => 
   const parentInlines = Arr.filter(getParentInlinesUntilMultichildInline(editor), hasOnlyOneChild);
   return Arr.last(parentInlines).bind((target) => {
     const fromPos = CaretPosition.fromRangeStart(editor.selection.getRng());
-    if (DeleteUtils.willDeleteLastPositionInElement(forward, fromPos, target.dom) && !CaretFormat.isEmptyCaretFormatElement(target)) {
+    if (DeleteUtils.willDeleteLastPositionInElement(forward, fromPos, target.dom) && !FormatUtils.isEmptyCaretFormatElement(target)) {
       return Optional.some(() => deleteLastPosition(forward, editor, target, parentInlines));
     } else {
       return Optional.none();
@@ -72,7 +73,7 @@ const isBrInEmptyElement = (editor: Editor, elm: Element): boolean => {
 };
 
 const isEmptyCaret = (elm: Element): boolean =>
-  CaretFormat.isEmptyCaretFormatElement(SugarElement.fromDom(elm));
+  FormatUtils.isEmptyCaretFormatElement(SugarElement.fromDom(elm));
 
 const createCaretFormatAtStart = (editor: Editor, formatNodes: Node[]): void => {
   const startElm = editor.selection.getStart();
@@ -144,11 +145,11 @@ const deleteRange = (editor: Editor): Optional<() => void> => {
 const backspaceDelete = (editor: Editor, forward: boolean): Optional<() => void> =>
   editor.selection.isCollapsed() ? deleteCaret(editor, forward) : deleteRange(editor);
 
-const hasAncestorInlineCaret = (elm: SugarElement<Node>): boolean =>
-  PredicateExists.ancestor(elm, (node) => FormatContainer.isCaretNode(node.dom), ElementType.isBlock);
+const hasAncestorInlineCaret = (elm: SugarElement<Node>, schema: Schema): boolean =>
+  PredicateExists.ancestor(elm, (node) => FormatContainer.isCaretNode(node.dom), (el) => schema.isBlock(SugarNode.name(el)));
 
 const hasAncestorInlineCaretAtStart = (editor: Editor): boolean =>
-  hasAncestorInlineCaret(SugarElement.fromDom(editor.selection.getStart()));
+  hasAncestorInlineCaret(SugarElement.fromDom(editor.selection.getStart()), editor.schema);
 
 const requiresRefreshCaretOverride = (editor: Editor): boolean => {
   const rng = editor.selection.getRng();

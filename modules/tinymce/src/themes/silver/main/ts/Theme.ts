@@ -81,6 +81,7 @@ export default (): void => {
 
     return {
       renderUI,
+      popupContainer,
       getWindowManagerImpl: Fun.constant(windowMgr),
       getNotificationManagerImpl
     };

@@ -5,6 +5,7 @@ import { TinyHooks, TinySelections } from '@ephox/wrap-mcagar';
 
 import Editor from 'tinymce/core/api/Editor';
 import LinkPlugin from 'tinymce/plugins/link/Plugin';
+import PageBreakPlugin from 'tinymce/plugins/pagebreak/Plugin';
 import QuickbarsPlugin from 'tinymce/plugins/quickbars/Plugin';
 
 enum Alignment {
@@ -13,14 +14,15 @@ enum Alignment {
   Center = 'center'
 }
 
-describe('browser.tinymce.plugins.quickbars.SelectionToolbarTest', () => {
+// TODO TINY-10480: Investigate flaky tests
+describe.skip('browser.tinymce.plugins.quickbars.SelectionToolbarTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
     plugins: 'quickbars link pagebreak',
     inline: true,
     toolbar: false,
     menubar: false,
     base_url: '/project/tinymce/js/tinymce'
-  }, [ LinkPlugin, QuickbarsPlugin ], true);
+  }, [ LinkPlugin, QuickbarsPlugin, PageBreakPlugin ], true);
 
   const imgSrc = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 

@@ -13,8 +13,6 @@ describe('browser.tinymce.core.keyboard.EnterKeyAnchorTest', () => {
 
   const zwspPlaceholder = '{ZWSP}';
 
-  const zwspPlaceholder = '{ZWSP}';
-
   const setup = (editor: Editor, html: string, elementPath: number[], offset: number) => {
     editor.setContent(html);
     const body = editor.getBody();

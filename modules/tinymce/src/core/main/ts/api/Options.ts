@@ -5,7 +5,7 @@ import * as Pattern from '../textpatterns/core/Pattern';
 import * as PatternTypes from '../textpatterns/core/PatternTypes';
 import DOMUtils from './dom/DOMUtils';
 import Editor from './Editor';
-import { EditorOptions } from './OptionTypes';
+import { EditorOptions, ForceHexColor } from './OptionTypes';
 import I18n from './util/I18n';
 import Tools from './util/Tools';
 
@@ -162,6 +162,16 @@ const register = (editor: Editor): void => {
   registerOption('keep_styles', {
     processor: 'boolean',
     default: true
+  });
+
+  registerOption('paste_use_excel_parser', {
+    processor: 'boolean',
+    default: false
+  });
+
+  registerOption('paste_keep_style_elements', {
+    processor: 'string',
+    default: ''
   });
 
   registerOption('end_container_on_empty_block', {
@@ -827,6 +837,25 @@ const register = (editor: Editor): void => {
     default: ''
   });
 
+  registerOption('force_hex_color', {
+    processor: (value) => {
+      const options: ForceHexColor[] = [ 'always', 'rgb_only', 'off' ];
+      const valid = Arr.contains(options, value);
+      return valid ? { value, valid } : { valid: false, message: `Must be one of: ${options.join(', ')}.` };
+    },
+    default: 'off',
+  });
+
+  registerOption('sandbox_iframes', {
+    processor: 'boolean',
+    default: false
+  });
+
+  registerOption('convert_unsafe_embeds', {
+    processor: 'boolean',
+    default: false
+  });
+
   // These options must be registered later in the init sequence due to their default values
   editor.on('ScriptsLoaded', () => {
     registerOption('directionality', {
@@ -935,26 +964,19 @@ const shouldPreserveCData = option('preserve_cdata');
 const shouldHighlightOnFocus = option('highlight_on_focus');
 const shouldSanitizeXss = option('xss_sanitization');
 const shouldUseDocumentWrite = option('init_content_sync');
-
-const hasTextPatternsLookup = (editor: Editor): boolean =>
-  editor.options.isSet('text_patterns_lookup');
-
-const getFontStyleValues = (editor: Editor): string[] =>
-  Tools.explode(editor.options.get('font_size_style_values'));
-
-const getFontSizeClasses = (editor: Editor): string[] =>
-  Tools.explode(editor.options.get('font_size_classes'));
-
-const isEncodingXml = (editor: Editor): boolean =>
-  editor.options.get('encoding') === 'xml';
-
-const getAllowedImageFileTypes = (editor: Editor): string[] =>
-  Tools.explode(editor.options.get('images_file_types'));
-
+const hasTextPatternsLookup = (editor: Editor): boolean => editor.options.isSet('text_patterns_lookup');
+const getFontStyleValues = (editor: Editor): string[] => Tools.explode(editor.options.get('font_size_style_values'));
+const getFontSizeClasses = (editor: Editor): string[] => Tools.explode(editor.options.get('font_size_classes'));
+const isEncodingXml = (editor: Editor): boolean => editor.options.get('encoding') === 'xml';
+const getAllowedImageFileTypes = (editor: Editor): string[] => Tools.explode(editor.options.get('images_file_types'));
+const isExcelParseEnabled = option('paste_use_excel_parser');
+const getKeepStyleElements = option('paste_keep_style_elements');
 const hasTableTabNavigation = option('table_tab_navigation');
-
 const getDetailsInitialState = option('details_initial_state');
 const getDetailsSerializedState = option('details_serialized_state');
+const shouldForceHexColor = option('force_hex_color');
+const shouldSandboxIframes = option('sandbox_iframes');
+const shouldConvertUnsafeEmbeds = option('convert_unsafe_embeds');
 
 export {
   register,
@@ -1059,5 +1081,10 @@ export {
   shouldSanitizeXss,
   getDetailsInitialState,
   getDetailsSerializedState,
-  shouldUseDocumentWrite
+  shouldUseDocumentWrite,
+  shouldForceHexColor,
+  shouldSandboxIframes,
+  shouldConvertUnsafeEmbeds,
+  isExcelParseEnabled,
+  getKeepStyleElements
 };

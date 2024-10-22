@@ -4,8 +4,8 @@ import DomParser from '../api/html/DomParser';
 import AstNode from '../api/html/Node';
 import Schema from '../api/html/Schema';
 import Tools from '../api/util/Tools';
-
-import * as Settings from '../api/Settings';
+import Editor from '../api/Editor';
+import * as Options from '../api/Options';
 
 type RegExpFilter = RegExp | [ RegExp, string ] | [ RegExp, (match: string, ...args: any[]) => string ];
 
@@ -129,11 +129,13 @@ const ExcelParser = () => {
   };
 
   const parseStyle = (text: string) => {
-    const styles = {};
+    const styles: any = {};
     let match = styleRegExp.exec(text);
     while (match) {
       if (match.length === 3) {
-        styles[match[1]] = match[2]; // (1) selector (2) style
+        const selector: string = match[1];
+        const style: string = match[1];
+        styles[selector] = style; // (1) selector (2) style
       }
       match = styleRegExp.exec(text);
     }
@@ -153,7 +155,7 @@ const ExcelParser = () => {
   };
 
   return (editor: Editor, html: string) => {
-    if (!Settings.isExcelParseEnabled(editor)) {
+    if (!Options.isExcelParseEnabled(editor)) {
       return html;
     }
 
@@ -180,7 +182,7 @@ const ExcelParser = () => {
 const parseExcel = ExcelParser();
 
 const keepStyles = (editor: Editor, html: string) => {
-  const keepStyleElements = Settings.getKeepStyleElements(editor);
+  const keepStyleElements = Options.getKeepStyleElements(editor);
   if (!keepStyleElements) {
     return html;
   }
