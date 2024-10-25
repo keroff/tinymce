@@ -106,7 +106,7 @@ const setupEvents = (editor: Editor, targetElm: SugarElement, ui: InlineHeader, 
   });
 };
 const render = (editor: Editor, uiRefs: ReadyUiReferences, rawUiConfig: RenderUiConfig, backstage: UiFactoryBackstage, args: RenderArgs): ModeRenderInfo => {
-  const { mainUi } = uiRefs;
+  const { mainUi, dialogUi } = uiRefs;
 
   // This is used to store the reference to the header part of OuterContainer, which is
   // *not* created by this module. This reference is used to make sure that we only bind
@@ -199,6 +199,7 @@ const render = (editor: Editor, uiRefs: ReadyUiReferences, rawUiConfig: RenderUi
 
   return {
     editorContainer: mainUi.outerContainer.element.dom,
+    dialogContainer: dialogUi.mothership.element.dom,
     api
   };
 };

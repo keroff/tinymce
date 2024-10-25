@@ -134,7 +134,7 @@ const ExcelParser = () => {
     while (match) {
       if (match.length === 3) {
         const selector: string = match[1];
-        const style: string = match[1];
+        const style: string = match[2];
         styles[selector] = style; // (1) selector (2) style
       }
       match = styleRegExp.exec(text);

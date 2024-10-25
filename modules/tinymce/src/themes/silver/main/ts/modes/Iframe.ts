@@ -95,7 +95,7 @@ const attachUiMotherships = (editor: Editor, uiRoot: SugarElement<HTMLElement | 
 };
 
 const render = (editor: Editor, uiRefs: ReadyUiReferences, rawUiConfig: RenderUiConfig, backstage: UiFactoryBackstage, args: RenderArgs): ModeRenderInfo => {
-  const { mainUi, uiMotherships } = uiRefs;
+  const { mainUi, uiMotherships, dialogUi } = uiRefs;
   const lastToolbarWidth = Cell(0);
   const outerContainer = mainUi.outerContainer;
 
@@ -201,6 +201,7 @@ const render = (editor: Editor, uiRefs: ReadyUiReferences, rawUiConfig: RenderUi
   return {
     iframeContainer: socket.element.dom,
     editorContainer: outerContainer.element.dom,
+    dialogContainer: dialogUi.mothership.element.dom,
     api
   };
 };

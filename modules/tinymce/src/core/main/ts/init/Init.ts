@@ -122,6 +122,7 @@ const renderFromThemeFunc = (editor: Editor) => {
 const createThemeFalseResult = (element: HTMLElement | null, iframe?: HTMLElement) => {
   return {
     editorContainer: element,
+    dialogContainer: element,
     iframeContainer: iframe,
     api: {}
   };
@@ -178,6 +179,7 @@ const init = async (editor: Editor): Promise<void> => {
   const renderInfo = await renderThemeUi(editor);
   augmentEditorUiApi(editor, Optional.from(renderInfo.api).getOr({}));
   editor.editorContainer = renderInfo.editorContainer as HTMLElement;
+  editor.dialogContainer = renderInfo.dialogContainer as HTMLElement;
   appendContentCssFromSettings(editor);
 
   if (editor.inline) {
@@ -185,7 +187,8 @@ const init = async (editor: Editor): Promise<void> => {
   } else {
     InitIframe.init(editor, {
       editorContainer: renderInfo.editorContainer,
-      iframeContainer: renderInfo.iframeContainer as HTMLElement
+      iframeContainer: renderInfo.iframeContainer as HTMLElement,
+      dialogContainer:  renderInfo.dialogContainer as HTMLElement
     });
   }
 };

@@ -194,6 +194,9 @@ const isKeyboardPasteEvent = (e: KeyboardEvent): boolean =>
   (VK.metaKeyPressed(e) && e.keyCode === 86) || (e.shiftKey && e.keyCode === 45);
 
 const insertClipboardContent = (editor: Editor, clipboardContent: ClipboardContents, html: string, plainTextMode: boolean, shouldSimulateInputEvent: boolean): void => {
+  html = PasteUtils.keepStyles(editor, html);
+  html = PasteUtils.parseExcel(editor, html);
+  
   let content = PasteUtils.trimHtml(html);
 
   const isInternal = hasContentType(clipboardContent, InternalHtml.internalHtmlMime()) || InternalHtml.isMarked(html);
@@ -213,8 +216,6 @@ const insertClipboardContent = (editor: Editor, clipboardContent: ClipboardConte
     // we should convert the HTML to plain text since works better when pasting HTML/Word contents as plain text
     if (hasContentType(clipboardContent, 'text/plain') && isPlainTextHtml) {
       content = clipboardContent['text/plain'];
-      content = PasteUtils.keepStyles(editor, content);
-      content = PasteUtils.parseExcel(editor, content);
     } else {
       content = PasteUtils.innerText(content);
     }

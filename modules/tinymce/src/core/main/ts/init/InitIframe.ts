@@ -10,6 +10,7 @@ import * as InitContentBody from './InitContentBody';
 
 interface BoxInfo {
   readonly editorContainer: HTMLElement | null;
+  readonly dialogContainer: HTMLElement | null;
   readonly iframeContainer: HTMLElement;
 }
 

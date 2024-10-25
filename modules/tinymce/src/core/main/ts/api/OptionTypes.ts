@@ -18,6 +18,7 @@ export interface ContentLanguage {
 
 export type ThemeInitFunc = (editor: Editor, elm: HTMLElement) => {
   editorContainer: HTMLElement;
+  dialogContainer?: HTMLElement;
   iframeContainer: HTMLElement;
   height?: number;
   iframeHeight?: number;

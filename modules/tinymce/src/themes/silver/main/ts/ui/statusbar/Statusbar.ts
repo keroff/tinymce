@@ -2,7 +2,6 @@ import { Behaviour, Focusing, GuiFactory, SimpleSpec } from '@ephox/alloy';
 
 import Editor from 'tinymce/core/api/Editor';
 import I18n from 'tinymce/core/api/util/I18n';
-import { Logo } from 'tinymce/themes/silver/resources/StatusbarLogo';
 
 import * as Options from '../../api/Options';
 import { UiFactoryBackstageProviders } from '../../backstage/Backstage';
@@ -29,7 +28,7 @@ const renderStatusbar = (editor: Editor, providersBackstage: UiFactoryBackstageP
               'target': '_blank',
               'aria-label': I18n.translate([ 'Powered by {0}', 'Tiny' ])
             },
-            innerHtml: Logo.trim()
+            innerHtml: I18n.translate([ 'Powered by {0}', 'Tiny' ]).toUpperCase()
           },
           behaviours: Behaviour.derive([
             Focusing.config({})

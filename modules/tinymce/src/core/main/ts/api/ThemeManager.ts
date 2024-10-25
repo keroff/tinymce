@@ -7,13 +7,13 @@ import { WindowManagerImpl } from './WindowManager';
 export interface RenderResult {
   iframeContainer?: HTMLElement;
   editorContainer: HTMLElement;
+  dialogContainer?: HTMLElement,
   api?: Partial<EditorUiApi>;
 }
 
 export interface Theme {
   ui?: any;
   inline?: any;
-  popupContainer?: any;
   execCommand?: (command: string, ui?: boolean, value?: any) => boolean;
   destroy?: () => void;
   init?: (editor: Editor, url: string) => void;

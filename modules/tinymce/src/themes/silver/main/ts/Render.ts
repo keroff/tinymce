@@ -36,6 +36,7 @@ import { ViewConfig } from './ui/view/ViewTypes';
 export interface ModeRenderInfo {
   readonly iframeContainer?: HTMLIFrameElement;
   readonly editorContainer: HTMLElement;
+  readonly dialogContainer?: HTMLElement;
   readonly api?: Partial<EditorUiApi>;
 }
 

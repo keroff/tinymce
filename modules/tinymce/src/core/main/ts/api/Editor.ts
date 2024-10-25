@@ -210,6 +210,7 @@ class Editor implements EditorObservable {
   public destroyed: boolean = false;
   public dom!: DOMUtils;
   public editorContainer!: HTMLElement;
+  public dialogContainer!: HTMLElement;
   public eventRoot: Element | undefined;
   public formatter!: Formatter;
   public formElement: HTMLElement | undefined;
