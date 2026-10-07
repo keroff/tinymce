@@ -94,6 +94,20 @@ const innerText = (html: string): string => {
   return text;
 };
 
+// Clipboard HTML is untrusted: parse it with DOMParser (an inert document), so <img onerror> and the like do not run.
+// The head and body content is moved into one div, like the former div.innerHTML did (meta and style stay in the content)
+const createInertDiv = (html: string): HTMLDivElement => {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const div = doc.createElement('div');
+  while (doc.head.firstChild) {
+    div.appendChild(doc.head.firstChild);
+  }
+  while (doc.body.firstChild) {
+    div.appendChild(doc.body.firstChild);
+  }
+  return div;
+};
+
 const ExcelParser = () => {
 
   const commentStart = '<!--';
@@ -159,8 +173,7 @@ const ExcelParser = () => {
       return html;
     }
 
-    const div = document.createElement('div');
-    div.innerHTML = html;
+    const div = createInertDiv(html);
     if (!isExcelSheet(div)) {
       return html;
     }
@@ -187,8 +200,7 @@ const keepStyles = (editor: Editor, html: string) => {
     return html;
   }
 
-  const div = document.createElement('div');
-  div.innerHTML = html;
+  const div = createInertDiv(html);
 
   const elements = keepStyleElements.split('|');
   for (let i = 0; i < elements.length; i++) {
